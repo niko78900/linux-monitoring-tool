@@ -132,6 +132,24 @@ h1 {
   color: #93c5fd;
 }
 
+.detail-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.detail-card-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.drive-count {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
 .full-span {
   grid-column: 1 / -1;
 }
@@ -206,6 +224,21 @@ td {
   color: #e2e8f0;
 }
 
+.drive-table th,
+.drive-table td {
+  white-space: nowrap;
+}
+
+.status-cell {
+  white-space: nowrap;
+}
+
+.drive-reason {
+  min-width: 220px;
+  white-space: normal;
+  color: #cbd5e1;
+}
+
 @keyframes shimmer {
   0% {
     background-position: 100% 0;
@@ -241,5 +274,10 @@ td {
 
   .topbar-actions {
     justify-content: space-between;
+  }
+
+  .detail-card-head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

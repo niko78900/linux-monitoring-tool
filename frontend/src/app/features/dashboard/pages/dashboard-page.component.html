@@ -141,28 +141,73 @@
             </section>
 
             <section class="detail-card">
-              <h3>Disk</h3>
-              <app-info-row label="Mountpoint" [value]="system.disk.mountpoint" />
-              <app-info-row label="Total" [value]="system.disk.total | bytes" />
-              <app-info-row label="Used" [value]="system.disk.used | bytes" />
-              <app-info-row label="Free" [value]="system.disk.free | bytes" />
-              <app-info-row
-                label="Used / Total"
-                [value]="usagePairLabel(system.disk.used, system.disk.total)"
-              />
-              <app-info-row label="Usage" [value]="asPercent(system.disk.percent)" />
-              <app-progress-bar
-                [value]="system.disk.percent"
-                [tone]="usageTone(system.disk.percent)"
-              />
-            </section>
-
-            <section class="detail-card">
               <h3>Network</h3>
               <app-info-row label="Bytes Sent" [value]="system.network.bytes_sent | bytes" />
               <app-info-row label="Bytes Received" [value]="system.network.bytes_recv | bytes" />
               <app-info-row label="Packets Sent" [value]="system.network.packets_sent" />
               <app-info-row label="Packets Received" [value]="system.network.packets_recv" />
+            </section>
+
+            <section class="detail-card full-span">
+              <div class="detail-card-head">
+                <h3>Storage Devices</h3>
+                <div class="detail-card-head-actions">
+                  <app-status-badge
+                    [label]="disksOnlineLabel(system)"
+                    [tone]="disksOnlineTone(system)"
+                  />
+                  <span class="drive-count">{{ systemDisks(system).length }} total</span>
+                </div>
+              </div>
+
+              @if (systemDisks(system).length > 0) {
+                <div class="table-scroll">
+                  <table class="drive-table">
+                    <thead>
+                      <tr>
+                        <th>Mount</th>
+                        <th>Device</th>
+                        <th>FS</th>
+                        <th>Used / Total</th>
+                        <th>Free</th>
+                        <th>Usage</th>
+                        <th>Online</th>
+                        <th>Health</th>
+                        <th>RO</th>
+                        <th>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (drive of systemDisks(system); track trackByDiskKey($index, drive)) {
+                        <tr>
+                          <td>{{ drive.mountpoint | na }}</td>
+                          <td>{{ drive.device | na }}</td>
+                          <td>{{ drive.fstype | na }}</td>
+                          <td>{{ usagePairLabel(drive.used, drive.total) }}</td>
+                          <td>{{ drive.free | bytes }}</td>
+                          <td>{{ asPercent(drive.percent) }}</td>
+                          <td class="status-cell">
+                            <app-status-badge
+                              [label]="diskAvailabilityLabel(drive)"
+                              [tone]="diskAvailabilityTone(drive)"
+                            />
+                          </td>
+                          <td class="status-cell">
+                            <app-status-badge
+                              [label]="diskHealthLabel(drive)"
+                              [tone]="diskHealthTone(drive)"
+                            />
+                          </td>
+                          <td>{{ drive.read_only ? 'Yes' : 'No' }}</td>
+                          <td class="drive-reason">{{ diskHealthReason(drive) }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              } @else {
+                <p class="state empty">No disk data returned by backend.</p>
+              }
             </section>
           } @else {
             <p class="state error full-span">System data unavailable. {{ vm.system.error | na }}</p>

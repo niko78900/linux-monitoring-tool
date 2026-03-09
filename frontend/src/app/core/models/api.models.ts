@@ -49,6 +49,26 @@ export interface DiskInfo {
   mountpoint: string;
 }
 
+export type DiskHealthStatus = 'healthy' | 'warning' | 'critical' | 'unknown';
+
+export interface DiskHealthInfo {
+  status: DiskHealthStatus;
+  reason: string;
+}
+
+export interface DiskDeviceInfo {
+  device: string;
+  mountpoint: string;
+  fstype: string;
+  total: number;
+  used: number;
+  free: number;
+  percent: number;
+  read_only: boolean;
+  available: boolean;
+  health: DiskHealthInfo;
+}
+
 export interface NetworkInfo {
   bytes_sent: number;
   bytes_recv: number;
@@ -68,6 +88,7 @@ export interface SystemResponse {
   memory: MemoryInfo;
   swap: SwapInfo;
   disk: DiskInfo;
+  disks?: DiskDeviceInfo[];
   network: NetworkInfo;
 }
 
