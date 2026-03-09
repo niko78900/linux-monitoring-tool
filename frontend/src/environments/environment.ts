@@ -3,8 +3,8 @@ export const environment = {
   backendBaseUrl: 'http://192.168.100.34:4040',
   apiPrefix: '/api',
   polling: {
-    summaryMs: 5000,
-    detailsMs: 10000,
-    healthMs: 15000
+    summaryMs: 1000,
+    detailsMs: 1000,
+    healthMs: 1000
   }
 };
