@@ -31,7 +31,7 @@ pip install -r requirements.txt
 Windows PowerShell:
 
 ```powershell
-cd Backend
+cd backend
 python -m venv .venv
 .\.venv\Scripts\python.exe -m ensurepip --upgrade
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
@@ -58,17 +58,17 @@ python run.py
 
 Default URL:
 
-- API root: `http://localhost:8000/api`
-- Docs: `http://localhost:8000/api/docs`
+- API root: `http://192.168.100.34:4040/api`
+- Docs: `http://192.168.100.34:4040/api/docs`
 
 ## 4) Test endpoints
 
 ```bash
-curl http://localhost:8000/api/health
-curl http://localhost:8000/api/system
-curl http://localhost:8000/api/gpu
-curl http://localhost:8000/api/docker
-curl http://localhost:8000/api/summary
+curl http://192.168.100.34:4040/api/health
+curl http://192.168.100.34:4040/api/system
+curl http://192.168.100.34:4040/api/gpu
+curl http://192.168.100.34:4040/api/docker
+curl http://192.168.100.34:4040/api/summary
 ```
 
 ## Notes on permissions

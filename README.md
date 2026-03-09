@@ -2,10 +2,10 @@
 
 This repository is configured as:
 
-- `backend/`: Flask API (`/api/health`)
-- `frontend/`: Angular app with a dev proxy for `/api/*` to Flask
+- `backend/`: FastAPI monitoring backend (`/api/*`)
+- `frontend/`: Angular dashboard frontend
 
-## 1) Start backend (Flask)
+## 1) Start backend (FastAPI)
 
 ```powershell
 cd backend
@@ -16,7 +16,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe run.py
 ```
 
-Backend runs on `http://127.0.0.1:5000`.
+Backend runs on `http://192.168.100.34:4040`.
 
 ## 2) Start frontend (Angular)
 
@@ -28,7 +28,7 @@ npm.cmd install
 npm.cmd start
 ```
 
-Frontend runs on `http://localhost:4200`.
+Frontend runs on `http://192.168.100.34:4041`.
 
 `npm.cmd start` uses `proxy.conf.json`, so Angular requests to `/api/*`
-are proxied to `http://127.0.0.1:5000`.
+are proxied to `http://192.168.100.34:4040`.

@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env")
 
-DEFAULT_ORIGINS = ["http://localhost:4200", "http://127.0.0.1:4200"]
+DEFAULT_ORIGINS = ["http://192.168.100.34:4041"]
 
 
 def _parse_origins(raw_origins: str | None) -> list[str]:
@@ -48,7 +48,7 @@ def get_settings() -> Settings:
         cors_origins=_parse_origins(os.getenv("CORS_ORIGINS")),
         disk_mountpoint=os.getenv("DISK_MOUNTPOINT", "/"),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
-        host=os.getenv("HOST", "0.0.0.0"),
-        port=int(os.getenv("PORT", "8000")),
+        host=os.getenv("HOST", "192.168.100.34"),
+        port=int(os.getenv("PORT", "4040")),
         reload=_parse_bool(os.getenv("RELOAD"), default=True),
     )

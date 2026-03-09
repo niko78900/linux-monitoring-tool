@@ -39,7 +39,7 @@ npm install
 PowerShell (if script execution policy blocks `npm`):
 
 ```powershell
-cd Frontend
+cd frontend
 npm.cmd install
 ```
 
@@ -52,8 +52,7 @@ Environment files:
 
 Config keys:
 
-- `backendBaseUrl`: host + port of backend, e.g. `http://localhost:8000`
-  - Use `''` with Angular proxy for local development.
+- `backendBaseUrl`: host + port of backend, e.g. `http://192.168.100.34:4040`
 - `apiPrefix`: backend API prefix (default `/api`)
 - `polling.summaryMs`: summary polling interval
 - `polling.detailsMs`: system/gpu/docker polling interval
@@ -61,15 +60,15 @@ Config keys:
 
 Default setup in this project assumes:
 
-- `backendBaseUrl = ''`
+- `backendBaseUrl = 'http://192.168.100.34:4040'`
 - `apiPrefix = '/api'`
 
-and uses `proxy.conf.json` so `/api/*` is proxied to `http://127.0.0.1:8000`.
+and uses `proxy.conf.json` so `/api/*` is proxied to `http://192.168.100.34:4040`.
 
-If your FastAPI backend runs on `http://localhost:8000`, either:
+If your FastAPI backend runs on a different host or port, either:
 
-1. keep the default proxy target (`http://127.0.0.1:8000`), or
-2. set `backendBaseUrl` to `http://127.0.0.1:8000` and run without proxy.
+1. update `proxy.conf.json`, or
+2. set `backendBaseUrl` in environment files.
 
 ## Run dev server
 
@@ -85,7 +84,7 @@ npm.cmd start
 
 App URL:
 
-- `http://localhost:4200`
+- `http://192.168.100.34:4041`
 
 ## Build for production
 
