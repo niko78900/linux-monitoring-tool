@@ -10,9 +10,13 @@
 
   @if (subtitle) {
     <p class="subtitle">{{ subtitle }}</p>
+  } @else {
+    <p class="subtitle placeholder">-</p>
   }
 
   @if (progressValue !== null) {
     <app-progress-bar [value]="progressValue" [tone]="progressTone" />
+  } @else {
+    <div class="progress-placeholder" aria-hidden="true"></div>
   }
 </article>

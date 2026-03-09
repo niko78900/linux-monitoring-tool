@@ -44,12 +44,14 @@
         <app-metric-card
           title="Memory Usage"
           [value]="asPercent(vm.summary.data?.memory_percent)"
+          [subtitle]="vm.system.data ? usagePairLabel(vm.system.data.memory.used, vm.system.data.memory.total) : null"
           [progressValue]="vm.summary.data?.memory_percent ?? null"
           [progressTone]="usageTone(vm.summary.data?.memory_percent ?? null)"
         />
         <app-metric-card
           title="Disk Usage"
           [value]="asPercent(vm.summary.data?.disk_percent)"
+          [subtitle]="vm.system.data ? usagePairLabel(vm.system.data.disk.used, vm.system.data.disk.total) : null"
           [progressValue]="vm.summary.data?.disk_percent ?? null"
           [progressTone]="usageTone(vm.summary.data?.disk_percent ?? null)"
         />
@@ -117,6 +119,10 @@
             <app-info-row label="Total" [value]="system.memory.total | bytes" />
             <app-info-row label="Available" [value]="system.memory.available | bytes" />
             <app-info-row label="Used" [value]="system.memory.used | bytes" />
+            <app-info-row
+              label="Used / Total"
+              [value]="usagePairLabel(system.memory.used, system.memory.total)"
+            />
             <app-info-row label="Usage" [value]="asPercent(system.memory.percent)" />
             <app-progress-bar
               [value]="system.memory.percent"
@@ -137,6 +143,10 @@
             <app-info-row label="Total" [value]="system.disk.total | bytes" />
             <app-info-row label="Used" [value]="system.disk.used | bytes" />
             <app-info-row label="Free" [value]="system.disk.free | bytes" />
+            <app-info-row
+              label="Used / Total"
+              [value]="usagePairLabel(system.disk.used, system.disk.total)"
+            />
             <app-info-row label="Usage" [value]="asPercent(system.disk.percent)" />
             <app-progress-bar
               [value]="system.disk.percent"

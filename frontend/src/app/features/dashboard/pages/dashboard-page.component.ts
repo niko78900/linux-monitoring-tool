@@ -71,6 +71,22 @@ export class DashboardPageComponent {
     return formatDockerPorts(ports as never);
   }
 
+  protected usagePairLabel(used: number | null | undefined, total: number | null | undefined): string {
+    if (
+      used === null ||
+      used === undefined ||
+      total === null ||
+      total === undefined ||
+      Number.isNaN(used) ||
+      Number.isNaN(total)
+    ) {
+      return 'N/A';
+    }
+
+    const gb = 1000 ** 3;
+    return `${(used / gb).toFixed(1)} / ${(total / gb).toFixed(1)} GB`;
+  }
+
   protected trackByContainerId(index: number, item: { id: string }): string {
     return `${item.id}-${index}`;
   }
