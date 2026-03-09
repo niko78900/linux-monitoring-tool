@@ -86,6 +86,21 @@ class RaidArrayMetrics(BaseModel):
     health: RaidHealth
 
 
+class PhysicalDiskMetrics(BaseModel):
+    name: str
+    device: str
+    model: str | None = None
+    vendor: str | None = None
+    serial: str | None = None
+    size_bytes: int = Field(ge=0)
+    rotational: bool | None = None
+    removable: bool = False
+    state: str | None = None
+    mounted_partitions: list[str] = Field(default_factory=list)
+    raid_arrays: list[str] = Field(default_factory=list)
+    health: DiskHealth
+
+
 class NetworkMetrics(BaseModel):
     bytes_sent: int = Field(ge=0)
     bytes_recv: int = Field(ge=0)
@@ -106,4 +121,5 @@ class SystemResponse(BaseModel):
     disk: DiskMetrics
     disks: list[DiskDeviceMetrics] = Field(default_factory=list)
     raid_arrays: list[RaidArrayMetrics] = Field(default_factory=list)
+    physical_disks: list[PhysicalDiskMetrics] = Field(default_factory=list)
     network: NetworkMetrics

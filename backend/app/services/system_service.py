@@ -16,6 +16,7 @@ from app.models.system import (
     LoadAverage,
     MemoryMetrics,
     NetworkMetrics,
+    PhysicalDiskMetrics,
     PlatformInfo,
     RaidArrayMetrics,
     RaidHealth,
@@ -56,6 +57,7 @@ IGNORED_FSTYPES = {
 
 IGNORED_MOUNT_PREFIXES = ("/proc", "/sys", "/dev", "/run", "/snap")
 IGNORED_EXACT_MOUNTPOINTS = {"/boot/efi"}
+IGNORED_PHYSICAL_DEVICE_PREFIXES = ("loop", "ram", "zram", "dm-", "md", "fd", "sr")
 
 
 def get_system_metrics(mountpoint: str) -> SystemResponse:
@@ -78,6 +80,7 @@ def get_system_metrics(mountpoint: str) -> SystemResponse:
         disk=primary_disk,
         disks=_get_disks_metrics(mountpoint, primary_disk, raid_arrays),
         raid_arrays=raid_arrays,
+        physical_disks=_get_physical_disks_metrics(raid_arrays),
         network=_get_network_metrics(),
     )
 
@@ -524,6 +527,183 @@ def _get_raid_arrays_metrics() -> list[RaidArrayMetrics]:
 
     arrays.sort(key=lambda raid_array: raid_array.device.lower())
     return arrays
+
+
+def _parse_bool_text(raw_value: str | None, default: bool = False) -> bool:
+    if raw_value is None:
+        return default
+    return raw_value.strip().lower() in {"1", "true", "yes", "on", "y"}
+
+
+def _normalize_block_device_name(device_or_path: str) -> str:
+    if not device_or_path:
+        return ""
+    basename = os.path.basename(device_or_path.strip())
+    if not basename:
+        return ""
+
+    if basename.startswith(("nvme", "mmcblk")):
+        partition_match = re.match(r"^(.+?)p\d+$", basename)
+        if partition_match:
+            return partition_match.group(1)
+        return basename
+
+    trailing_digits_match = re.match(r"^([a-zA-Z]+)\d+$", basename)
+    if trailing_digits_match:
+        return trailing_digits_match.group(1)
+
+    return basename
+
+
+def _is_physical_block_device_name(device_name: str) -> bool:
+    if not device_name:
+        return False
+    if device_name.startswith(IGNORED_PHYSICAL_DEVICE_PREFIXES):
+        return False
+    return True
+
+
+def _collect_mountpoints_by_physical_disk() -> dict[str, list[str]]:
+    mounts_by_disk: dict[str, set[str]] = {}
+    if psutil is None:
+        return {}
+
+    try:
+        partitions = psutil.disk_partitions(all=False)
+    except (AttributeError, OSError) as exc:
+        logger.warning("Could not collect partitions for physical disks: %s", exc)
+        return {}
+
+    for partition in partitions:
+        mountpoint = str(getattr(partition, "mountpoint", "") or "").strip()
+        fstype = str(getattr(partition, "fstype", "") or "").strip()
+        device = str(getattr(partition, "device", "") or "").strip()
+        if not mountpoint or not device:
+            continue
+        if not _is_relevant_partition(mountpoint, fstype):
+            continue
+
+        disk_name = _normalize_block_device_name(device)
+        if not _is_physical_block_device_name(disk_name):
+            continue
+
+        mounts_by_disk.setdefault(disk_name, set()).add(mountpoint)
+
+    return {
+        disk_name: sorted(mounts)
+        for disk_name, mounts in mounts_by_disk.items()
+    }
+
+
+def _build_raid_membership_by_physical_disk(raid_arrays: list[RaidArrayMetrics]) -> dict[str, list[RaidArrayMetrics]]:
+    membership: dict[str, list[RaidArrayMetrics]] = {}
+    for raid_array in raid_arrays:
+        for member in raid_array.members:
+            disk_name = _normalize_block_device_name(member)
+            if not _is_physical_block_device_name(disk_name):
+                continue
+            membership.setdefault(disk_name, []).append(raid_array)
+
+    for disk_name, arrays in membership.items():
+        unique_arrays = {array.device: array for array in arrays}
+        membership[disk_name] = sorted(unique_arrays.values(), key=lambda item: item.device.lower())
+    return membership
+
+
+def _build_physical_disk_health(
+    *,
+    size_bytes: int,
+    state: str | None,
+    raid_arrays: list[RaidArrayMetrics],
+) -> DiskHealth:
+    if size_bytes <= 0:
+        return DiskHealth(status="unknown", reason="Disk size could not be determined.")
+
+    normalized_state = (state or "").strip().lower()
+    if normalized_state in {"offline", "faulty", "error", "dead"}:
+        return DiskHealth(status="critical", reason=f"Kernel reports disk state '{state}'.")
+    if normalized_state and normalized_state not in {"running", "live", "active"}:
+        return DiskHealth(status="warning", reason=f"Kernel reports disk state '{state}'.")
+
+    if raid_arrays:
+        if any(raid_array.health.status == "critical" for raid_array in raid_arrays):
+            return DiskHealth(status="warning", reason="Member of a degraded RAID array.")
+        if any(raid_array.health.status == "warning" for raid_array in raid_arrays):
+            return DiskHealth(status="warning", reason="Member of a RAID array under sync/recovery.")
+
+    return DiskHealth(status="healthy", reason="Physical disk reports healthy kernel state.")
+
+
+def _get_physical_disks_metrics(raid_arrays: list[RaidArrayMetrics]) -> list[PhysicalDiskMetrics]:
+    if os.name == "nt":
+        return []
+
+    sys_block = "/sys/block"
+    if not os.path.isdir(sys_block):
+        return []
+
+    try:
+        block_devices = os.listdir(sys_block)
+    except OSError as exc:
+        logger.warning("Could not list physical block devices: %s", exc)
+        return []
+
+    mounts_by_disk = _collect_mountpoints_by_physical_disk()
+    raid_membership = _build_raid_membership_by_physical_disk(raid_arrays)
+
+    physical_disks: list[PhysicalDiskMetrics] = []
+    for device_name in block_devices:
+        if not _is_physical_block_device_name(device_name):
+            continue
+
+        device_path = os.path.join(sys_block, device_name)
+        if not os.path.isdir(device_path):
+            continue
+
+        # Skip pseudo devices that do not represent a real hardware-backed disk.
+        if not os.path.exists(os.path.join(device_path, "device")):
+            continue
+
+        size_sectors = _parse_int(_read_text_file(os.path.join(device_path, "size")))
+        logical_block_size = _parse_int(_read_text_file(os.path.join(device_path, "queue", "logical_block_size")), default=512)
+        size_bytes = size_sectors * logical_block_size
+
+        state = _read_text_file(os.path.join(device_path, "device", "state"))
+        model = _read_text_file(os.path.join(device_path, "device", "model"))
+        vendor = _read_text_file(os.path.join(device_path, "device", "vendor"))
+        serial = _read_text_file(os.path.join(device_path, "device", "serial"))
+        rotational_value = _read_text_file(os.path.join(device_path, "queue", "rotational"))
+        rotational = None
+        if rotational_value is not None:
+            rotational = rotational_value.strip() == "1"
+        removable = _parse_bool_text(_read_text_file(os.path.join(device_path, "removable")))
+        mounted_partitions = mounts_by_disk.get(device_name, [])
+        disk_raid_arrays = raid_membership.get(device_name, [])
+        raid_array_names = [raid_array.name for raid_array in disk_raid_arrays]
+
+        physical_disks.append(
+            PhysicalDiskMetrics(
+                name=device_name,
+                device=f"/dev/{device_name}",
+                model=model,
+                vendor=vendor,
+                serial=serial,
+                size_bytes=size_bytes,
+                rotational=rotational,
+                removable=removable,
+                state=state,
+                mounted_partitions=mounted_partitions,
+                raid_arrays=raid_array_names,
+                health=_build_physical_disk_health(
+                    size_bytes=size_bytes,
+                    state=state,
+                    raid_arrays=disk_raid_arrays,
+                ),
+            )
+        )
+
+    physical_disks.sort(key=lambda disk: disk.device.lower())
+    return physical_disks
 
 
 def _get_network_metrics() -> NetworkMetrics:
