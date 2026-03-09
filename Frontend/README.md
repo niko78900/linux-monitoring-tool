@@ -1,59 +1,125 @@
-# LinuxMonitoringUi
+# linux-monitor frontend (Angular)
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.10.
+Read-only homelab dashboard for the FastAPI monitoring backend.
 
-## Development server
+## Features
 
-To start a local development server, run:
+- Dark-theme dashboard with summary cards and detail panels
+- Polling-based data refresh (no WebSockets)
+- Graceful handling of unavailable GPU/Docker telemetry
+- Environment-based API base URL and prefix configuration
+- Compact, expandable Angular architecture (core/services/models/shared components)
 
-```bash
-ng serve
+## Project structure
+
+```text
+frontend/
+  src/
+    app/
+      core/
+        models/
+        pipes/
+        services/
+        utils/
+      features/
+        dashboard/
+          pages/
+      shared/
+        components/
+    environments/
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Install dependencies
 
 ```bash
-ng generate component component-name
+cd frontend
+npm install
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+PowerShell (if script execution policy blocks `npm`):
+
+```powershell
+cd Frontend
+npm.cmd install
+```
+
+## Configure backend API URL and prefix
+
+Environment files:
+
+- `src/environments/environment.ts` (production build defaults)
+- `src/environments/environment.development.ts` (dev server)
+
+Config keys:
+
+- `backendBaseUrl`: host + port of backend, e.g. `http://localhost:8000`
+  - Use `''` with Angular proxy for local development.
+- `apiPrefix`: backend API prefix (default `/api`)
+- `polling.summaryMs`: summary polling interval
+- `polling.detailsMs`: system/gpu/docker polling interval
+- `polling.healthMs`: health polling interval
+
+Default setup in this project assumes:
+
+- `backendBaseUrl = ''`
+- `apiPrefix = '/api'`
+
+and uses `proxy.conf.json` so `/api/*` is proxied to `http://127.0.0.1:8000`.
+
+If your FastAPI backend runs on `http://localhost:8000`, either:
+
+1. keep the default proxy target (`http://127.0.0.1:8000`), or
+2. set `backendBaseUrl` to `http://127.0.0.1:8000` and run without proxy.
+
+## Run dev server
 
 ```bash
-ng generate --help
+npm start
 ```
 
-## Building
+PowerShell:
 
-To build the project run:
+```powershell
+npm.cmd start
+```
+
+App URL:
+
+- `http://localhost:4200`
+
+## Build for production
 
 ```bash
-ng build
+npm run build
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+Build output:
 
-## Running unit tests
+- `dist/linux-monitoring-ui`
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+## Backend contract used by this frontend
 
-```bash
-ng test
-```
+The frontend reads only these endpoints:
 
-## Running end-to-end tests
+- `GET /api/health`
+- `GET /api/system`
+- `GET /api/gpu`
+- `GET /api/docker`
+- `GET /api/summary`
 
-For end-to-end (e2e) testing, run:
+No write/admin/control actions are implemented.
 
-```bash
-ng e2e
-```
+## Notes about response shape assumptions
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+This frontend aligns with the FastAPI models you described and also tolerates minor shape variants:
 
-## Additional Resources
+- `system.os` object is preferred; fallback `system.platform` is supported.
+- `cpu.load_average` supports object form (`one_min`, `five_min`, `fifteen_min`) and array form (`[1,5,15]`).
+- `docker.containers[].ports` supports object map form and string form.
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Unavailable subsystem behavior:
+
+- GPU unavailable: section renders a non-fatal unavailable state with backend reason.
+- Docker unavailable: section renders a non-fatal unavailable state with backend reason.
+
+If one endpoint fails, other sections continue rendering with their latest successful data.

@@ -1,0 +1,18 @@
+<article class="metric-card">
+  <header>
+    <span class="title">{{ title }}</span>
+    @if (badgeLabel) {
+      <app-status-badge [label]="badgeLabel" [tone]="badgeTone" />
+    }
+  </header>
+
+  <p class="value">{{ value | na }}</p>
+
+  @if (subtitle) {
+    <p class="subtitle">{{ subtitle }}</p>
+  }
+
+  @if (progressValue !== null) {
+    <app-progress-bar [value]="progressValue" [tone]="progressTone" />
+  }
+</article>

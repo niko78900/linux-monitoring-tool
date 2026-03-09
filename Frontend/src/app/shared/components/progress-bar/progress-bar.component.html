@@ -1,0 +1,14 @@
+<div class="progress-wrap">
+  <div class="track">
+    <div
+      class="fill"
+      [class.good]="tone === 'good'"
+      [class.warn]="tone === 'warn'"
+      [class.bad]="tone === 'bad'"
+      [style.width.%]="widthPercent"
+    ></div>
+  </div>
+  @if (showLabel) {
+    <span class="label">{{ valueLabel }}</span>
+  }
+</div>

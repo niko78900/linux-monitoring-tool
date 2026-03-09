@@ -1,0 +1,263 @@
+@if (vm$ | async; as vm) {
+  <main class="dashboard-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Homelab Monitoring</p>
+        <h1>linux-monitor</h1>
+      </div>
+      <div class="topbar-actions">
+        <app-status-badge
+          [label]="vm.backendReachable ? 'API Reachable' : 'API Unreachable'"
+          [tone]="vm.backendReachable ? 'good' : 'bad'"
+        />
+        <a class="docs-link" [href]="docsUrl" target="_blank" rel="noreferrer noopener">API Docs</a>
+      </div>
+    </header>
+
+    <p class="last-updated">Last updated: {{ vm.lastUpdated | localDate }}</p>
+
+    @if (vm.globalError) {
+      <section class="global-error">
+        <h2>Backend Offline</h2>
+        <p>
+          {{ vm.globalError }} Make sure the FastAPI server is running and reachable from this frontend.
+        </p>
+      </section>
+    }
+
+    @if (vm.firstLoadPending) {
+      <section class="skeleton-grid">
+        @for (_ of [1, 2, 3, 4, 5, 6]; track $index) {
+          <div class="skeleton-card"></div>
+        }
+      </section>
+    } @else {
+      <section class="summary-grid">
+        <app-metric-card title="Hostname" [value]="vm.summary.data?.hostname ?? vm.system.data?.hostname ?? 'N/A'" />
+        <app-metric-card title="Uptime" [value]="vm.summary.data?.uptime_human ?? vm.system.data?.uptime_human ?? 'N/A'" />
+        <app-metric-card
+          title="CPU Usage"
+          [value]="asPercent(vm.summary.data?.cpu_percent)"
+          [progressValue]="vm.summary.data?.cpu_percent ?? null"
+          [progressTone]="usageTone(vm.summary.data?.cpu_percent ?? null)"
+        />
+        <app-metric-card
+          title="Memory Usage"
+          [value]="asPercent(vm.summary.data?.memory_percent)"
+          [progressValue]="vm.summary.data?.memory_percent ?? null"
+          [progressTone]="usageTone(vm.summary.data?.memory_percent ?? null)"
+        />
+        <app-metric-card
+          title="Disk Usage"
+          [value]="asPercent(vm.summary.data?.disk_percent)"
+          [progressValue]="vm.summary.data?.disk_percent ?? null"
+          [progressTone]="usageTone(vm.summary.data?.disk_percent ?? null)"
+        />
+        <app-metric-card
+          title="GPU"
+          [value]="vm.summary.data?.gpu_available ? 'Available' : 'Unavailable'"
+          [badgeLabel]="vm.summary.data?.gpu_available ? 'Online' : 'Offline'"
+          [badgeTone]="vm.summary.data?.gpu_available ? 'good' : 'warn'"
+          [subtitle]="vm.summary.data?.gpu_available ? ('Temp ' + (vm.summary.data?.gpu_temp_c | na) + ' C') : 'No NVIDIA telemetry'"
+        />
+        <app-metric-card
+          title="GPU Utilization"
+          [value]="asPercent(vm.summary.data?.gpu_utilization_percent)"
+          [progressValue]="vm.summary.data?.gpu_utilization_percent ?? null"
+          [progressTone]="usageTone(vm.summary.data?.gpu_utilization_percent ?? null)"
+        />
+        <app-metric-card
+          title="Docker"
+          [value]="vm.summary.data?.docker_available ? 'Available' : 'Unavailable'"
+          [badgeLabel]="vm.summary.data?.docker_available ? 'Online' : 'Offline'"
+          [badgeTone]="vm.summary.data?.docker_available ? 'good' : 'warn'"
+        />
+        <app-metric-card
+          title="Running Containers"
+          [value]="vm.summary.data?.running_containers ?? 'N/A'"
+        />
+      </section>
+    }
+
+    <section class="details-grid">
+      <app-section-panel
+        title="System Details"
+        subtitle="Host, OS, uptime, CPU, memory, disk, and network metrics"
+      >
+        @if (vm.system.loading && !vm.system.data) {
+          <p class="state loading">Loading system metrics...</p>
+        } @else if (vm.system.data; as system) {
+          <div class="row-grid">
+            <app-info-row label="Hostname" [value]="system.hostname" />
+            <app-info-row
+              label="Platform"
+              [value]="platformLabel(system.platform, system.os?.platform)"
+            />
+            <app-info-row label="Kernel Version" [value]="system.kernel_version" />
+            <app-info-row label="Boot Time" [value]="system.boot_time | localDate" />
+            <app-info-row label="Uptime (human)" [value]="system.uptime_human" />
+            <app-info-row label="Uptime (computed)" [value]="system.uptime_seconds | uptime" />
+            <app-info-row label="Uptime (seconds)" [value]="system.uptime_seconds" />
+          </div>
+
+          <div class="subsection">
+            <h3>CPU</h3>
+            <app-info-row label="Usage" [value]="asPercent(system.cpu.usage_percent)" />
+            <app-progress-bar
+              [value]="system.cpu.usage_percent"
+              [tone]="usageTone(system.cpu.usage_percent)"
+            />
+            <app-info-row label="Physical Cores" [value]="system.cpu.physical_cores" />
+            <app-info-row label="Logical Cores" [value]="system.cpu.logical_cores" />
+            <app-info-row label="Load Average (1/5/15m)" [value]="loadAverageLabel(system.cpu.load_average)" />
+          </div>
+
+          <div class="subsection">
+            <h3>Memory</h3>
+            <app-info-row label="Total" [value]="system.memory.total | bytes" />
+            <app-info-row label="Available" [value]="system.memory.available | bytes" />
+            <app-info-row label="Used" [value]="system.memory.used | bytes" />
+            <app-info-row label="Usage" [value]="asPercent(system.memory.percent)" />
+            <app-progress-bar
+              [value]="system.memory.percent"
+              [tone]="usageTone(system.memory.percent)"
+            />
+          </div>
+
+          <div class="subsection">
+            <h3>Swap</h3>
+            <app-info-row label="Total" [value]="system.swap.total | bytes" />
+            <app-info-row label="Used" [value]="system.swap.used | bytes" />
+            <app-info-row label="Usage" [value]="asPercent(system.swap.percent)" />
+          </div>
+
+          <div class="subsection">
+            <h3>Disk</h3>
+            <app-info-row label="Mountpoint" [value]="system.disk.mountpoint" />
+            <app-info-row label="Total" [value]="system.disk.total | bytes" />
+            <app-info-row label="Used" [value]="system.disk.used | bytes" />
+            <app-info-row label="Free" [value]="system.disk.free | bytes" />
+            <app-info-row label="Usage" [value]="asPercent(system.disk.percent)" />
+            <app-progress-bar
+              [value]="system.disk.percent"
+              [tone]="usageTone(system.disk.percent)"
+            />
+          </div>
+
+          <div class="subsection">
+            <h3>Network</h3>
+            <app-info-row label="Bytes Sent" [value]="system.network.bytes_sent | bytes" />
+            <app-info-row label="Bytes Received" [value]="system.network.bytes_recv | bytes" />
+            <app-info-row label="Packets Sent" [value]="system.network.packets_sent" />
+            <app-info-row label="Packets Received" [value]="system.network.packets_recv" />
+          </div>
+        } @else {
+          <p class="state error">System data unavailable. {{ vm.system.error | na }}</p>
+        }
+      </app-section-panel>
+
+      <app-section-panel title="GPU" subtitle="NVIDIA metrics via NVML">
+        @if (vm.gpu.loading && !vm.gpu.data) {
+          <p class="state loading">Loading GPU telemetry...</p>
+        } @else if (vm.gpu.data; as gpu) {
+          @if (gpu.available) {
+            <div class="row-grid">
+              <app-info-row label="Name" [value]="gpu.name ?? 'N/A'" />
+              <app-info-row label="Temperature" [value]="(gpu.temperature_c | na) + ' C'" />
+              <app-info-row label="Utilization" [value]="asPercent(gpu.utilization_percent)" />
+              <app-progress-bar
+                [value]="gpu.utilization_percent"
+                [tone]="usageTone(gpu.utilization_percent)"
+              />
+              <app-info-row label="Memory Total" [value]="gpu.memory_total_mb | mbSize" />
+              <app-info-row label="Memory Used" [value]="gpu.memory_used_mb | mbSize" />
+              <app-info-row label="Memory Free" [value]="gpu.memory_free_mb | mbSize" />
+              <app-info-row label="Power Usage" [value]="(gpu.power_usage_w | na) + ' W'" />
+              <app-info-row label="Fan Speed" [value]="(gpu.fan_speed_percent | na) + ' %'" />
+              <app-info-row label="Driver Version" [value]="gpu.driver_version ?? 'N/A'" />
+            </div>
+          } @else {
+            <div class="state unavailable">
+              <h3>GPU not available</h3>
+              <p>{{ gpu.reason | na }}</p>
+            </div>
+          }
+        } @else {
+          <p class="state error">GPU data unavailable. {{ vm.gpu.error | na }}</p>
+        }
+      </app-section-panel>
+
+      <app-section-panel title="Backend Health" subtitle="FastAPI status and version">
+        @if (vm.health.loading && !vm.health.data) {
+          <p class="state loading">Loading health status...</p>
+        } @else if (vm.health.data; as health) {
+          <div class="row-grid">
+            <app-info-row label="Reachable" [value]="vm.backendReachable ? 'Yes' : 'No'" />
+            <app-info-row label="Status" [value]="health.status" />
+            <app-info-row label="App Name" [value]="health.app_name" />
+            <app-info-row label="Version" [value]="health.version" />
+            <app-info-row label="Backend Timestamp" [value]="health.timestamp | localDate" />
+          </div>
+        } @else {
+          <p class="state error">Health endpoint unavailable. {{ vm.health.error | na }}</p>
+        }
+      </app-section-panel>
+
+      <app-section-panel
+        class="panel-span-2"
+        title="Docker"
+        subtitle="Container inventory from Docker Engine"
+      >
+        @if (vm.docker.loading && !vm.docker.data) {
+          <p class="state loading">Loading Docker metrics...</p>
+        } @else if (vm.docker.data; as docker) {
+          @if (docker.docker_available) {
+            <app-info-row label="Container Count" [value]="docker.container_count" />
+
+            @if (docker.containers.length > 0) {
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Name</th>
+                      <th>Image</th>
+                      <th>State</th>
+                      <th>Status</th>
+                      <th>Ports</th>
+                      <th>Created</th>
+                      <th>Running For</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (container of docker.containers; track trackByContainerId($index, container)) {
+                      <tr>
+                        <td>{{ container.id | na }}</td>
+                        <td>{{ container.name | na }}</td>
+                        <td>{{ container.image | na }}</td>
+                        <td>{{ container.state | na }}</td>
+                        <td>{{ container.status | na }}</td>
+                        <td>{{ portsLabel(container.ports) }}</td>
+                        <td>{{ container.created | localDate }}</td>
+                        <td>{{ container.running_for | na }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <p class="state empty">No containers returned by backend.</p>
+            }
+          } @else {
+            <div class="state unavailable">
+              <h3>Docker not available</h3>
+              <p>{{ docker.reason | na }}</p>
+            </div>
+          }
+        } @else {
+          <p class="state error">Docker endpoint unavailable. {{ vm.docker.error | na }}</p>
+        }
+      </app-section-panel>
+    </section>
+  </main>
+}
