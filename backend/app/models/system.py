@@ -106,6 +106,7 @@ class NetworkMetrics(BaseModel):
     bytes_recv: int = Field(ge=0)
     packets_sent: int = Field(ge=0)
     packets_recv: int = Field(ge=0)
+    top_speed_mbps: int | None = Field(default=None, ge=0)
 
 
 class SystemResponse(BaseModel):

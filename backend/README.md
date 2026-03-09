@@ -86,6 +86,7 @@ curl http://192.168.100.34:4040/api/summary
   - `rotational`, `removable`, `state`
   - `mounted_partitions`, `raid_arrays`
   - `health.status` and `health.reason`
+- `network.top_speed_mbps`: highest detected link speed from network interfaces (if available)
 
 Disk list intentionally excludes pseudo/system mounts and EFI boot mountpoints such as `/boot/efi`.
 
