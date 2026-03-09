@@ -260,6 +260,57 @@
                 <p class="state empty">No RAID arrays detected.</p>
               }
             </section>
+
+            <section class="detail-card full-span">
+              <div class="detail-card-head">
+                <h3>Physical Disks</h3>
+                <span class="drive-count">{{ systemPhysicalDisks(system).length }} detected</span>
+              </div>
+
+              @if (systemPhysicalDisks(system).length > 0) {
+                <div class="table-scroll">
+                  <table class="physical-disk-table">
+                    <thead>
+                      <tr>
+                        <th>Device</th>
+                        <th>Model</th>
+                        <th>Vendor</th>
+                        <th>Size</th>
+                        <th>Type</th>
+                        <th>State</th>
+                        <th>Mounted On</th>
+                        <th>RAID</th>
+                        <th>Health</th>
+                        <th>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (physicalDisk of systemPhysicalDisks(system); track trackByPhysicalDisk($index, physicalDisk)) {
+                        <tr>
+                          <td>{{ physicalDisk.device | na }}</td>
+                          <td>{{ physicalDisk.model | na }}</td>
+                          <td>{{ physicalDisk.vendor | na }}</td>
+                          <td>{{ physicalDisk.size_bytes | bytes }}</td>
+                          <td>{{ physicalDiskTypeLabel(physicalDisk) }}</td>
+                          <td>{{ physicalDiskStateLabel(physicalDisk) }}</td>
+                          <td class="drive-reason">{{ physicalDiskMountsLabel(physicalDisk) }}</td>
+                          <td>{{ physicalDiskRaidLabel(physicalDisk) }}</td>
+                          <td class="status-cell">
+                            <app-status-badge
+                              [label]="physicalDiskHealthLabel(physicalDisk)"
+                              [tone]="physicalDiskHealthTone(physicalDisk)"
+                            />
+                          </td>
+                          <td class="drive-reason">{{ physicalDisk.health.reason | na }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              } @else {
+                <p class="state empty">No physical disks detected.</p>
+              }
+            </section>
           } @else {
             <p class="state error full-span">System data unavailable. {{ vm.system.error | na }}</p>
           }

@@ -74,6 +74,21 @@ export interface RaidArrayInfo {
   health: RaidHealthInfo;
 }
 
+export interface PhysicalDiskInfo {
+  name: string;
+  device: string;
+  model?: string | null;
+  vendor?: string | null;
+  serial?: string | null;
+  size_bytes: number;
+  rotational?: boolean | null;
+  removable: boolean;
+  state?: string | null;
+  mounted_partitions: string[];
+  raid_arrays: string[];
+  health: DiskHealthInfo;
+}
+
 export interface DiskDeviceInfo {
   device: string;
   mountpoint: string;
@@ -110,6 +125,7 @@ export interface SystemResponse {
   disk: DiskInfo;
   disks?: DiskDeviceInfo[];
   raid_arrays?: RaidArrayInfo[];
+  physical_disks?: PhysicalDiskInfo[];
   network: NetworkInfo;
 }
 

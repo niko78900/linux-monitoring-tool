@@ -5,6 +5,7 @@ import {
   DiskDeviceInfo,
   DiskHealthStatus,
   DiskInfo,
+  PhysicalDiskInfo,
   RaidArrayInfo,
   SystemResponse
 } from '../../../core/models/api.models';
@@ -196,6 +197,63 @@ export class DashboardPageComponent {
       return 'N/A';
     }
     return raidArray.members.join(', ');
+  }
+
+  protected systemPhysicalDisks(system: SystemResponse): PhysicalDiskInfo[] {
+    if (!Array.isArray(system.physical_disks)) {
+      return [];
+    }
+    return system.physical_disks;
+  }
+
+  protected physicalDiskTypeLabel(disk: PhysicalDiskInfo): string {
+    if (disk.rotational === true) {
+      return 'HDD';
+    }
+    if (disk.rotational === false) {
+      return 'SSD';
+    }
+    return 'N/A';
+  }
+
+  protected physicalDiskMountsLabel(disk: PhysicalDiskInfo): string {
+    if (!Array.isArray(disk.mounted_partitions) || disk.mounted_partitions.length === 0) {
+      return 'None';
+    }
+    return disk.mounted_partitions.join(', ');
+  }
+
+  protected physicalDiskRaidLabel(disk: PhysicalDiskInfo): string {
+    if (!Array.isArray(disk.raid_arrays) || disk.raid_arrays.length === 0) {
+      return 'No';
+    }
+    return disk.raid_arrays.join(', ');
+  }
+
+  protected physicalDiskHealthLabel(disk: PhysicalDiskInfo): string {
+    const status = disk.health?.status ?? 'unknown';
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+
+  protected physicalDiskHealthTone(disk: PhysicalDiskInfo): StatusTone {
+    switch (disk.health?.status) {
+      case 'healthy':
+        return 'good';
+      case 'warning':
+        return 'warn';
+      case 'critical':
+        return 'bad';
+      default:
+        return 'neutral';
+    }
+  }
+
+  protected physicalDiskStateLabel(disk: PhysicalDiskInfo): string {
+    return disk.state || 'N/A';
+  }
+
+  protected trackByPhysicalDisk(index: number, item: PhysicalDiskInfo): string {
+    return `${item.device}-${index}`;
   }
 
   protected trackByDiskKey(index: number, item: DiskDeviceInfo): string {
