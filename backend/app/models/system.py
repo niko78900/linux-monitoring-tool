@@ -53,6 +53,11 @@ class DiskHealth(BaseModel):
     reason: str
 
 
+class RaidHealth(BaseModel):
+    status: Literal["healthy", "warning", "critical", "unknown"] = "unknown"
+    reason: str
+
+
 class DiskDeviceMetrics(BaseModel):
     device: str
     mountpoint: str
@@ -63,7 +68,22 @@ class DiskDeviceMetrics(BaseModel):
     percent: float = Field(ge=0)
     read_only: bool = False
     available: bool = True
+    raid_array: str | None = None
+    raid_level: str | None = None
     health: DiskHealth
+
+
+class RaidArrayMetrics(BaseModel):
+    name: str
+    device: str
+    level: str
+    state: str
+    raid_disks: int = Field(ge=0)
+    active_devices: int = Field(ge=0)
+    degraded_devices: int = Field(ge=0)
+    sync_action: str | None = None
+    members: list[str] = Field(default_factory=list)
+    health: RaidHealth
 
 
 class NetworkMetrics(BaseModel):
@@ -85,4 +105,5 @@ class SystemResponse(BaseModel):
     swap: SwapMetrics
     disk: DiskMetrics
     disks: list[DiskDeviceMetrics] = Field(default_factory=list)
+    raid_arrays: list[RaidArrayMetrics] = Field(default_factory=list)
     network: NetworkMetrics

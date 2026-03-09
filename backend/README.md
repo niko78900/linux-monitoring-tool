@@ -78,7 +78,11 @@ curl http://192.168.100.34:4040/api/summary
   - `device`, `mountpoint`, `fstype`
   - `total`, `used`, `free`, `percent`
   - `available`, `read_only`
+  - `raid_array`, `raid_level` when a mounted filesystem is on an MD RAID device
   - `health.status` (`healthy`, `warning`, `critical`, `unknown`) and `health.reason`
+- `raid_arrays`: detected Linux MD arrays with level, state, sync status, members, and health
+
+Disk list intentionally excludes pseudo/system mounts and EFI boot mountpoints such as `/boot/efi`.
 
 ## Notes on permissions
 

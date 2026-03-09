@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import platform
+import re
 import socket
 from datetime import datetime
 
@@ -16,6 +17,8 @@ from app.models.system import (
     MemoryMetrics,
     NetworkMetrics,
     PlatformInfo,
+    RaidArrayMetrics,
+    RaidHealth,
     SwapMetrics,
     SystemResponse,
 )
@@ -52,6 +55,7 @@ IGNORED_FSTYPES = {
 }
 
 IGNORED_MOUNT_PREFIXES = ("/proc", "/sys", "/dev", "/run", "/snap")
+IGNORED_EXACT_MOUNTPOINTS = {"/boot/efi"}
 
 
 def get_system_metrics(mountpoint: str) -> SystemResponse:
@@ -59,6 +63,7 @@ def get_system_metrics(mountpoint: str) -> SystemResponse:
     boot_time = _get_boot_time(now)
     uptime_seconds = max(0, int((now - boot_time).total_seconds()))
     primary_disk = _get_disk_metrics(mountpoint)
+    raid_arrays = _get_raid_arrays_metrics()
 
     return SystemResponse(
         hostname=_get_hostname(),
@@ -71,7 +76,8 @@ def get_system_metrics(mountpoint: str) -> SystemResponse:
         memory=_get_memory_metrics(),
         swap=_get_swap_metrics(),
         disk=primary_disk,
-        disks=_get_disks_metrics(mountpoint, primary_disk),
+        disks=_get_disks_metrics(mountpoint, primary_disk, raid_arrays),
+        raid_arrays=raid_arrays,
         network=_get_network_metrics(),
     )
 
@@ -228,6 +234,8 @@ def _to_disk_device_metrics(
     percent: float,
     read_only: bool,
     available: bool,
+    raid_array: str | None = None,
+    raid_level: str | None = None,
     reason: str | None = None,
 ) -> DiskDeviceMetrics:
     return DiskDeviceMetrics(
@@ -240,6 +248,8 @@ def _to_disk_device_metrics(
         percent=percent,
         read_only=read_only,
         available=available,
+        raid_array=raid_array,
+        raid_level=raid_level,
         health=_build_disk_health(percent=percent, available=available, read_only=read_only, reason=reason),
     )
 
@@ -249,6 +259,9 @@ def _is_relevant_partition(partition_mountpoint: str, partition_fstype: str) -> 
     fstype = partition_fstype.strip().lower()
     if not mountpoint:
         return False
+    normalized_mountpoint = mountpoint.rstrip("/") or "/"
+    if normalized_mountpoint in IGNORED_EXACT_MOUNTPOINTS:
+        return False
     if fstype in IGNORED_FSTYPES:
         return False
     if os.name != "nt" and mountpoint != "/" and mountpoint.startswith(IGNORED_MOUNT_PREFIXES):
@@ -256,7 +269,51 @@ def _is_relevant_partition(partition_mountpoint: str, partition_fstype: str) -> 
     return True
 
 
-def _collect_partition_disk_metrics() -> list[DiskDeviceMetrics]:
+def _find_raid_array_for_device(
+    device: str, raid_arrays_by_device: dict[str, RaidArrayMetrics]
+) -> RaidArrayMetrics | None:
+    if not device:
+        return None
+
+    candidates = [device]
+    md_partition_match = re.match(r"^(\/dev\/md[^\/\s]+)p\d+$", device)
+    if md_partition_match:
+        candidates.append(md_partition_match.group(1))
+
+    md_named_partition_match = re.match(r"^(\/dev\/md\/[^\/\s]+)p\d+$", device)
+    if md_named_partition_match:
+        candidates.append(md_named_partition_match.group(1))
+
+    for candidate in candidates:
+        raid_array = raid_arrays_by_device.get(candidate)
+        if raid_array is not None:
+            return raid_array
+    return None
+
+
+def _build_raid_array_device_map(raid_arrays: list[RaidArrayMetrics]) -> dict[str, RaidArrayMetrics]:
+    raid_arrays_by_device = {raid_array.device: raid_array for raid_array in raid_arrays}
+    md_dir = "/dev/md"
+    if not os.path.isdir(md_dir):
+        return raid_arrays_by_device
+
+    try:
+        aliases = os.listdir(md_dir)
+    except OSError as exc:
+        logger.warning("Could not list RAID aliases in %s: %s", md_dir, exc)
+        return raid_arrays_by_device
+
+    for alias in aliases:
+        alias_path = os.path.join(md_dir, alias)
+        resolved_path = os.path.realpath(alias_path)
+        raid_array = raid_arrays_by_device.get(resolved_path)
+        if raid_array is not None:
+            raid_arrays_by_device[alias_path] = raid_array
+
+    return raid_arrays_by_device
+
+
+def _collect_partition_disk_metrics(raid_arrays: list[RaidArrayMetrics]) -> list[DiskDeviceMetrics]:
     if psutil is None:
         return []
 
@@ -266,6 +323,7 @@ def _collect_partition_disk_metrics() -> list[DiskDeviceMetrics]:
         logger.warning("Could not list disk partitions: %s", exc)
         return []
 
+    raid_arrays_by_device = _build_raid_array_device_map(raid_arrays)
     disks_by_mountpoint: dict[str, DiskDeviceMetrics] = {}
     for partition in partitions:
         mountpoint = str(getattr(partition, "mountpoint", "") or "")
@@ -276,6 +334,9 @@ def _collect_partition_disk_metrics() -> list[DiskDeviceMetrics]:
         device = str(getattr(partition, "device", "") or "unknown")
         options = str(getattr(partition, "opts", "") or "")
         read_only = "ro" in _mount_options_set(options)
+        raid_array = _find_raid_array_for_device(device, raid_arrays_by_device)
+        raid_array_name = raid_array.name if raid_array is not None else None
+        raid_array_level = raid_array.level if raid_array is not None else None
 
         try:
             usage = psutil.disk_usage(mountpoint)
@@ -289,6 +350,8 @@ def _collect_partition_disk_metrics() -> list[DiskDeviceMetrics]:
                 percent=round(float(usage.percent), 2),
                 read_only=read_only,
                 available=True,
+                raid_array=raid_array_name,
+                raid_level=raid_array_level,
             )
         except (AttributeError, OSError, PermissionError) as exc:
             logger.warning("Could not read disk usage for mountpoint %s: %s", mountpoint, exc)
@@ -302,17 +365,23 @@ def _collect_partition_disk_metrics() -> list[DiskDeviceMetrics]:
                 percent=0.0,
                 read_only=read_only,
                 available=False,
+                raid_array=raid_array_name,
+                raid_level=raid_array_level,
                 reason=f"Metrics unavailable: {exc}",
             )
 
         existing = disks_by_mountpoint.get(mountpoint)
-        if existing is None or (not existing.available and disk_metric.available):
+        if (
+            existing is None
+            or (not existing.available and disk_metric.available)
+            or (existing.raid_array is None and disk_metric.raid_array is not None)
+        ):
             disks_by_mountpoint[mountpoint] = disk_metric
 
     return list(disks_by_mountpoint.values())
 
 
-def _get_disks_metrics(mountpoint: str, primary_disk: DiskMetrics) -> list[DiskDeviceMetrics]:
+def _get_disks_metrics(mountpoint: str, primary_disk: DiskMetrics, raid_arrays: list[RaidArrayMetrics]) -> list[DiskDeviceMetrics]:
     primary_mountpoint = primary_disk.mountpoint or mountpoint or _fallback_mountpoint()
 
     if psutil is None:
@@ -331,7 +400,7 @@ def _get_disks_metrics(mountpoint: str, primary_disk: DiskMetrics) -> list[DiskD
             )
         ]
 
-    disks = _collect_partition_disk_metrics()
+    disks = _collect_partition_disk_metrics(raid_arrays)
     has_primary = any(disk.mountpoint == primary_mountpoint for disk in disks)
     if not has_primary:
         primary_available = primary_disk.total > 0
@@ -352,6 +421,109 @@ def _get_disks_metrics(mountpoint: str, primary_disk: DiskMetrics) -> list[DiskD
 
     disks.sort(key=lambda disk: (0 if disk.mountpoint == primary_mountpoint else 1, disk.mountpoint.lower()))
     return disks
+
+
+def _read_text_file(path: str) -> str | None:
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            return file.read().strip() or None
+    except OSError:
+        return None
+
+
+def _parse_int(raw_value: str | None, default: int = 0) -> int:
+    if raw_value is None:
+        return default
+    try:
+        return max(0, int(raw_value))
+    except ValueError:
+        return default
+
+
+def _build_raid_health(level: str, state: str, degraded_devices: int, sync_action: str | None) -> RaidHealth:
+    normalized_state = state.strip().lower()
+    normalized_sync = (sync_action or "").strip().lower()
+    normalized_level = level.strip().lower()
+
+    if degraded_devices > 0:
+        return RaidHealth(
+            status="critical",
+            reason=f"Array is degraded ({degraded_devices} missing device{'s' if degraded_devices > 1 else ''}).",
+        )
+
+    if normalized_state in {"inactive", "clear", "suspended"}:
+        return RaidHealth(status="warning", reason=f"Array state is '{state}'.")
+
+    if normalized_sync and normalized_sync not in {"idle", "none"}:
+        return RaidHealth(status="warning", reason=f"Array sync action is '{sync_action}'.")
+
+    if normalized_level == "unknown":
+        return RaidHealth(status="unknown", reason="RAID level could not be determined.")
+
+    return RaidHealth(status="healthy", reason="RAID array reports healthy state.")
+
+
+def _get_raid_arrays_metrics() -> list[RaidArrayMetrics]:
+    if os.name == "nt":
+        return []
+
+    sys_block = "/sys/block"
+    if not os.path.isdir(sys_block):
+        return []
+
+    arrays: list[RaidArrayMetrics] = []
+    try:
+        block_devices = os.listdir(sys_block)
+    except OSError as exc:
+        logger.warning("Could not list block devices for RAID discovery: %s", exc)
+        return []
+
+    for block_device in block_devices:
+        if not block_device.startswith("md"):
+            continue
+
+        md_dir = os.path.join(sys_block, block_device, "md")
+        if not os.path.isdir(md_dir):
+            continue
+
+        device = f"/dev/{block_device}"
+        level = _read_text_file(os.path.join(md_dir, "level")) or "unknown"
+        state = _read_text_file(os.path.join(md_dir, "array_state")) or "unknown"
+        raid_disks = _parse_int(_read_text_file(os.path.join(md_dir, "raid_disks")))
+        degraded_devices = _parse_int(_read_text_file(os.path.join(md_dir, "degraded")))
+        sync_action = _read_text_file(os.path.join(md_dir, "sync_action"))
+
+        slaves_dir = os.path.join(sys_block, block_device, "slaves")
+        members: list[str] = []
+        if os.path.isdir(slaves_dir):
+            try:
+                members = sorted(f"/dev/{name}" for name in os.listdir(slaves_dir))
+            except OSError as exc:
+                logger.warning("Could not read RAID member devices for %s: %s", device, exc)
+
+        active_devices = max(0, raid_disks - degraded_devices) if raid_disks > 0 else len(members)
+        arrays.append(
+            RaidArrayMetrics(
+                name=block_device,
+                device=device,
+                level=level,
+                state=state,
+                raid_disks=raid_disks,
+                active_devices=active_devices,
+                degraded_devices=degraded_devices,
+                sync_action=sync_action,
+                members=members,
+                health=_build_raid_health(
+                    level=level,
+                    state=state,
+                    degraded_devices=degraded_devices,
+                    sync_action=sync_action,
+                ),
+            )
+        )
+
+    arrays.sort(key=lambda raid_array: raid_array.device.lower())
+    return arrays
 
 
 def _get_network_metrics() -> NetworkMetrics:
