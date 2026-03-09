@@ -83,121 +83,124 @@
 
     <section class="details-grid">
       <app-section-panel
+        class="panel-span-2"
         title="System Details"
-        subtitle="Host, OS, uptime, CPU, memory, disk, and network metrics"
+        subtitle="Host, OS, uptime, CPU, memory, disk, network, and GPU telemetry"
       >
-        @if (vm.system.loading && !vm.system.data) {
-          <p class="state loading">Loading system metrics...</p>
-        } @else if (vm.system.data; as system) {
-          <div class="row-grid">
-            <app-info-row label="Hostname" [value]="system.hostname" />
-            <app-info-row
-              label="Platform"
-              [value]="platformLabel(system.platform, system.os?.platform)"
-            />
-            <app-info-row label="Kernel Version" [value]="system.kernel_version" />
-            <app-info-row label="Boot Time" [value]="system.boot_time | localDate" />
-            <app-info-row label="Uptime (human)" [value]="system.uptime_human" />
-            <app-info-row label="Uptime (computed)" [value]="system.uptime_seconds | uptime" />
-            <app-info-row label="Uptime (seconds)" [value]="system.uptime_seconds" />
-          </div>
-
-          <div class="subsection">
-            <h3>CPU</h3>
-            <app-info-row label="Usage" [value]="asPercent(system.cpu.usage_percent)" />
-            <app-progress-bar
-              [value]="system.cpu.usage_percent"
-              [tone]="usageTone(system.cpu.usage_percent)"
-            />
-            <app-info-row label="Physical Cores" [value]="system.cpu.physical_cores" />
-            <app-info-row label="Logical Cores" [value]="system.cpu.logical_cores" />
-            <app-info-row label="Load Average (1/5/15m)" [value]="loadAverageLabel(system.cpu.load_average)" />
-          </div>
-
-          <div class="subsection">
-            <h3>Memory</h3>
-            <app-info-row label="Total" [value]="system.memory.total | bytes" />
-            <app-info-row label="Available" [value]="system.memory.available | bytes" />
-            <app-info-row label="Used" [value]="system.memory.used | bytes" />
-            <app-info-row
-              label="Used / Total"
-              [value]="usagePairLabel(system.memory.used, system.memory.total)"
-            />
-            <app-info-row label="Usage" [value]="asPercent(system.memory.percent)" />
-            <app-progress-bar
-              [value]="system.memory.percent"
-              [tone]="usageTone(system.memory.percent)"
-            />
-          </div>
-
-          <div class="subsection">
-            <h3>Swap</h3>
-            <app-info-row label="Total" [value]="system.swap.total | bytes" />
-            <app-info-row label="Used" [value]="system.swap.used | bytes" />
-            <app-info-row label="Usage" [value]="asPercent(system.swap.percent)" />
-          </div>
-
-          <div class="subsection">
-            <h3>Disk</h3>
-            <app-info-row label="Mountpoint" [value]="system.disk.mountpoint" />
-            <app-info-row label="Total" [value]="system.disk.total | bytes" />
-            <app-info-row label="Used" [value]="system.disk.used | bytes" />
-            <app-info-row label="Free" [value]="system.disk.free | bytes" />
-            <app-info-row
-              label="Used / Total"
-              [value]="usagePairLabel(system.disk.used, system.disk.total)"
-            />
-            <app-info-row label="Usage" [value]="asPercent(system.disk.percent)" />
-            <app-progress-bar
-              [value]="system.disk.percent"
-              [tone]="usageTone(system.disk.percent)"
-            />
-          </div>
-
-          <div class="subsection">
-            <h3>Network</h3>
-            <app-info-row label="Bytes Sent" [value]="system.network.bytes_sent | bytes" />
-            <app-info-row label="Bytes Received" [value]="system.network.bytes_recv | bytes" />
-            <app-info-row label="Packets Sent" [value]="system.network.packets_sent" />
-            <app-info-row label="Packets Received" [value]="system.network.packets_recv" />
-          </div>
-        } @else {
-          <p class="state error">System data unavailable. {{ vm.system.error | na }}</p>
-        }
-      </app-section-panel>
-
-      <app-section-panel title="GPU" subtitle="NVIDIA metrics via NVML">
-        @if (vm.gpu.loading && !vm.gpu.data) {
-          <p class="state loading">Loading GPU telemetry...</p>
-        } @else if (vm.gpu.data; as gpu) {
-          @if (gpu.available) {
-            <div class="row-grid">
-              <app-info-row label="Name" [value]="gpu.name ?? 'N/A'" />
-              <app-info-row label="Temperature" [value]="(gpu.temperature_c | na) + ' C'" />
-              <app-info-row label="Utilization" [value]="asPercent(gpu.utilization_percent)" />
-              <app-progress-bar
-                [value]="gpu.utilization_percent"
-                [tone]="usageTone(gpu.utilization_percent)"
+        <div class="system-gpu-grid">
+          @if (vm.system.loading && !vm.system.data) {
+            <p class="state loading full-span">Loading system metrics...</p>
+          } @else if (vm.system.data; as system) {
+            <section class="detail-card">
+              <h3>Host & Uptime</h3>
+              <app-info-row label="Hostname" [value]="system.hostname" />
+              <app-info-row
+                label="Platform"
+                [value]="platformLabel(system.platform, system.os?.platform)"
               />
-              <app-info-row label="Memory Total" [value]="gpu.memory_total_mb | mbSize" />
-              <app-info-row label="Memory Used" [value]="gpu.memory_used_mb | mbSize" />
-              <app-info-row label="Memory Free" [value]="gpu.memory_free_mb | mbSize" />
-              <app-info-row label="Power Usage" [value]="(gpu.power_usage_w | na) + ' W'" />
-              <app-info-row label="Fan Speed" [value]="(gpu.fan_speed_percent | na) + ' %'" />
-              <app-info-row label="Driver Version" [value]="gpu.driver_version ?? 'N/A'" />
-            </div>
+              <app-info-row label="Kernel Version" [value]="system.kernel_version" />
+              <app-info-row label="Boot Time" [value]="system.boot_time | localDate" />
+              <app-info-row label="Uptime (human)" [value]="system.uptime_human" />
+              <app-info-row label="Uptime (computed)" [value]="system.uptime_seconds | uptime" />
+              <app-info-row label="Uptime (seconds)" [value]="system.uptime_seconds" />
+            </section>
+
+            <section class="detail-card">
+              <h3>CPU</h3>
+              <app-info-row label="Usage" [value]="asPercent(system.cpu.usage_percent)" />
+              <app-progress-bar
+                [value]="system.cpu.usage_percent"
+                [tone]="usageTone(system.cpu.usage_percent)"
+              />
+              <app-info-row label="Physical Cores" [value]="system.cpu.physical_cores" />
+              <app-info-row label="Logical Cores" [value]="system.cpu.logical_cores" />
+              <app-info-row label="Load Average (1/5/15m)" [value]="loadAverageLabel(system.cpu.load_average)" />
+            </section>
+
+            <section class="detail-card">
+              <h3>Memory</h3>
+              <app-info-row label="Total" [value]="system.memory.total | bytes" />
+              <app-info-row label="Available" [value]="system.memory.available | bytes" />
+              <app-info-row label="Used" [value]="system.memory.used | bytes" />
+              <app-info-row
+                label="Used / Total"
+                [value]="usagePairLabel(system.memory.used, system.memory.total)"
+              />
+              <app-info-row label="Usage" [value]="asPercent(system.memory.percent)" />
+              <app-progress-bar
+                [value]="system.memory.percent"
+                [tone]="usageTone(system.memory.percent)"
+              />
+            </section>
+
+            <section class="detail-card">
+              <h3>Swap</h3>
+              <app-info-row label="Total" [value]="system.swap.total | bytes" />
+              <app-info-row label="Used" [value]="system.swap.used | bytes" />
+              <app-info-row label="Usage" [value]="asPercent(system.swap.percent)" />
+            </section>
+
+            <section class="detail-card">
+              <h3>Disk</h3>
+              <app-info-row label="Mountpoint" [value]="system.disk.mountpoint" />
+              <app-info-row label="Total" [value]="system.disk.total | bytes" />
+              <app-info-row label="Used" [value]="system.disk.used | bytes" />
+              <app-info-row label="Free" [value]="system.disk.free | bytes" />
+              <app-info-row
+                label="Used / Total"
+                [value]="usagePairLabel(system.disk.used, system.disk.total)"
+              />
+              <app-info-row label="Usage" [value]="asPercent(system.disk.percent)" />
+              <app-progress-bar
+                [value]="system.disk.percent"
+                [tone]="usageTone(system.disk.percent)"
+              />
+            </section>
+
+            <section class="detail-card">
+              <h3>Network</h3>
+              <app-info-row label="Bytes Sent" [value]="system.network.bytes_sent | bytes" />
+              <app-info-row label="Bytes Received" [value]="system.network.bytes_recv | bytes" />
+              <app-info-row label="Packets Sent" [value]="system.network.packets_sent" />
+              <app-info-row label="Packets Received" [value]="system.network.packets_recv" />
+            </section>
           } @else {
-            <div class="state unavailable">
-              <h3>GPU not available</h3>
-              <p>{{ gpu.reason | na }}</p>
-            </div>
+            <p class="state error full-span">System data unavailable. {{ vm.system.error | na }}</p>
           }
-        } @else {
-          <p class="state error">GPU data unavailable. {{ vm.gpu.error | na }}</p>
-        }
+
+          <section class="detail-card">
+            <h3>GPU</h3>
+            @if (vm.gpu.loading && !vm.gpu.data) {
+              <p class="state loading">Loading GPU telemetry...</p>
+            } @else if (vm.gpu.data; as gpu) {
+              @if (gpu.available) {
+                <app-info-row label="Name" [value]="gpu.name ?? 'N/A'" />
+                <app-info-row label="Temperature" [value]="(gpu.temperature_c | na) + ' C'" />
+                <app-info-row label="Utilization" [value]="asPercent(gpu.utilization_percent)" />
+                <app-progress-bar
+                  [value]="gpu.utilization_percent"
+                  [tone]="usageTone(gpu.utilization_percent)"
+                />
+                <app-info-row label="Memory Total" [value]="gpu.memory_total_mb | mbSize" />
+                <app-info-row label="Memory Used" [value]="gpu.memory_used_mb | mbSize" />
+                <app-info-row label="Memory Free" [value]="gpu.memory_free_mb | mbSize" />
+                <app-info-row label="Power Usage" [value]="(gpu.power_usage_w | na) + ' W'" />
+                <app-info-row label="Fan Speed" [value]="(gpu.fan_speed_percent | na) + ' %'" />
+                <app-info-row label="Driver Version" [value]="gpu.driver_version ?? 'N/A'" />
+              } @else {
+                <div class="state unavailable">
+                  <h3>GPU not available</h3>
+                  <p>{{ gpu.reason | na }}</p>
+                </div>
+              }
+            } @else {
+              <p class="state error">GPU data unavailable. {{ vm.gpu.error | na }}</p>
+            }
+          </section>
+        </div>
       </app-section-panel>
 
-      <app-section-panel title="Backend Health" subtitle="FastAPI status and version">
+      <app-section-panel class="panel-span-2" title="Backend Health" subtitle="FastAPI status and version">
         @if (vm.health.loading && !vm.health.data) {
           <p class="state loading">Loading health status...</p>
         } @else if (vm.health.data; as health) {

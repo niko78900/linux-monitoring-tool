@@ -108,18 +108,32 @@ h1 {
   gap: 0.3rem;
 }
 
-.subsection {
+.system-gpu-grid {
   display: grid;
-  gap: 0.45rem;
-  padding-top: 0.45rem;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.subsection h3 {
+.detail-card {
+  display: grid;
+  gap: 0.45rem;
+  align-content: start;
+  padding: 0.75rem;
+  border-radius: 0.8rem;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.detail-card h3 {
   margin: 0;
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #93c5fd;
+}
+
+.full-span {
+  grid-column: 1 / -1;
 }
 
 .state {
@@ -208,6 +222,10 @@ td {
 
   .panel-span-2 {
     grid-column: span 1;
+  }
+
+  .system-gpu-grid {
+    grid-template-columns: 1fr;
   }
 }
 
