@@ -109,6 +109,7 @@ export interface NetworkInfo {
   bytes_recv: number;
   packets_sent: number;
   packets_recv: number;
+  top_speed_mbps?: number | null;
 }
 
 export interface SystemResponse {

@@ -12,7 +12,7 @@ import { StatusTone, clampPercent } from '../../../core/utils/format.utils';
 export class ProgressBarComponent {
   @Input() value: number | null | undefined = null;
   @Input() tone: StatusTone = 'neutral';
-  @Input() showLabel = true;
+  @Input() showLabel = false;
 
   get widthPercent(): number {
     return clampPercent(this.value);

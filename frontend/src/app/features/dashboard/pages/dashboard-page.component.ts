@@ -1,4 +1,4 @@
-import { AsyncPipe } from '@angular/common';
+import { AsyncPipe, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
 import {
@@ -12,7 +12,6 @@ import {
 import { LocalDatePipe } from '../../../core/pipes/local-date.pipe';
 import { MbSizePipe } from '../../../core/pipes/mb-size.pipe';
 import { NaPipe } from '../../../core/pipes/na.pipe';
-import { UptimePipe } from '../../../core/pipes/uptime.pipe';
 import { DashboardFacadeService } from '../../../core/services/dashboard-facade.service';
 import { MonitoringApiService } from '../../../core/services/monitoring-api.service';
 import {
@@ -33,6 +32,7 @@ import { StatusBadgeComponent } from '../../../shared/components/status-badge/st
   standalone: true,
   imports: [
     AsyncPipe,
+    DecimalPipe,
     BytesPipe,
     InfoRowComponent,
     LocalDatePipe,
@@ -41,8 +41,7 @@ import { StatusBadgeComponent } from '../../../shared/components/status-badge/st
     NaPipe,
     ProgressBarComponent,
     SectionPanelComponent,
-    StatusBadgeComponent,
-    UptimePipe
+    StatusBadgeComponent
   ],
   templateUrl: './dashboard-page.component.html',
   styleUrl: './dashboard-page.component.scss',
@@ -94,6 +93,20 @@ export class DashboardPageComponent {
 
     const gb = 1000 ** 3;
     return `${(used / gb).toFixed(1)} / ${(total / gb).toFixed(1)} GB`;
+  }
+
+  protected networkTopSpeedLabel(speedMbps: number | null | undefined): string {
+    if (speedMbps === null || speedMbps === undefined || Number.isNaN(speedMbps) || speedMbps <= 0) {
+      return 'N/A';
+    }
+
+    if (speedMbps >= 1000) {
+      const speedGbps = speedMbps / 1000;
+      const decimals = speedGbps >= 10 ? 1 : 2;
+      return `${speedGbps.toFixed(decimals).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1')} Gbps`;
+    }
+
+    return `${Math.round(speedMbps).toLocaleString()} Mbps`;
   }
 
   protected systemDisks(system: SystemResponse): DiskDeviceInfo[] {

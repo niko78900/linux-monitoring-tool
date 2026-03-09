@@ -101,8 +101,7 @@
               <app-info-row label="Kernel Version" [value]="system.kernel_version" />
               <app-info-row label="Boot Time" [value]="system.boot_time | localDate" />
               <app-info-row label="Uptime (human)" [value]="system.uptime_human" />
-              <app-info-row label="Uptime (computed)" [value]="system.uptime_seconds | uptime" />
-              <app-info-row label="Uptime (seconds)" [value]="system.uptime_seconds" />
+              <app-info-row label="Uptime (seconds)" [value]="system.uptime_seconds | number:'1.0-0'" />
             </section>
 
             <section class="detail-card">
@@ -144,8 +143,9 @@
               <h3>Network</h3>
               <app-info-row label="Bytes Sent" [value]="system.network.bytes_sent | bytes" />
               <app-info-row label="Bytes Received" [value]="system.network.bytes_recv | bytes" />
-              <app-info-row label="Packets Sent" [value]="system.network.packets_sent" />
-              <app-info-row label="Packets Received" [value]="system.network.packets_recv" />
+              <app-info-row label="Packets Sent" [value]="system.network.packets_sent | number:'1.0-0'" />
+              <app-info-row label="Packets Received" [value]="system.network.packets_recv | number:'1.0-0'" />
+              <app-info-row label="Top Speed" [value]="networkTopSpeedLabel(system.network.top_speed_mbps)" />
             </section>
 
             <section class="detail-card full-span">
