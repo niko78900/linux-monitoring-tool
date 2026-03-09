@@ -71,6 +71,15 @@ curl http://192.168.100.34:4040/api/docker
 curl http://192.168.100.34:4040/api/summary
 ```
 
+`/api/system` now includes:
+
+- `disk`: primary disk (configured `DISK_MOUNTPOINT`, kept for compatibility)
+- `disks`: all detected mounted disks/partitions with:
+  - `device`, `mountpoint`, `fstype`
+  - `total`, `used`, `free`, `percent`
+  - `available`, `read_only`
+  - `health.status` (`healthy`, `warning`, `critical`, `unknown`) and `health.reason`
+
 ## Notes on permissions
 
 - Docker data requires access to Docker Engine socket (`/var/run/docker.sock` on Linux).

@@ -9,6 +9,8 @@ from datetime import datetime
 from app.core.utils import format_duration, to_utc_datetime, utc_now
 from app.models.system import (
     CpuMetrics,
+    DiskDeviceMetrics,
+    DiskHealth,
     DiskMetrics,
     LoadAverage,
     MemoryMetrics,
@@ -25,11 +27,38 @@ except ImportError:  # pragma: no cover - handled at runtime
 
 logger = logging.getLogger(__name__)
 
+IGNORED_FSTYPES = {
+    "autofs",
+    "binfmt_misc",
+    "cgroup",
+    "cgroup2",
+    "configfs",
+    "debugfs",
+    "devpts",
+    "devtmpfs",
+    "fusectl",
+    "hugetlbfs",
+    "mqueue",
+    "nsfs",
+    "overlay",
+    "proc",
+    "pstore",
+    "ramfs",
+    "securityfs",
+    "squashfs",
+    "sysfs",
+    "tmpfs",
+    "tracefs",
+}
+
+IGNORED_MOUNT_PREFIXES = ("/proc", "/sys", "/dev", "/run", "/snap")
+
 
 def get_system_metrics(mountpoint: str) -> SystemResponse:
     now = utc_now()
     boot_time = _get_boot_time(now)
     uptime_seconds = max(0, int((now - boot_time).total_seconds()))
+    primary_disk = _get_disk_metrics(mountpoint)
 
     return SystemResponse(
         hostname=_get_hostname(),
@@ -41,7 +70,8 @@ def get_system_metrics(mountpoint: str) -> SystemResponse:
         cpu=_get_cpu_metrics(),
         memory=_get_memory_metrics(),
         swap=_get_swap_metrics(),
-        disk=_get_disk_metrics(mountpoint),
+        disk=primary_disk,
+        disks=_get_disks_metrics(mountpoint, primary_disk),
         network=_get_network_metrics(),
     )
 
@@ -169,6 +199,159 @@ def _get_disk_metrics(mountpoint: str) -> DiskMetrics:
         percent=round(float(disk.percent), 2),
         mountpoint=resolved_mountpoint,
     )
+
+
+def _mount_options_set(options: str) -> set[str]:
+    return {item.strip().lower() for item in options.split(",") if item.strip()}
+
+
+def _build_disk_health(percent: float, available: bool, read_only: bool, reason: str | None = None) -> DiskHealth:
+    if not available:
+        return DiskHealth(status="unknown", reason=reason or "Disk metrics unavailable.")
+    if percent >= 95:
+        return DiskHealth(status="critical", reason="Disk usage is above 95%.")
+    if percent >= 85:
+        return DiskHealth(status="warning", reason="Disk usage is above 85%.")
+    if read_only:
+        return DiskHealth(status="warning", reason="Disk is mounted read-only.")
+    return DiskHealth(status="healthy", reason="Disk usage is within normal range.")
+
+
+def _to_disk_device_metrics(
+    *,
+    device: str,
+    mountpoint: str,
+    fstype: str,
+    total: int,
+    used: int,
+    free: int,
+    percent: float,
+    read_only: bool,
+    available: bool,
+    reason: str | None = None,
+) -> DiskDeviceMetrics:
+    return DiskDeviceMetrics(
+        device=device or "unknown",
+        mountpoint=mountpoint,
+        fstype=fstype or "unknown",
+        total=total,
+        used=used,
+        free=free,
+        percent=percent,
+        read_only=read_only,
+        available=available,
+        health=_build_disk_health(percent=percent, available=available, read_only=read_only, reason=reason),
+    )
+
+
+def _is_relevant_partition(partition_mountpoint: str, partition_fstype: str) -> bool:
+    mountpoint = partition_mountpoint.strip()
+    fstype = partition_fstype.strip().lower()
+    if not mountpoint:
+        return False
+    if fstype in IGNORED_FSTYPES:
+        return False
+    if os.name != "nt" and mountpoint != "/" and mountpoint.startswith(IGNORED_MOUNT_PREFIXES):
+        return False
+    return True
+
+
+def _collect_partition_disk_metrics() -> list[DiskDeviceMetrics]:
+    if psutil is None:
+        return []
+
+    try:
+        partitions = psutil.disk_partitions(all=False)
+    except (AttributeError, OSError) as exc:
+        logger.warning("Could not list disk partitions: %s", exc)
+        return []
+
+    disks_by_mountpoint: dict[str, DiskDeviceMetrics] = {}
+    for partition in partitions:
+        mountpoint = str(getattr(partition, "mountpoint", "") or "")
+        fstype = str(getattr(partition, "fstype", "") or "unknown")
+        if not _is_relevant_partition(mountpoint, fstype):
+            continue
+
+        device = str(getattr(partition, "device", "") or "unknown")
+        options = str(getattr(partition, "opts", "") or "")
+        read_only = "ro" in _mount_options_set(options)
+
+        try:
+            usage = psutil.disk_usage(mountpoint)
+            disk_metric = _to_disk_device_metrics(
+                device=device,
+                mountpoint=mountpoint,
+                fstype=fstype,
+                total=int(usage.total),
+                used=int(usage.used),
+                free=int(usage.free),
+                percent=round(float(usage.percent), 2),
+                read_only=read_only,
+                available=True,
+            )
+        except (AttributeError, OSError, PermissionError) as exc:
+            logger.warning("Could not read disk usage for mountpoint %s: %s", mountpoint, exc)
+            disk_metric = _to_disk_device_metrics(
+                device=device,
+                mountpoint=mountpoint,
+                fstype=fstype,
+                total=0,
+                used=0,
+                free=0,
+                percent=0.0,
+                read_only=read_only,
+                available=False,
+                reason=f"Metrics unavailable: {exc}",
+            )
+
+        existing = disks_by_mountpoint.get(mountpoint)
+        if existing is None or (not existing.available and disk_metric.available):
+            disks_by_mountpoint[mountpoint] = disk_metric
+
+    return list(disks_by_mountpoint.values())
+
+
+def _get_disks_metrics(mountpoint: str, primary_disk: DiskMetrics) -> list[DiskDeviceMetrics]:
+    primary_mountpoint = primary_disk.mountpoint or mountpoint or _fallback_mountpoint()
+
+    if psutil is None:
+        return [
+            _to_disk_device_metrics(
+                device="unknown",
+                mountpoint=primary_mountpoint,
+                fstype="unknown",
+                total=primary_disk.total,
+                used=primary_disk.used,
+                free=primary_disk.free,
+                percent=primary_disk.percent,
+                read_only=False,
+                available=False,
+                reason="psutil is unavailable.",
+            )
+        ]
+
+    disks = _collect_partition_disk_metrics()
+    has_primary = any(disk.mountpoint == primary_mountpoint for disk in disks)
+    if not has_primary:
+        primary_available = primary_disk.total > 0
+        disks.append(
+            _to_disk_device_metrics(
+                device="unknown",
+                mountpoint=primary_mountpoint,
+                fstype="unknown",
+                total=primary_disk.total,
+                used=primary_disk.used,
+                free=primary_disk.free,
+                percent=primary_disk.percent,
+                read_only=False,
+                available=primary_available,
+                reason=None if primary_available else "Disk metrics unavailable.",
+            )
+        )
+
+    disks.sort(key=lambda disk: (0 if disk.mountpoint == primary_mountpoint else 1, disk.mountpoint.lower()))
+    return disks
 
 
 def _get_network_metrics() -> NetworkMetrics:

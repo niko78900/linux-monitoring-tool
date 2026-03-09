@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -47,6 +48,24 @@ class DiskMetrics(BaseModel):
     mountpoint: str
 
 
+class DiskHealth(BaseModel):
+    status: Literal["healthy", "warning", "critical", "unknown"] = "unknown"
+    reason: str
+
+
+class DiskDeviceMetrics(BaseModel):
+    device: str
+    mountpoint: str
+    fstype: str
+    total: int = Field(ge=0)
+    used: int = Field(ge=0)
+    free: int = Field(ge=0)
+    percent: float = Field(ge=0)
+    read_only: bool = False
+    available: bool = True
+    health: DiskHealth
+
+
 class NetworkMetrics(BaseModel):
     bytes_sent: int = Field(ge=0)
     bytes_recv: int = Field(ge=0)
@@ -65,4 +84,5 @@ class SystemResponse(BaseModel):
     memory: MemoryMetrics
     swap: SwapMetrics
     disk: DiskMetrics
+    disks: list[DiskDeviceMetrics] = Field(default_factory=list)
     network: NetworkMetrics
