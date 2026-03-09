@@ -1,0 +1,43 @@
+<main class="shell">
+  <section class="card">
+    <h1>{{ title }}</h1>
+    <p class="subtitle">Angular dev server connected to the Flask API.</p>
+
+    <button type="button" (click)="checkBackend()">Check Backend</button>
+
+    @switch (apiStatus()) {
+      @case ('loading') {
+        <p class="status loading">Checking backend...</p>
+      }
+      @case ('success') {
+        @if (health(); as payload) {
+          <p class="status success">Backend is online.</p>
+          <dl>
+            <div>
+              <dt>Service</dt>
+              <dd>{{ payload.service }}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>{{ payload.status }}</dd>
+            </div>
+            <div>
+              <dt>Python</dt>
+              <dd>{{ payload.python }}</dd>
+            </div>
+            <div>
+              <dt>Timestamp (UTC)</dt>
+              <dd>{{ payload.timestamp }}</dd>
+            </div>
+          </dl>
+        }
+      }
+      @case ('error') {
+        <p class="status error">Backend check failed: {{ errorMessage() }}</p>
+      }
+      @default {
+        <p class="status idle">Waiting to check backend.</p>
+      }
+    }
+  </section>
+</main>
