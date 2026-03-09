@@ -3,7 +3,7 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Homelab Monitoring</p>
-        <h1>linux-monitor</h1>
+        <h1>Linux Server monitoring tool</h1>
       </div>
       <div class="topbar-actions">
         <app-status-badge
@@ -113,7 +113,10 @@
               />
               <app-info-row label="Physical Cores" [value]="system.cpu.physical_cores" />
               <app-info-row label="Logical Cores" [value]="system.cpu.logical_cores" />
-              <app-info-row label="Load Average (1/5/15m)" [value]="loadAverageLabel(system.cpu.load_average)" />
+              <app-info-row
+                label="Load Average (1/5/15m)"
+                [value]="loadAverageLabel(system.cpu.load_average, system.cpu.logical_cores)"
+              />
             </section>
 
             <section class="detail-card">

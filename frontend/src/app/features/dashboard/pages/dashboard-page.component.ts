@@ -67,12 +67,21 @@ export class DashboardPageComponent {
     return osPlatform || platform || 'N/A';
   }
 
-  protected loadAverageLabel(loadAverage: unknown): string {
+  protected loadAverageLabel(loadAverage: unknown, logicalCores: number | null | undefined): string {
     const normalized = normalizeLoadAverage(loadAverage as never);
     if (!normalized) {
       return 'N/A';
     }
-    return normalized.map((item) => item.toFixed(2)).join(' / ');
+
+    const rawLabel = normalized.map((item) => item.toFixed(2)).join(' / ');
+    if (logicalCores === null || logicalCores === undefined || Number.isNaN(logicalCores) || logicalCores <= 0) {
+      return rawLabel;
+    }
+
+    const percentLabel = normalized
+      .map((item) => `${Math.round((item / logicalCores) * 100)}%`)
+      .join(' / ');
+    return `${percentLabel} (${rawLabel})`;
   }
 
   protected portsLabel(ports: unknown): string {
