@@ -1,6 +1,15 @@
-from app import create_app
+from __future__ import annotations
 
-app = create_app()
+import uvicorn
+
+from app.core.config import get_settings
+
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    settings = get_settings()
+    uvicorn.run(
+        "app.main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=settings.reload,
+    )

@@ -1,6 +1,34 @@
-# Backend (Flask)
+# linux-monitor backend (FastAPI)
 
-## Create virtual environment
+Read-only monitoring API for local-network dashboards.
+
+## Project layout
+
+```
+backend/
+  app/
+    api/
+      routes/
+    core/
+    models/
+    services/
+    main.py
+  .env.example
+  requirements.txt
+  run.py
+```
+
+## 1) Create virtual environment
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Windows PowerShell:
 
 ```powershell
 cd Backend
@@ -10,14 +38,45 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-## Run development server
+## 2) Configure environment
 
-```powershell
-.\.venv\Scripts\python.exe run.py
+```bash
+cp .env.example .env
 ```
 
-The API will be available at `http://127.0.0.1:5000`.
+Adjust `.env` values if needed:
 
-Health endpoint:
+- `CORS_ORIGINS`: comma-separated frontend origins
+- `DISK_MOUNTPOINT`: disk mount to report (default `/`)
+- `HOST`/`PORT`: bind address and port
 
-`GET http://127.0.0.1:5000/api/health`
+## 3) Run the API
+
+```bash
+python run.py
+```
+
+Default URL:
+
+- API root: `http://localhost:8000/api`
+- Docs: `http://localhost:8000/api/docs`
+
+## 4) Test endpoints
+
+```bash
+curl http://localhost:8000/api/health
+curl http://localhost:8000/api/system
+curl http://localhost:8000/api/gpu
+curl http://localhost:8000/api/docker
+curl http://localhost:8000/api/summary
+```
+
+## Notes on permissions
+
+- Docker data requires access to Docker Engine socket (`/var/run/docker.sock` on Linux).
+  - Add your user to the `docker` group or run with elevated privileges.
+- NVIDIA metrics require:
+  - NVIDIA drivers installed
+  - NVML library available on host
+  - process permission to access NVIDIA device files
+- If Docker/NVIDIA access is missing, endpoints return `available: false` style responses instead of crashing.
