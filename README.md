@@ -2,13 +2,13 @@
 
 This repository is configured as:
 
-- `Backend/`: Flask API (`/api/health`)
-- `Frontend/`: Angular app with a dev proxy for `/api/*` to Flask
+- `backend/`: Flask API (`/api/health`)
+- `frontend/`: Angular app with a dev proxy for `/api/*` to Flask
 
 ## 1) Start backend (Flask)
 
 ```powershell
-cd Backend
+cd backend
 python -m venv .venv
 .\.venv\Scripts\python.exe -m ensurepip --upgrade
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
@@ -23,7 +23,7 @@ Backend runs on `http://127.0.0.1:5000`.
 Open a second terminal:
 
 ```powershell
-cd Frontend
+cd frontend
 npm.cmd install
 npm.cmd start
 ```

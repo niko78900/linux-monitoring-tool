@@ -1,13 +1,16 @@
 # Python
-Backend/.venv/
-Backend/__pycache__/
-Backend/**/*.pyc
+backend/.venv/
+backend/__pycache__/
+backend/**/*.pyc
 
 # Node/Angular
-Frontend/node_modules/
-Frontend/.angular/
-Frontend/dist/
+frontend/node_modules/
+frontend/.angular/
+frontend/dist/
 
 # OS/editor
 .DS_Store
 Thumbs.db
+
+# Local planning notes
+plans.txt
