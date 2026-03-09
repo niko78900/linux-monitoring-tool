@@ -42,8 +42,8 @@ class Settings:
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings(
-        app_name=os.getenv("APP_NAME", "linux-monitor"),
-        app_version=os.getenv("APP_VERSION", "0.1.0"),
+        app_name=os.getenv("APP_NAME", "Linux Server monitoring tool"),
+        app_version=os.getenv("APP_VERSION", "0.2.0"),
         api_prefix=os.getenv("API_PREFIX", "/api"),
         cors_origins=_parse_origins(os.getenv("CORS_ORIGINS")),
         disk_mountpoint=os.getenv("DISK_MOUNTPOINT", "/"),
