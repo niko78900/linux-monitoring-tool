@@ -56,6 +56,24 @@ export interface DiskHealthInfo {
   reason: string;
 }
 
+export interface RaidHealthInfo {
+  status: DiskHealthStatus;
+  reason: string;
+}
+
+export interface RaidArrayInfo {
+  name: string;
+  device: string;
+  level: string;
+  state: string;
+  raid_disks: number;
+  active_devices: number;
+  degraded_devices: number;
+  sync_action?: string | null;
+  members: string[];
+  health: RaidHealthInfo;
+}
+
 export interface DiskDeviceInfo {
   device: string;
   mountpoint: string;
@@ -66,6 +84,8 @@ export interface DiskDeviceInfo {
   percent: number;
   read_only: boolean;
   available: boolean;
+  raid_array?: string | null;
+  raid_level?: string | null;
   health: DiskHealthInfo;
 }
 
@@ -89,6 +109,7 @@ export interface SystemResponse {
   swap: SwapInfo;
   disk: DiskInfo;
   disks?: DiskDeviceInfo[];
+  raid_arrays?: RaidArrayInfo[];
   network: NetworkInfo;
 }
 

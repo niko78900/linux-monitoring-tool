@@ -168,6 +168,7 @@
                         <th>Mount</th>
                         <th>Device</th>
                         <th>FS</th>
+                        <th>RAID</th>
                         <th>Used / Total</th>
                         <th>Free</th>
                         <th>Usage</th>
@@ -183,6 +184,7 @@
                           <td>{{ drive.mountpoint | na }}</td>
                           <td>{{ drive.device | na }}</td>
                           <td>{{ drive.fstype | na }}</td>
+                          <td>{{ diskRaidLabel(drive) }}</td>
                           <td>{{ usagePairLabel(drive.used, drive.total) }}</td>
                           <td>{{ drive.free | bytes }}</td>
                           <td>{{ asPercent(drive.percent) }}</td>
@@ -207,6 +209,55 @@
                 </div>
               } @else {
                 <p class="state empty">No disk data returned by backend.</p>
+              }
+            </section>
+
+            <section class="detail-card full-span">
+              <div class="detail-card-head">
+                <h3>RAID Arrays</h3>
+                <span class="drive-count">{{ systemRaidArrays(system).length }} detected</span>
+              </div>
+
+              @if (systemRaidArrays(system).length > 0) {
+                <div class="table-scroll">
+                  <table class="raid-table">
+                    <thead>
+                      <tr>
+                        <th>Array</th>
+                        <th>Device</th>
+                        <th>Level</th>
+                        <th>State</th>
+                        <th>Active / Total</th>
+                        <th>Degraded</th>
+                        <th>Sync</th>
+                        <th>Health</th>
+                        <th>Members</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (raidArray of systemRaidArrays(system); track trackByRaidDevice($index, raidArray)) {
+                        <tr>
+                          <td>{{ raidArray.name | na }}</td>
+                          <td>{{ raidArray.device | na }}</td>
+                          <td>{{ raidArray.level | na }}</td>
+                          <td>{{ raidArray.state | na }}</td>
+                          <td>{{ raidArray.active_devices }}/{{ raidArray.raid_disks }}</td>
+                          <td>{{ raidArray.degraded_devices }}</td>
+                          <td>{{ raidArray.sync_action | na }}</td>
+                          <td class="status-cell">
+                            <app-status-badge
+                              [label]="raidHealthLabel(raidArray)"
+                              [tone]="raidHealthTone(raidArray)"
+                            />
+                          </td>
+                          <td class="drive-reason">{{ raidMembersLabel(raidArray) }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              } @else {
+                <p class="state empty">No RAID arrays detected.</p>
               }
             </section>
           } @else {

@@ -5,6 +5,7 @@ import {
   DiskDeviceInfo,
   DiskHealthStatus,
   DiskInfo,
+  RaidArrayInfo,
   SystemResponse
 } from '../../../core/models/api.models';
 import { LocalDatePipe } from '../../../core/pipes/local-date.pipe';
@@ -155,8 +156,54 @@ export class DashboardPageComponent {
     return disk.health?.reason || 'N/A';
   }
 
+  protected diskRaidLabel(disk: DiskDeviceInfo): string {
+    if (!disk.raid_array) {
+      return 'No';
+    }
+    if (disk.raid_level) {
+      return `${disk.raid_array} (${disk.raid_level})`;
+    }
+    return disk.raid_array;
+  }
+
+  protected systemRaidArrays(system: SystemResponse): RaidArrayInfo[] {
+    if (!Array.isArray(system.raid_arrays)) {
+      return [];
+    }
+    return system.raid_arrays;
+  }
+
+  protected raidHealthLabel(raidArray: RaidArrayInfo): string {
+    const status = raidArray.health?.status ?? 'unknown';
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+
+  protected raidHealthTone(raidArray: RaidArrayInfo): StatusTone {
+    switch (raidArray.health?.status) {
+      case 'healthy':
+        return 'good';
+      case 'warning':
+        return 'warn';
+      case 'critical':
+        return 'bad';
+      default:
+        return 'neutral';
+    }
+  }
+
+  protected raidMembersLabel(raidArray: RaidArrayInfo): string {
+    if (!Array.isArray(raidArray.members) || raidArray.members.length === 0) {
+      return 'N/A';
+    }
+    return raidArray.members.join(', ');
+  }
+
   protected trackByDiskKey(index: number, item: DiskDeviceInfo): string {
     return `${item.mountpoint}-${item.device}-${index}`;
+  }
+
+  protected trackByRaidDevice(index: number, item: RaidArrayInfo): string {
+    return `${item.device}-${index}`;
   }
 
   protected trackByContainerId(index: number, item: { id: string }): string {
