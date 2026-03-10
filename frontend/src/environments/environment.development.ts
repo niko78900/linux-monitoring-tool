@@ -1,16 +1,6 @@
-function resolveBackendBaseUrl(): string {
-  if (typeof window === 'undefined') {
-    return 'http://localhost:4040';
-  }
-
-  const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-  const hostname = window.location.hostname || 'localhost';
-  return `${protocol}//${hostname}:4040`;
-}
-
 export const environment = {
   production: false,
-  backendBaseUrl: resolveBackendBaseUrl(),
+  backendBaseUrl: 'http://192.168.100.34:4040',
   apiPrefix: '/api',
   polling: {
     summaryMs: 1000,
