@@ -2,6 +2,7 @@ import { AsyncPipe, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
 import {
+  DockerContainerInfo,
   DiskDeviceInfo,
   DiskHealthStatus,
   DiskInfo,
@@ -313,6 +314,66 @@ export class DashboardPageComponent {
     return disk.state || 'N/A';
   }
 
+  protected dockerRunningCount(containers: DockerContainerInfo[] | null | undefined): number {
+    if (!Array.isArray(containers) || containers.length === 0) {
+      return 0;
+    }
+    return containers.filter((container) => this.isContainerRunning(container.state)).length;
+  }
+
+  protected dockerStoppedCount(containers: DockerContainerInfo[] | null | undefined): number {
+    if (!Array.isArray(containers) || containers.length === 0) {
+      return 0;
+    }
+    return containers.length - this.dockerRunningCount(containers);
+  }
+
+  protected dockerUniqueImagesCount(containers: DockerContainerInfo[] | null | undefined): number {
+    if (!Array.isArray(containers) || containers.length === 0) {
+      return 0;
+    }
+    return new Set(containers.map((container) => (container.image || '').trim()).filter(Boolean)).size;
+  }
+
+  protected dockerRunningPercent(containers: DockerContainerInfo[] | null | undefined): number {
+    if (!Array.isArray(containers) || containers.length === 0) {
+      return 0;
+    }
+    return Math.round((this.dockerRunningCount(containers) / containers.length) * 100);
+  }
+
+  protected dockerStateLabel(state: string | null | undefined): string {
+    if (!state) {
+      return 'Unknown';
+    }
+    const normalized = state.trim().toLowerCase();
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+
+  protected dockerStateTone(state: string | null | undefined): StatusTone {
+    const normalized = (state || '').trim().toLowerCase();
+    if (!normalized) {
+      return 'neutral';
+    }
+    if (normalized === 'running') {
+      return 'good';
+    }
+    if (normalized === 'paused' || normalized === 'restarting') {
+      return 'warn';
+    }
+    if (normalized === 'exited' || normalized === 'dead' || normalized === 'removing') {
+      return 'bad';
+    }
+    return 'neutral';
+  }
+
+  protected shortContainerId(id: string | null | undefined): string {
+    if (!id) {
+      return 'N/A';
+    }
+    return id.length > 12 ? id.slice(0, 12) : id;
+  }
+
   protected trackByPhysicalDisk(index: number, item: PhysicalDiskInfo): string {
     return `${item.device}-${index}`;
   }
@@ -360,5 +421,9 @@ export class DashboardPageComponent {
       return 'warning';
     }
     return 'healthy';
+  }
+
+  private isContainerRunning(state: string | null | undefined): boolean {
+    return (state || '').trim().toLowerCase() === 'running';
   }
 }

@@ -309,6 +309,118 @@ h1 {
   overflow-x: auto;
 }
 
+.docker-overview-grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.docker-kpi-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.7rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: linear-gradient(165deg, rgba(15, 23, 42, 0.78) 0%, rgba(2, 6, 23, 0.62) 100%);
+}
+
+.docker-kpi-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.docker-kpi-label {
+  margin: 0;
+  color: #93c5fd;
+  font-size: 0.7rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.docker-kpi-value {
+  margin: 0;
+  color: #f8fafc;
+  font-weight: 700;
+  font-size: 1.1rem;
+  line-height: 1.2;
+}
+
+.docker-kpi-sub {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.docker-kpi-card app-progress-bar {
+  margin-top: 0.15rem;
+}
+
+.docker-table-shell {
+  border-radius: 0.8rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(2, 6, 23, 0.35);
+}
+
+.docker-table {
+  min-width: 920px;
+}
+
+.docker-table th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.container-primary {
+  min-width: 170px;
+}
+
+.container-name {
+  margin: 0;
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+.container-id {
+  margin: 0.22rem 0 0;
+  color: #94a3b8;
+  font-size: 0.7rem;
+  font-family: 'Consolas', 'Menlo', 'Monaco', monospace;
+}
+
+.docker-image {
+  max-width: 250px;
+  word-break: break-word;
+  color: #cbd5e1;
+}
+
+.state-cell {
+  min-width: 135px;
+}
+
+.state-cell .state-detail {
+  display: block;
+  margin-top: 0.3rem;
+  color: #94a3b8;
+  font-size: 0.74rem;
+  line-height: 1.2;
+}
+
+.docker-runtime {
+  min-width: 112px;
+  white-space: nowrap;
+  color: #cbd5e1;
+}
+
+.docker-ports {
+  max-width: 320px;
+  color: #cbd5e1;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -379,6 +491,10 @@ td {
   .system-gpu-grid {
     grid-template-columns: 1fr;
   }
+
+  .docker-overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
@@ -419,5 +535,18 @@ td {
   .detail-card-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .docker-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .docker-kpi-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .docker-table {
+    min-width: 760px;
   }
 }
