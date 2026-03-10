@@ -1,0 +1,94 @@
+<section class="specs-panel">
+  <header class="specs-panel-head">
+    <div>
+      <p class="specs-panel-title">System Specs</p>
+      <p class="specs-panel-subtitle">Hardware inventory: CPU, RAM, motherboard, GPU</p>
+    </div>
+    <button
+      class="specs-toggle"
+      type="button"
+      (click)="togglePanel()"
+      [attr.aria-expanded]="isExpanded"
+    >
+      {{ isExpanded ? 'Collapse' : 'Expand' }}
+    </button>
+  </header>
+
+  @if (isExpanded) {
+    <section class="spec-strip">
+      <article class="spec-card">
+        <p class="spec-label">CPU</p>
+        <p class="spec-value">{{ system.specs?.cpu?.model_name | na }}</p>
+        <p class="spec-sub">{{ system.specs?.cpu?.vendor | na }} | {{ system.specs?.cpu?.architecture | na }}</p>
+        <p class="spec-sub">{{ system.specs?.cpu?.physical_cores ?? system.cpu.physical_cores }}C / {{ system.specs?.cpu?.logical_cores ?? system.cpu.logical_cores }}T | {{ cpuThreadDensity() }}</p>
+        <p class="spec-sub">Frequency {{ cpuFrequencyLabel(system.specs?.cpu?.min_frequency_mhz, system.specs?.cpu?.max_frequency_mhz) }}</p>
+      </article>
+
+      <article class="spec-card">
+        <p class="spec-label">RAM</p>
+        <p class="spec-value">{{ (system.specs?.memory?.total_bytes ?? system.memory.total) | bytes }}</p>
+        <p class="spec-sub">Brand {{ memoryBrandLabel() }}</p>
+        <p class="spec-sub">Speed {{ memorySpeedLabel() }}</p>
+        <p class="spec-sub">{{ memoryModulesSummary() }}</p>
+      </article>
+
+      <article class="spec-card">
+        <p class="spec-label">Motherboard</p>
+        <p class="spec-value">{{ system.specs?.motherboard?.vendor | na }}</p>
+        <p class="spec-sub">{{ system.specs?.motherboard?.model | na }}</p>
+        <p class="spec-sub">Chipset {{ system.specs?.motherboard?.chipset | na }}</p>
+      </article>
+
+      <article class="spec-card">
+        <p class="spec-label">GPU</p>
+        <p class="spec-value">{{ system.specs?.gpu?.brand | na }}</p>
+        <p class="spec-sub">{{ system.specs?.gpu?.model | na }}</p>
+        <p class="spec-sub">VRAM {{ (system.specs?.gpu?.vram_total_mb | mbSize) | na }}</p>
+      </article>
+    </section>
+
+    <div class="spec-cap-grid">
+      <section class="spec-capabilities">
+        <div class="spec-cap-head">
+          <p class="spec-cap-title">CPU Capabilities</p>
+          <p class="spec-cap-meta">{{ (system.specs?.cpu?.capabilities?.length ?? 0) | number:'1.0-0' }} flags</p>
+        </div>
+        @if (cpuCapabilityPreview(system.specs?.cpu?.capabilities).length > 0) {
+          <div class="spec-chip-wrap">
+            @for (capability of cpuCapabilityPreview(system.specs?.cpu?.capabilities); track capability) {
+              <span class="spec-chip">{{ capability }}</span>
+            }
+            @if (cpuCapabilityHiddenCount(system.specs?.cpu?.capabilities) > 0) {
+              <span class="spec-chip muted">+{{ cpuCapabilityHiddenCount(system.specs?.cpu?.capabilities) }} more</span>
+            }
+          </div>
+        } @else {
+          <p class="spec-cap-empty">CPU capabilities not available.</p>
+        }
+      </section>
+
+      <section class="spec-capabilities">
+        <div class="spec-cap-head">
+          <p class="spec-cap-title">GPU Capabilities</p>
+          <p class="spec-cap-meta">{{ (system.specs?.gpu?.capabilities?.length ?? 0) | number:'1.0-0' }} items</p>
+        </div>
+        @if (system.specs?.gpu?.available) {
+          @if (gpuStaticCapabilityPreview(system.specs?.gpu?.capabilities).length > 0) {
+            <div class="spec-chip-wrap">
+              @for (capability of gpuStaticCapabilityPreview(system.specs?.gpu?.capabilities); track capability) {
+                <span class="spec-chip">{{ capability }}</span>
+              }
+              @if (gpuStaticCapabilityHiddenCount(system.specs?.gpu?.capabilities) > 0) {
+                <span class="spec-chip muted">+{{ gpuStaticCapabilityHiddenCount(system.specs?.gpu?.capabilities) }} more</span>
+              }
+            </div>
+          } @else {
+            <p class="spec-cap-empty">GPU capabilities not available.</p>
+          }
+        } @else {
+          <p class="spec-cap-empty">{{ system.specs?.gpu?.reason | na }}</p>
+        }
+      </section>
+    </div>
+  }
+</section>

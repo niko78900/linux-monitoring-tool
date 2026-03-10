@@ -1,0 +1,95 @@
+<app-section-panel
+  title="Docker"
+  subtitle="Container inventory from Docker Engine"
+>
+  @if (dockerState.loading && !dockerState.data) {
+    <p class="state loading">Loading Docker metrics...</p>
+  } @else if (dockerState.data; as docker) {
+    <div class="docker-overview-grid">
+      <article class="docker-kpi-card">
+        <p class="docker-kpi-label">Engine Status</p>
+        <div class="docker-kpi-head">
+          <p class="docker-kpi-value">{{ docker.docker_available ? 'Online' : 'Offline' }}</p>
+          <app-status-badge
+            [label]="docker.docker_available ? 'Reachable' : 'Unavailable'"
+            [tone]="docker.docker_available ? 'good' : 'bad'"
+          />
+        </div>
+        <p class="docker-kpi-sub">
+          {{ docker.docker_available ? 'Docker daemon is responding.' : (docker.reason | na) }}
+        </p>
+      </article>
+
+      <article class="docker-kpi-card">
+        <p class="docker-kpi-label">Total Containers</p>
+        <p class="docker-kpi-value">{{ docker.container_count }}</p>
+        <p class="docker-kpi-sub">Detected by backend poll</p>
+      </article>
+
+      <article class="docker-kpi-card">
+        <p class="docker-kpi-label">Running</p>
+        <p class="docker-kpi-value">{{ dockerRunningCount(docker.containers) }}</p>
+        <p class="docker-kpi-sub">{{ dockerStoppedCount(docker.containers) }} stopped</p>
+        <app-progress-bar
+          [value]="dockerRunningPercent(docker.containers)"
+          [tone]="usageTone(dockerRunningPercent(docker.containers))"
+        />
+      </article>
+
+      <article class="docker-kpi-card">
+        <p class="docker-kpi-label">Unique Images</p>
+        <p class="docker-kpi-value">{{ dockerUniqueImagesCount(docker.containers) }}</p>
+        <p class="docker-kpi-sub">Image footprint in use</p>
+      </article>
+    </div>
+
+    @if (docker.docker_available) {
+      @if (docker.containers.length > 0) {
+        <div class="table-scroll docker-table-shell">
+          <table class="docker-table">
+            <thead>
+              <tr>
+                <th>Container</th>
+                <th>Image</th>
+                <th>State</th>
+                <th>Runtime</th>
+                <th>Ports</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (container of docker.containers; track trackByContainerId($index, container)) {
+                <tr>
+                  <td class="container-primary">
+                    <p class="container-name">{{ container.name | na }}</p>
+                    <p class="container-id">{{ shortContainerId(container.id) }}</p>
+                  </td>
+                  <td class="docker-image" [title]="container.image | na">{{ container.image | na }}</td>
+                  <td class="state-cell">
+                    <app-status-badge
+                      [label]="dockerStateLabel(container.state)"
+                      [tone]="dockerStateTone(container.state)"
+                    />
+                    <span class="state-detail">{{ container.status | na }}</span>
+                  </td>
+                  <td class="docker-runtime">{{ container.running_for | na }}</td>
+                  <td class="docker-ports">{{ portsLabel(container.ports) }}</td>
+                  <td>{{ container.created | localDate }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <p class="state empty">Docker is online but no containers were returned.</p>
+      }
+    } @else {
+      <div class="state unavailable">
+        <h3>Docker not available</h3>
+        <p>{{ docker.reason | na }}</p>
+      </div>
+    }
+  } @else {
+    <p class="state error">Docker endpoint unavailable. {{ dockerState.error | na }}</p>
+  }
+</app-section-panel>
