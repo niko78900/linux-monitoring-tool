@@ -52,7 +52,8 @@ Environment files:
 
 Config keys:
 
-- `backendBaseUrl`: host + port of backend, e.g. `http://192.168.100.34:4040`
+- `backendBaseUrl`: backend host + port.
+  - Default is resolved at runtime from current browser hostname as `http(s)://<current-host>:4040`
 - `apiPrefix`: backend API prefix (default `/api`)
 - `polling.summaryMs`: summary polling interval
 - `polling.detailsMs`: system/gpu/docker polling interval
@@ -60,10 +61,10 @@ Config keys:
 
 Default setup in this project assumes:
 
-- `backendBaseUrl = 'http://192.168.100.34:4040'`
+- `backendBaseUrl = http(s)://<current-browser-host>:4040`
 - `apiPrefix = '/api'`
 
-and uses `proxy.conf.json` so `/api/*` is proxied to `http://192.168.100.34:4040`.
+and uses `proxy.conf.json` so `/api/*` can be proxied in local dev.
 
 If your FastAPI backend runs on a different host or port, either:
 
@@ -84,7 +85,7 @@ npm.cmd start
 
 App URL:
 
-- `http://192.168.100.34:4041`
+- `http://localhost:4041` (or your server IP if you bind `ng serve` to LAN)
 
 ## Build for production
 

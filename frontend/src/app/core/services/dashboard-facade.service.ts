@@ -26,8 +26,26 @@ export class DashboardFacadeService {
   readonly maxPollingIntervalMs = 60 * 60 * 1000;
 
   private readonly api = inject(MonitoringApiService);
+  private readonly minDetailsPollingIntervalMs = this.normalizePositivePollingMs(
+    environment.polling.detailsMs,
+    5000
+  );
+  private readonly minHealthPollingIntervalMs = this.normalizePositivePollingMs(
+    environment.polling.healthMs,
+    15000
+  );
   private readonly pollingIntervalMsSubject = new BehaviorSubject<number>(this.initialPollingIntervalMs());
   readonly pollingIntervalMs$ = this.pollingIntervalMsSubject.asObservable().pipe(
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+  readonly detailsPollingIntervalMs$ = this.pollingIntervalMs$.pipe(
+    map((summaryIntervalMs) => this.clampPollingIntervalMs(Math.max(summaryIntervalMs * 5, this.minDetailsPollingIntervalMs))),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+  readonly healthPollingIntervalMs$ = this.pollingIntervalMs$.pipe(
+    map((summaryIntervalMs) => this.clampPollingIntervalMs(Math.max(summaryIntervalMs * 10, this.minHealthPollingIntervalMs))),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -38,16 +56,16 @@ export class DashboardFacadeService {
   );
   readonly systemState$ = this.createPollingState(
     () => this.api.getSystem(),
-    this.pollingIntervalMs$
+    this.detailsPollingIntervalMs$
   );
-  readonly gpuState$ = this.createPollingState(() => this.api.getGpu(), this.pollingIntervalMs$);
+  readonly gpuState$ = this.createPollingState(() => this.api.getGpu(), this.detailsPollingIntervalMs$);
   readonly dockerState$ = this.createPollingState(
     () => this.api.getDocker(),
-    this.pollingIntervalMs$
+    this.detailsPollingIntervalMs$
   );
   readonly healthState$ = this.createPollingState(
     () => this.api.getHealth(),
-    this.pollingIntervalMs$
+    this.healthPollingIntervalMs$
   );
 
   readonly viewModel$: Observable<DashboardViewModel> = combineLatest({
@@ -147,17 +165,18 @@ export class DashboardFacadeService {
   }
 
   private initialPollingIntervalMs(): number {
-    const configuredValues = [
-      environment.polling.summaryMs,
-      environment.polling.detailsMs,
-      environment.polling.healthMs
-    ];
-    const firstValid = configuredValues.find((value) => Number.isFinite(value) && value > 0) ?? 1000;
-    return this.clampPollingIntervalMs(Math.round(firstValid));
+    return this.normalizePositivePollingMs(environment.polling.summaryMs, 1000);
   }
 
   private clampPollingIntervalMs(value: number): number {
     return Math.min(this.maxPollingIntervalMs, Math.max(this.minPollingIntervalMs, value));
+  }
+
+  private normalizePositivePollingMs(value: number, fallback: number): number {
+    if (!Number.isFinite(value) || value <= 0) {
+      return this.clampPollingIntervalMs(fallback);
+    }
+    return this.clampPollingIntervalMs(Math.round(value));
   }
 
   private describeError(error: unknown): string {

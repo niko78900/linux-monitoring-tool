@@ -16,7 +16,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe run.py
 ```
 
-Backend runs on `http://192.168.100.34:4040`.
+Backend runs on `http://localhost:4040` by default (or your server IP if you bind externally).
 
 ## 2) Start frontend (Angular)
 
@@ -28,7 +28,7 @@ npm.cmd install
 npm.cmd start
 ```
 
-Frontend runs on `http://192.168.100.34:4041`.
+Frontend runs on `http://localhost:4041` by default.
 
 `npm.cmd start` uses `proxy.conf.json`, so Angular requests to `/api/*`
-are proxied to `http://192.168.100.34:4040`.
+are proxied to `http://localhost:4040`.
