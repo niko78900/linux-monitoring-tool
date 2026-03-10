@@ -47,13 +47,13 @@ npm.cmd install
 
 Environment files:
 
-- `src/environments/environment.ts` (production build defaults)
-- `src/environments/environment.development.ts` (dev server)
+- `src/environments/environment.shared.ts` (single source of backend URL, API prefix, and polling defaults)
+- `src/environments/environment.ts` (production flag + shared values)
+- `src/environments/environment.development.ts` (development flag + shared values)
 
 Config keys:
 
-- `backendBaseUrl`: backend host + port.
-  - Default is resolved at runtime from current browser hostname as `http(s)://<current-host>:4040`
+- `backendBaseUrl`: backend host + port
 - `apiPrefix`: backend API prefix (default `/api`)
 - `polling.summaryMs`: summary polling interval
 - `polling.detailsMs`: system/gpu/docker polling interval
@@ -61,15 +61,11 @@ Config keys:
 
 Default setup in this project assumes:
 
-- `backendBaseUrl = http(s)://<current-browser-host>:4040`
+- `backendBaseUrl = 'http://192.168.100.34:4040'`
 - `apiPrefix = '/api'`
 
-and uses `proxy.conf.json` so `/api/*` can be proxied in local dev.
-
-If your FastAPI backend runs on a different host or port, either:
-
-1. update `proxy.conf.json`, or
-2. set `backendBaseUrl` in environment files.
+If your FastAPI backend runs on a different host or port, update
+`src/environments/environment.shared.ts`.
 
 ## Run dev server
 

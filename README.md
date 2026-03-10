@@ -30,5 +30,6 @@ npm.cmd start
 
 Frontend runs on `http://localhost:4041` by default.
 
-`npm.cmd start` uses `proxy.conf.json`, so Angular requests to `/api/*`
-are proxied to `http://localhost:4040`.
+Frontend API target is configured in:
+
+- `frontend/src/environments/environment.shared.ts`
