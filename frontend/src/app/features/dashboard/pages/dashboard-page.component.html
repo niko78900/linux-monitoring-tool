@@ -69,6 +69,9 @@
                 />
                 <span class="polling-bounds">500 ms - 1 hour</span>
               </div>
+              @if (shouldShowFastPollingWarning(pollingIntervalMs)) {
+                <p class="polling-warning">Warning: 4s or faster polling can increase backend load.</p>
+              }
               <p class="polling-note">Summary updates at this rate. Detailed panels refresh less often to reduce backend load.</p>
             </section>
           }

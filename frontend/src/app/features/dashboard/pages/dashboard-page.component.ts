@@ -136,6 +136,10 @@ export class DashboardPageComponent {
     return `${intervalMs} ms`;
   }
 
+  protected shouldShowFastPollingWarning(intervalMs: number): boolean {
+    return Number.isFinite(intervalMs) && intervalMs <= 4000;
+  }
+
   protected onPollingIntervalInput(event: Event): void {
     const target = event.target as HTMLInputElement | null;
     if (!target) {
