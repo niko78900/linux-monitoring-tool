@@ -58,17 +58,20 @@ python run.py
 
 Default URL:
 
-- API root: `http://192.168.100.34:4040/api`
-- Docs: `http://192.168.100.34:4040/api/docs`
+- API root: `http://localhost:4040/api`
+- Docs: `http://localhost:4040/api/docs`
+
+If the backend runs on a homelab server, replace `localhost` with that server IP
+(for example `http://192.168.100.34:4040`).
 
 ## 4) Test endpoints
 
 ```bash
-curl http://192.168.100.34:4040/api/health
-curl http://192.168.100.34:4040/api/system
-curl http://192.168.100.34:4040/api/gpu
-curl http://192.168.100.34:4040/api/docker
-curl http://192.168.100.34:4040/api/summary
+curl http://localhost:4040/api/health
+curl http://localhost:4040/api/system
+curl http://localhost:4040/api/gpu
+curl http://localhost:4040/api/docker
+curl http://localhost:4040/api/summary
 ```
 
 `/api/system` now includes:
