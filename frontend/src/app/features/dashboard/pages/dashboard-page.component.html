@@ -74,6 +74,102 @@
         </div>
       }
     </div>
+    @if (vm.system.data; as system) {
+      <section class="specs-panel">
+        <header class="specs-panel-head">
+          <div>
+            <p class="specs-panel-title">System Specs</p>
+            <p class="specs-panel-subtitle">Hardware inventory: CPU, RAM, motherboard, GPU</p>
+          </div>
+          <button
+            class="specs-toggle"
+            type="button"
+            (click)="toggleSpecsPanel()"
+            [attr.aria-expanded]="isSpecsExpanded"
+          >
+            {{ isSpecsExpanded ? 'Collapse' : 'Expand' }}
+          </button>
+        </header>
+
+        @if (isSpecsExpanded) {
+          <section class="spec-strip">
+            <article class="spec-card">
+              <p class="spec-label">CPU</p>
+              <p class="spec-value">{{ system.specs?.cpu?.model_name | na }}</p>
+              <p class="spec-sub">{{ system.specs?.cpu?.vendor | na }} | {{ system.specs?.cpu?.architecture | na }}</p>
+              <p class="spec-sub">{{ system.specs?.cpu?.physical_cores ?? system.cpu.physical_cores }}C / {{ system.specs?.cpu?.logical_cores ?? system.cpu.logical_cores }}T | {{ cpuThreadDensity(system.specs?.cpu) }}</p>
+              <p class="spec-sub">Frequency {{ cpuFrequencyLabel(system.specs?.cpu?.min_frequency_mhz, system.specs?.cpu?.max_frequency_mhz) }}</p>
+            </article>
+
+            <article class="spec-card">
+              <p class="spec-label">RAM</p>
+              <p class="spec-value">{{ (system.specs?.memory?.total_bytes ?? system.memory.total) | bytes }}</p>
+              <p class="spec-sub">Brand {{ memoryBrandLabel(system) }}</p>
+              <p class="spec-sub">Speed {{ memorySpeedLabel(system) }}</p>
+              <p class="spec-sub">{{ memoryModulesSummary(system) }}</p>
+            </article>
+
+            <article class="spec-card">
+              <p class="spec-label">Motherboard</p>
+              <p class="spec-value">{{ system.specs?.motherboard?.vendor | na }}</p>
+              <p class="spec-sub">{{ system.specs?.motherboard?.model | na }}</p>
+              <p class="spec-sub">Chipset {{ system.specs?.motherboard?.chipset | na }}</p>
+            </article>
+
+            <article class="spec-card">
+              <p class="spec-label">GPU</p>
+              <p class="spec-value">{{ system.specs?.gpu?.brand | na }}</p>
+              <p class="spec-sub">{{ system.specs?.gpu?.model | na }}</p>
+              <p class="spec-sub">VRAM {{ (system.specs?.gpu?.vram_total_mb | mbSize) | na }}</p>
+            </article>
+          </section>
+
+          <div class="spec-cap-grid">
+            <section class="spec-capabilities">
+              <div class="spec-cap-head">
+                <p class="spec-cap-title">CPU Capabilities</p>
+                <p class="spec-cap-meta">{{ (system.specs?.cpu?.capabilities?.length ?? 0) | number:'1.0-0' }} flags</p>
+              </div>
+              @if (cpuCapabilityPreview(system.specs?.cpu?.capabilities).length > 0) {
+                <div class="spec-chip-wrap">
+                  @for (capability of cpuCapabilityPreview(system.specs?.cpu?.capabilities); track capability) {
+                    <span class="spec-chip">{{ capability }}</span>
+                  }
+                  @if (cpuCapabilityHiddenCount(system.specs?.cpu?.capabilities) > 0) {
+                    <span class="spec-chip muted">+{{ cpuCapabilityHiddenCount(system.specs?.cpu?.capabilities) }} more</span>
+                  }
+                </div>
+              } @else {
+                <p class="spec-cap-empty">CPU capabilities not available.</p>
+              }
+            </section>
+
+            <section class="spec-capabilities">
+              <div class="spec-cap-head">
+                <p class="spec-cap-title">GPU Capabilities</p>
+                <p class="spec-cap-meta">{{ (system.specs?.gpu?.capabilities?.length ?? 0) | number:'1.0-0' }} items</p>
+              </div>
+              @if (system.specs?.gpu?.available) {
+                @if (gpuStaticCapabilityPreview(system.specs?.gpu?.capabilities).length > 0) {
+                  <div class="spec-chip-wrap">
+                    @for (capability of gpuStaticCapabilityPreview(system.specs?.gpu?.capabilities); track capability) {
+                      <span class="spec-chip">{{ capability }}</span>
+                    }
+                    @if (gpuStaticCapabilityHiddenCount(system.specs?.gpu?.capabilities) > 0) {
+                      <span class="spec-chip muted">+{{ gpuStaticCapabilityHiddenCount(system.specs?.gpu?.capabilities) }} more</span>
+                    }
+                  </div>
+                } @else {
+                  <p class="spec-cap-empty">GPU capabilities not available.</p>
+                }
+              } @else {
+                <p class="spec-cap-empty">{{ system.specs?.gpu?.reason | na }}</p>
+              }
+            </section>
+          </div>
+        }
+      </section>
+    }
 
     @if (vm.globalError) {
       <section class="global-error">
@@ -383,19 +479,14 @@
               <p class="state loading">Loading GPU telemetry...</p>
             } @else if (vm.gpu.data; as gpu) {
               @if (gpu.available) {
-                <app-info-row label="Name" [value]="gpu.name ?? 'N/A'" />
-                <app-info-row label="Temperature" [value]="(gpu.temperature_c | na) + ' C'" />
                 <app-info-row label="Utilization" [value]="asPercent(gpu.utilization_percent)" />
                 <app-progress-bar
                   [value]="gpu.utilization_percent"
                   [tone]="usageTone(gpu.utilization_percent)"
                 />
-                <app-info-row label="Memory Total" [value]="gpu.memory_total_mb | mbSize" />
-                <app-info-row label="Memory Used" [value]="gpu.memory_used_mb | mbSize" />
-                <app-info-row label="Memory Free" [value]="gpu.memory_free_mb | mbSize" />
+                <app-info-row label="VRAM Used / Total" [value]="gpuVramUsageLabel(gpu.memory_used_mb, gpu.memory_total_mb)" />
                 <app-info-row label="Power Usage" [value]="(gpu.power_usage_w | na) + ' W'" />
                 <app-info-row label="Fan Speed" [value]="(gpu.fan_speed_percent | na) + ' %'" />
-                <app-info-row label="Driver Version" [value]="gpu.driver_version ?? 'N/A'" />
               } @else {
                 <div class="state unavailable">
                   <h3>GPU not available</h3>
@@ -524,3 +615,4 @@
     </section>
   </main>
 }
+

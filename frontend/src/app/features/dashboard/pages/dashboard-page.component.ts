@@ -2,6 +2,7 @@ import { AsyncPipe, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
 import {
+  CpuSpecs,
   DockerContainerInfo,
   DiskDeviceInfo,
   DiskHealthStatus,
@@ -53,6 +54,7 @@ export class DashboardPageComponent {
   private readonly api = inject(MonitoringApiService);
 
   protected isPollingMenuOpen = false;
+  protected isSpecsExpanded = true;
 
   readonly vm$ = this.facade.viewModel$;
   readonly docsUrl = this.api.getDocsUrl();
@@ -72,6 +74,45 @@ export class DashboardPageComponent {
 
   protected platformLabel(platform: string | undefined, osPlatform: string | undefined): string {
     return osPlatform || platform || 'N/A';
+  }
+
+  protected cpuFrequencyLabel(minMhz: number | null | undefined, maxMhz: number | null | undefined): string {
+    const minLabel = this.frequencyLabel(minMhz);
+    const maxLabel = this.frequencyLabel(maxMhz);
+
+    if (minLabel === null && maxLabel === null) {
+      return 'N/A';
+    }
+    if (minLabel && maxLabel) {
+      if (minLabel === maxLabel) {
+        return maxLabel;
+      }
+      return `${minLabel} - ${maxLabel}`;
+    }
+    return minLabel || maxLabel || 'N/A';
+  }
+
+  protected cpuCapabilityPreview(capabilities: string[] | null | undefined, limit = 18): string[] {
+    if (!Array.isArray(capabilities) || capabilities.length === 0) {
+      return [];
+    }
+    return capabilities.slice(0, limit);
+  }
+
+  protected cpuCapabilityHiddenCount(capabilities: string[] | null | undefined, limit = 18): number {
+    if (!Array.isArray(capabilities) || capabilities.length <= limit) {
+      return 0;
+    }
+    return capabilities.length - limit;
+  }
+
+  protected cpuThreadDensity(specs: CpuSpecs | null | undefined): string {
+    if (!specs || specs.physical_cores <= 0 || specs.logical_cores <= 0) {
+      return 'N/A';
+    }
+
+    const ratio = specs.logical_cores / specs.physical_cores;
+    return `${ratio.toFixed(2).replace(/\.00$/, '')}x threads/core`;
   }
 
   protected loadAverageLabel(loadAverage: unknown, logicalCores: number | null | undefined): string {
@@ -156,6 +197,57 @@ export class DashboardPageComponent {
 
   protected closePollingMenu(): void {
     this.isPollingMenuOpen = false;
+  }
+
+  protected toggleSpecsPanel(): void {
+    this.isSpecsExpanded = !this.isSpecsExpanded;
+  }
+
+  protected memoryBrandLabel(system: SystemResponse): string {
+    const brands = system.specs?.memory?.manufacturers ?? [];
+    if (!Array.isArray(brands) || brands.length === 0) {
+      return 'N/A';
+    }
+    return brands.join(', ');
+  }
+
+  protected memorySpeedLabel(system: SystemResponse): string {
+    const speedMhz = system.specs?.memory?.speed_mhz;
+    if (speedMhz === null || speedMhz === undefined || Number.isNaN(speedMhz) || speedMhz <= 0) {
+      return 'N/A';
+    }
+    return `${Math.round(speedMhz).toLocaleString()} MT/s`;
+  }
+
+  protected memoryModulesSummary(system: SystemResponse): string {
+    const modules = system.specs?.memory?.modules ?? [];
+    if (!Array.isArray(modules) || modules.length === 0) {
+      return 'No module details';
+    }
+    return `${modules.length} module${modules.length === 1 ? '' : 's'} detected`;
+  }
+
+  protected gpuStaticCapabilityPreview(capabilities: string[] | null | undefined, limit = 8): string[] {
+    if (!Array.isArray(capabilities) || capabilities.length === 0) {
+      return [];
+    }
+    return capabilities.slice(0, limit);
+  }
+
+  protected gpuStaticCapabilityHiddenCount(capabilities: string[] | null | undefined, limit = 8): number {
+    if (!Array.isArray(capabilities) || capabilities.length <= limit) {
+      return 0;
+    }
+    return capabilities.length - limit;
+  }
+
+  protected gpuVramUsageLabel(usedMb: number | null | undefined, totalMb: number | null | undefined): string {
+    const usedLabel = this.megabytesToGbLabel(usedMb);
+    const totalLabel = this.megabytesToGbLabel(totalMb);
+    if (usedLabel === null || totalLabel === null) {
+      return 'N/A';
+    }
+    return `${usedLabel} / ${totalLabel}`;
   }
 
   protected systemDisks(system: SystemResponse): DiskDeviceInfo[] {
@@ -425,5 +517,28 @@ export class DashboardPageComponent {
 
   private isContainerRunning(state: string | null | undefined): boolean {
     return (state || '').trim().toLowerCase() === 'running';
+  }
+
+  private frequencyLabel(valueMhz: number | null | undefined): string | null {
+    if (valueMhz === null || valueMhz === undefined || Number.isNaN(valueMhz) || valueMhz <= 0) {
+      return null;
+    }
+
+    if (valueMhz >= 1000) {
+      const ghz = valueMhz / 1000;
+      const decimals = ghz >= 10 ? 1 : 2;
+      return `${ghz.toFixed(decimals).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1')} GHz`;
+    }
+    return `${Math.round(valueMhz).toLocaleString()} MHz`;
+  }
+
+  private megabytesToGbLabel(valueMb: number | null | undefined): string | null {
+    if (valueMb === null || valueMb === undefined || Number.isNaN(valueMb) || valueMb < 0) {
+      return null;
+    }
+
+    const valueGb = valueMb / 1000;
+    const decimals = valueGb >= 10 ? 1 : 2;
+    return `${valueGb.toFixed(decimals).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1')} GB`;
   }
 }

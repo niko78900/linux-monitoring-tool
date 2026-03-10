@@ -27,6 +27,61 @@ class CpuMetrics(BaseModel):
     load_average: LoadAverage | None = None
 
 
+class CpuSpecs(BaseModel):
+    model_name: str
+    vendor: str | None = None
+    architecture: str
+    physical_cores: int = Field(ge=0)
+    logical_cores: int = Field(ge=0)
+    min_frequency_mhz: float | None = Field(default=None, ge=0)
+    max_frequency_mhz: float | None = Field(default=None, ge=0)
+    capabilities: list[str] = Field(default_factory=list)
+
+
+class MemoryModuleSpecs(BaseModel):
+    slot: str | None = None
+    manufacturer: str | None = None
+    part_number: str | None = None
+    memory_type: str | None = None
+    size_bytes: int = Field(ge=0)
+    speed_mhz: int | None = Field(default=None, ge=0)
+
+
+class MemorySpecs(BaseModel):
+    total_bytes: int = Field(ge=0)
+    speed_mhz: int | None = Field(default=None, ge=0)
+    memory_type: str | None = None
+    manufacturers: list[str] = Field(default_factory=list)
+    modules: list[MemoryModuleSpecs] = Field(default_factory=list)
+
+
+class MotherboardSpecs(BaseModel):
+    vendor: str | None = None
+    model: str | None = None
+    version: str | None = None
+    chipset: str | None = None
+
+
+class GPUSpecs(BaseModel):
+    available: bool
+    reason: str | None = None
+    brand: str | None = None
+    model: str | None = None
+    driver_version: str | None = None
+    vram_total_mb: int | None = Field(default=None, ge=0)
+    cuda_compute_capability: str | None = None
+    capabilities: list[str] = Field(default_factory=list)
+
+
+class SystemSpecs(BaseModel):
+    cpu: CpuSpecs
+    memory_total_bytes: int = Field(ge=0)
+    swap_total_bytes: int = Field(ge=0)
+    memory: MemorySpecs
+    motherboard: MotherboardSpecs
+    gpu: GPUSpecs
+
+
 class MemoryMetrics(BaseModel):
     total: int = Field(ge=0)
     available: int = Field(ge=0)
@@ -113,6 +168,7 @@ class SystemResponse(BaseModel):
     hostname: str
     os: PlatformInfo
     kernel_version: str
+    specs: SystemSpecs
     uptime_seconds: int = Field(ge=0)
     uptime_human: str
     boot_time: datetime

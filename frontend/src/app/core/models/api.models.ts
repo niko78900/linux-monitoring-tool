@@ -28,6 +28,61 @@ export interface CpuInfo {
   load_average: LoadAverage;
 }
 
+export interface CpuSpecs {
+  model_name: string;
+  vendor?: string | null;
+  architecture: string;
+  physical_cores: number;
+  logical_cores: number;
+  min_frequency_mhz?: number | null;
+  max_frequency_mhz?: number | null;
+  capabilities: string[];
+}
+
+export interface MemoryModuleSpecs {
+  slot?: string | null;
+  manufacturer?: string | null;
+  part_number?: string | null;
+  memory_type?: string | null;
+  size_bytes: number;
+  speed_mhz?: number | null;
+}
+
+export interface MemorySpecs {
+  total_bytes: number;
+  speed_mhz?: number | null;
+  memory_type?: string | null;
+  manufacturers: string[];
+  modules: MemoryModuleSpecs[];
+}
+
+export interface MotherboardSpecs {
+  vendor?: string | null;
+  model?: string | null;
+  version?: string | null;
+  chipset?: string | null;
+}
+
+export interface GpuSpecs {
+  available: boolean;
+  reason?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  driver_version?: string | null;
+  vram_total_mb?: number | null;
+  cuda_compute_capability?: string | null;
+  capabilities: string[];
+}
+
+export interface SystemSpecs {
+  cpu: CpuSpecs;
+  memory_total_bytes: number;
+  swap_total_bytes: number;
+  memory: MemorySpecs;
+  motherboard: MotherboardSpecs;
+  gpu: GpuSpecs;
+}
+
 export interface MemoryInfo {
   total: number;
   available: number;
@@ -117,6 +172,7 @@ export interface SystemResponse {
   os?: PlatformInfo;
   platform?: string;
   kernel_version: string;
+  specs?: SystemSpecs;
   boot_time: string;
   uptime_seconds: number;
   uptime_human: string;

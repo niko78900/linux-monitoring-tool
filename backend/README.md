@@ -73,6 +73,15 @@ curl http://192.168.100.34:4040/api/summary
 
 `/api/system` now includes:
 
+- `specs`: static hardware-oriented system specs:
+  - `cpu.model_name`, `cpu.vendor`, `cpu.architecture`
+  - `cpu.physical_cores`, `cpu.logical_cores`
+  - `cpu.min_frequency_mhz`, `cpu.max_frequency_mhz` (when available)
+  - `cpu.capabilities` (instruction-set/feature flags from `/proc/cpuinfo` on Linux)
+  - `memory_total_bytes`, `swap_total_bytes`
+  - `memory`: RAM inventory (total bytes, speed, type, detected vendors, module list when available)
+  - `motherboard`: board vendor/model/version and chipset hint (from DMI/sysfs when available)
+  - `gpu`: static GPU metadata (brand/model/driver, total VRAM, capability list)
 - `disk`: primary disk (configured `DISK_MOUNTPOINT`, kept for compatibility)
 - `disks`: all detected mounted disks/partitions with:
   - `device`, `mountpoint`, `fstype`
