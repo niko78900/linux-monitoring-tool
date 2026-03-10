@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { combineLatest, Observable, of, timer } from 'rxjs';
-import { catchError, map, scan, shareReplay, startWith, switchMap } from 'rxjs/operators';
+import { BehaviorSubject, combineLatest, Observable, of, timer } from 'rxjs';
+import { catchError, distinctUntilChanged, map, scan, shareReplay, startWith, switchMap } from 'rxjs/operators';
 
 import {
   DockerResponse,
@@ -22,24 +22,32 @@ type PollEvent<T> =
   providedIn: 'root'
 })
 export class DashboardFacadeService {
+  readonly minPollingIntervalMs = 500;
+  readonly maxPollingIntervalMs = 60 * 60 * 1000;
+
   private readonly api = inject(MonitoringApiService);
+  private readonly pollingIntervalMsSubject = new BehaviorSubject<number>(this.initialPollingIntervalMs());
+  readonly pollingIntervalMs$ = this.pollingIntervalMsSubject.asObservable().pipe(
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   readonly summaryState$ = this.createPollingState(
     () => this.api.getSummary(),
-    environment.polling.summaryMs
+    this.pollingIntervalMs$
   );
   readonly systemState$ = this.createPollingState(
     () => this.api.getSystem(),
-    environment.polling.detailsMs
+    this.pollingIntervalMs$
   );
-  readonly gpuState$ = this.createPollingState(() => this.api.getGpu(), environment.polling.detailsMs);
+  readonly gpuState$ = this.createPollingState(() => this.api.getGpu(), this.pollingIntervalMs$);
   readonly dockerState$ = this.createPollingState(
     () => this.api.getDocker(),
-    environment.polling.detailsMs
+    this.pollingIntervalMs$
   );
   readonly healthState$ = this.createPollingState(
     () => this.api.getHealth(),
-    environment.polling.healthMs
+    this.pollingIntervalMs$
   );
 
   readonly viewModel$: Observable<DashboardViewModel> = combineLatest({
@@ -75,7 +83,19 @@ export class DashboardFacadeService {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  private createPollingState<T>(request: () => Observable<T>, intervalMs: number): Observable<ResourceState<T>> {
+  setPollingIntervalMs(value: number): void {
+    if (Number.isNaN(value) || !Number.isFinite(value)) {
+      return;
+    }
+
+    const nextValue = this.clampPollingIntervalMs(Math.round(value));
+    if (nextValue === this.pollingIntervalMsSubject.value) {
+      return;
+    }
+    this.pollingIntervalMsSubject.next(nextValue);
+  }
+
+  private createPollingState<T>(request: () => Observable<T>, intervalMs$: Observable<number>): Observable<ResourceState<T>> {
     const initialState: ResourceState<T> = {
       data: null,
       loading: true,
@@ -83,20 +103,24 @@ export class DashboardFacadeService {
       lastUpdated: null
     };
 
-    return timer(0, intervalMs).pipe(
-      switchMap(() =>
-        request().pipe(
-          map((data): PollEvent<T> => ({
-            kind: 'success',
-            data,
-            timestamp: new Date().toISOString()
-          })),
-          catchError((error: unknown) =>
-            of<PollEvent<T>>({
-              kind: 'error',
-              message: this.describeError(error),
-              timestamp: new Date().toISOString()
-            })
+    return intervalMs$.pipe(
+      switchMap((intervalMs) =>
+        timer(0, intervalMs).pipe(
+          switchMap(() =>
+            request().pipe(
+              map((data): PollEvent<T> => ({
+                kind: 'success',
+                data,
+                timestamp: new Date().toISOString()
+              })),
+              catchError((error: unknown) =>
+                of<PollEvent<T>>({
+                  kind: 'error',
+                  message: this.describeError(error),
+                  timestamp: new Date().toISOString()
+                })
+              )
+            )
           )
         )
       ),
@@ -120,6 +144,20 @@ export class DashboardFacadeService {
       startWith(initialState),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+  }
+
+  private initialPollingIntervalMs(): number {
+    const configuredValues = [
+      environment.polling.summaryMs,
+      environment.polling.detailsMs,
+      environment.polling.healthMs
+    ];
+    const firstValid = configuredValues.find((value) => Number.isFinite(value) && value > 0) ?? 1000;
+    return this.clampPollingIntervalMs(Math.round(firstValid));
+  }
+
+  private clampPollingIntervalMs(value: number): number {
+    return Math.min(this.maxPollingIntervalMs, Math.max(this.minPollingIntervalMs, value));
   }
 
   private describeError(error: unknown): string {

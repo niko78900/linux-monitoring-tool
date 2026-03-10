@@ -14,7 +14,66 @@
       </div>
     </header>
 
-    <p class="last-updated">Last updated: {{ vm.lastUpdated | localDate }}</p>
+    <div class="meta-row">
+      <p class="last-updated">Last updated: {{ vm.lastUpdated | localDate }}</p>
+
+      @if (pollingIntervalMs$ | async; as pollingIntervalMs) {
+        @if (isPollingMenuOpen) {
+          <button
+            class="polling-backdrop"
+            type="button"
+            (click)="closePollingMenu()"
+            aria-label="Close API update interval menu"
+          ></button>
+        }
+
+        <div class="polling-menu-wrap">
+          <button
+            class="polling-trigger"
+            type="button"
+            (click)="togglePollingMenu()"
+            [attr.aria-expanded]="isPollingMenuOpen"
+            aria-haspopup="dialog"
+            aria-label="Open API update interval menu"
+          >
+            <span class="polling-title">Update Interval</span>
+            <span class="polling-value">{{ pollingIntervalLabel(pollingIntervalMs) }}</span>
+          </button>
+
+          @if (isPollingMenuOpen) {
+            <section class="polling-popover">
+              <div class="polling-control-head">
+                <span class="polling-title">API Update Interval</span>
+                <span class="polling-value">{{ pollingIntervalLabel(pollingIntervalMs) }}</span>
+              </div>
+
+              <input
+                class="polling-slider"
+                type="range"
+                [min]="minPollingIntervalMs"
+                [max]="maxPollingIntervalMs"
+                [step]="pollingStepMs"
+                [value]="pollingIntervalMs"
+                (input)="onPollingIntervalInput($event)"
+              />
+
+              <div class="polling-control-foot">
+                <input
+                  class="polling-number"
+                  type="number"
+                  [min]="minPollingIntervalMs"
+                  [max]="maxPollingIntervalMs"
+                  [step]="pollingStepMs"
+                  [value]="pollingIntervalMs"
+                  (input)="onPollingIntervalInput($event)"
+                />
+                <span class="polling-bounds">500 ms - 1 hour</span>
+              </div>
+            </section>
+          }
+        </div>
+      }
+    </div>
 
     @if (vm.globalError) {
       <section class="global-error">

@@ -51,8 +51,14 @@ export class DashboardPageComponent {
   private readonly facade = inject(DashboardFacadeService);
   private readonly api = inject(MonitoringApiService);
 
+  protected isPollingMenuOpen = false;
+
   readonly vm$ = this.facade.viewModel$;
   readonly docsUrl = this.api.getDocsUrl();
+  readonly pollingIntervalMs$ = this.facade.pollingIntervalMs$;
+  readonly minPollingIntervalMs = this.facade.minPollingIntervalMs;
+  readonly maxPollingIntervalMs = this.facade.maxPollingIntervalMs;
+  readonly pollingStepMs = 500;
 
   protected usageTone = usageTone;
 
@@ -116,6 +122,39 @@ export class DashboardPageComponent {
     }
 
     return `${Math.round(speedMbps).toLocaleString()} Mbps`;
+  }
+
+  protected pollingIntervalLabel(intervalMs: number): string {
+    if (intervalMs >= 60 * 60 * 1000) {
+      return '1 hour';
+    }
+    if (intervalMs >= 60 * 1000) {
+      const minutes = intervalMs / (60 * 1000);
+      return `${minutes.toFixed(minutes >= 10 ? 0 : 1).replace(/\.0$/, '')} min`;
+    }
+    if (intervalMs >= 1000) {
+      const seconds = intervalMs / 1000;
+      return `${seconds.toFixed(seconds >= 10 ? 0 : 1).replace(/\.0$/, '')} sec`;
+    }
+    return `${intervalMs} ms`;
+  }
+
+  protected onPollingIntervalInput(event: Event): void {
+    const target = event.target as HTMLInputElement | null;
+    if (!target) {
+      return;
+    }
+
+    const nextValue = Number(target.value);
+    this.facade.setPollingIntervalMs(nextValue);
+  }
+
+  protected togglePollingMenu(): void {
+    this.isPollingMenuOpen = !this.isPollingMenuOpen;
+  }
+
+  protected closePollingMenu(): void {
+    this.isPollingMenuOpen = false;
   }
 
   protected systemDisks(system: SystemResponse): DiskDeviceInfo[] {
