@@ -2,6 +2,8 @@
 backend/.venv/
 backend/__pycache__/
 backend/**/*.pyc
+.pytest_cache/
+pytest-cache-files-*/
 
 # Node/Angular
 frontend/node_modules/
