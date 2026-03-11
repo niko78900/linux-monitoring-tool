@@ -49,6 +49,7 @@ Adjust `.env` values if needed:
 - `CORS_ORIGINS`: comma-separated frontend origins
 - `DISK_MOUNTPOINT`: disk mount to report (default `/`)
 - `HOST`/`PORT`: bind address and port
+- `DOCKER_TIMEOUT_SECONDS`: Docker SDK timeout for daemon calls (default `3`)
 
 ## 3) Run the API
 

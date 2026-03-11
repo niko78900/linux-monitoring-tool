@@ -37,6 +37,16 @@ def _parse_bool(raw_value: str | None, default: bool) -> bool:
     return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _parse_int(raw_value: str | None, default: int, *, minimum: int = 0) -> int:
+    if raw_value is None:
+        return default
+    try:
+        parsed = int(raw_value.strip())
+    except ValueError:
+        return default
+    return max(minimum, parsed)
+
+
 @dataclass(frozen=True)
 class Settings:
     app_name: str
@@ -48,6 +58,7 @@ class Settings:
     host: str
     port: int
     reload: bool
+    docker_timeout_seconds: int
 
 
 @lru_cache(maxsize=1)
@@ -63,6 +74,7 @@ def get_settings() -> Settings:
         disk_mountpoint=os.getenv("DISK_MOUNTPOINT", "/"),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         host=host,
-        port=int(os.getenv("PORT", "4040")),
+        port=_parse_int(os.getenv("PORT"), 4040, minimum=1),
         reload=_parse_bool(os.getenv("RELOAD"), default=False),
+        docker_timeout_seconds=_parse_int(os.getenv("DOCKER_TIMEOUT_SECONDS"), 3, minimum=1),
     )

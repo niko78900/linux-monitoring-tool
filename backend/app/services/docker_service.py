@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from app.core.config import get_settings
 from app.core.utils import format_duration, parse_docker_timestamp, utc_now
 from app.models.docker import DockerContainerInfo, DockerResponse, DockerSummaryResponse
 
@@ -26,7 +27,7 @@ def get_docker_metrics() -> DockerResponse:
 
     client = None
     try:
-        client = docker.from_env()
+        client = _create_docker_client()
         raw_containers = client.containers.list(all=True)
         containers = [_to_container_info(item) for item in raw_containers]
         return DockerResponse(
@@ -69,7 +70,7 @@ def get_docker_summary() -> DockerSummaryResponse:
 
     client = None
     try:
-        client = docker.from_env()
+        client = _create_docker_client()
         running = client.containers.list(all=False)
         return DockerSummaryResponse(docker_available=True, running_containers=len(running))
     except (PermissionError, DockerException) as exc:
@@ -158,3 +159,8 @@ def _close_client(client: object | None) -> None:
         client.close()
     except Exception as exc:  # pragma: no cover - runtime fallback
         logger.debug("Failed to close Docker client cleanly: %s", exc)
+
+
+def _create_docker_client() -> object:
+    timeout_seconds = get_settings().docker_timeout_seconds
+    return docker.from_env(timeout=timeout_seconds)
