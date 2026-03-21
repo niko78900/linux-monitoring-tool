@@ -7,7 +7,7 @@ Read-only homelab dashboard for the FastAPI monitoring backend.
 - Dark-theme dashboard with summary cards and detail panels
 - Polling-based data refresh (no WebSockets)
 - Graceful handling of unavailable GPU/Docker telemetry
-- Environment-based API base URL and prefix configuration
+- Same-origin API defaults with Angular dev-proxy support
 - Compact, expandable Angular architecture (core/services/models/shared components)
 
 ## Project structure
@@ -50,22 +50,29 @@ Environment files:
 - `src/environments/environment.shared.ts` (single source of backend URL, API prefix, and polling defaults)
 - `src/environments/environment.ts` (production flag + shared values)
 - `src/environments/environment.development.ts` (development flag + shared values)
+- `proxy.conf.json` (Angular dev proxy target for `/api`)
 
 Config keys:
 
-- `backendBaseUrl`: backend host + port
+- `backendBaseUrl`: backend host + port (optional)
 - `apiPrefix`: backend API prefix (default `/api`)
 - `polling.summaryMs`: summary polling interval
 - `polling.detailsMs`: system/gpu/docker polling interval
 - `polling.healthMs`: health polling interval
 
-Default setup in this project assumes:
+Default setup in this project uses:
 
-- `backendBaseUrl = 'http://192.168.100.34:4040'`
+- `backendBaseUrl = ''` (same-origin API calls, such as `/api/summary`)
 - `apiPrefix = '/api'`
+- `proxy.conf.json` routes `/api` to `http://127.0.0.1:4040` during `ng serve`
 
-If your FastAPI backend runs on a different host or port, update
-`src/environments/environment.shared.ts`.
+If your FastAPI backend runs on a different host or port in development, either:
+
+- update `proxy.conf.json` target, or
+- set `backendBaseUrl` to an absolute backend URL.
+
+For production, prefer serving frontend and backend under one origin (reverse proxy) and keep
+`backendBaseUrl` empty.
 
 ## Run dev server
 
@@ -81,7 +88,8 @@ npm.cmd start
 
 App URL:
 
-- `http://localhost:4041` (or your server IP if you bind `ng serve` to LAN)
+- `http://localhost:4041`
+- `http://<your-host-ip>:4041` (LAN/Tailscale, `ng serve` binds `0.0.0.0`)
 
 ## Build for production
 
