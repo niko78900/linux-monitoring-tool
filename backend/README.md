@@ -47,6 +47,7 @@ cp .env.example .env
 Adjust `.env` values if needed:
 
 - `CORS_ORIGINS`: comma-separated frontend origins
+- `CORS_ORIGIN_REGEX`: optional regex for additional frontend origins
 - `DISK_MOUNTPOINT`: disk mount to report (default `/`)
 - `HOST`/`PORT`: bind address and port
 - `DOCKER_TIMEOUT_SECONDS`: Docker SDK timeout for daemon calls (default `3`)
@@ -62,8 +63,14 @@ Default URL:
 - API root: `http://localhost:4040/api`
 - Docs: `http://localhost:4040/api/docs`
 
-If the backend runs on a homelab server, replace `localhost` with that server IP
-(for example `http://192.168.100.34:4040`).
+With default `HOST=0.0.0.0`, the API is also reachable via LAN/Tailscale at
+`http://<server-ip>:4040/api`.
+
+### CORS notes
+
+- For same-origin production deployments (frontend and backend behind one reverse proxy), keep CORS strict.
+- For separate frontend/backend origins, set `CORS_ORIGINS` to exact frontend origins.
+- Use `CORS_ORIGIN_REGEX` only when you need pattern-based dev origins (for example dynamic LAN/Tailscale IPs).
 
 ## 4) Test endpoints
 
