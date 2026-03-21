@@ -94,10 +94,10 @@ def get_gpu_static_specs() -> GPUSpecs:
         )
     except NVMLError as exc:
         logger.warning("GPU static specs unavailable: %s", exc)
-        return GPUSpecs(available=False, reason=f"NVML error: {exc}", capabilities=[])
+        return GPUSpecs(available=False, reason="GPU telemetry unavailable.", capabilities=[])
     except Exception as exc:  # pragma: no cover - runtime fallback
         logger.exception("Unexpected GPU static specs failure.")
-        return GPUSpecs(available=False, reason=f"Unexpected GPU error: {exc}", capabilities=[])
+        return GPUSpecs(available=False, reason="Unexpected GPU error.", capabilities=[])
     finally:
         if initialized and nvmlShutdown is not None:
             try:
@@ -150,10 +150,10 @@ def get_gpu_metrics() -> GPUResponse:
         )
     except NVMLError as exc:
         logger.warning("GPU metrics unavailable: %s", exc)
-        return GPUResponse(available=False, reason=f"NVML error: {exc}")
+        return GPUResponse(available=False, reason="GPU telemetry unavailable.")
     except Exception as exc:  # pragma: no cover - runtime fallback
         logger.exception("Unexpected GPU metrics failure.")
-        return GPUResponse(available=False, reason=f"Unexpected GPU error: {exc}")
+        return GPUResponse(available=False, reason="Unexpected GPU error.")
     finally:
         if initialized and nvmlShutdown is not None:
             try:

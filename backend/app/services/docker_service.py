@@ -40,7 +40,7 @@ def get_docker_metrics() -> DockerResponse:
         logger.warning("Docker permission issue: %s", exc)
         return DockerResponse(
             docker_available=False,
-            reason=f"Docker permission denied: {exc}",
+            reason="Docker access denied.",
             container_count=0,
             containers=[],
         )
@@ -48,7 +48,7 @@ def get_docker_metrics() -> DockerResponse:
         logger.warning("Docker unavailable: %s", exc)
         return DockerResponse(
             docker_available=False,
-            reason=f"Docker unavailable: {exc}",
+            reason="Docker unavailable.",
             container_count=0,
             containers=[],
         )
@@ -56,7 +56,7 @@ def get_docker_metrics() -> DockerResponse:
         logger.exception("Unexpected Docker metrics failure.")
         return DockerResponse(
             docker_available=False,
-            reason=f"Unexpected Docker error: {exc}",
+            reason="Unexpected Docker error.",
             container_count=0,
             containers=[],
         )
