@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
+import shutil
+import subprocess
+import time
+from threading import Lock
 
 from app.models.system import (
     DiskDeviceMetrics,
@@ -28,6 +33,9 @@ except ImportError:  # pragma: no cover - handled at runtime
     psutil = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
+_DISK_TEMPERATURE_CACHE_TTL_SECONDS = 30.0
+_disk_temperature_cache: dict[str, tuple[float, float | None]] = {}
+_disk_temperature_cache_lock = Lock()
 
 
 def get_disks_metrics(mountpoint: str, primary_disk: DiskMetrics, raid_arrays: list[RaidArrayMetrics]) -> list[DiskDeviceMetrics]:
@@ -181,6 +189,7 @@ def get_physical_disks_metrics(raid_arrays: list[RaidArrayMetrics]) -> list[Phys
         mounted_partitions = mounts_by_disk.get(device_name, [])
         disk_raid_arrays = raid_membership.get(device_name, [])
         raid_array_names = [raid_array.name for raid_array in disk_raid_arrays]
+        temperature_c = _get_disk_temperature_c_cached(device_name)
 
         physical_disks.append(
             PhysicalDiskMetrics(
@@ -190,6 +199,7 @@ def get_physical_disks_metrics(raid_arrays: list[RaidArrayMetrics]) -> list[Phys
                 vendor=vendor,
                 serial=serial,
                 size_bytes=size_bytes,
+                temperature_c=temperature_c,
                 rotational=rotational,
                 removable=removable,
                 state=state,
@@ -456,3 +466,215 @@ def _build_physical_disk_health(
             return DiskHealth(status="warning", reason="Member of a RAID array under sync/recovery.")
 
     return DiskHealth(status="healthy", reason="Physical disk reports healthy kernel state.")
+
+
+def _get_disk_temperature_c_cached(device_name: str) -> float | None:
+    if not device_name or os.name == "nt":
+        return None
+
+    now = time.monotonic()
+    with _disk_temperature_cache_lock:
+        cached = _disk_temperature_cache.get(device_name)
+        if cached is not None:
+            timestamp, value = cached
+            if now - timestamp <= _DISK_TEMPERATURE_CACHE_TTL_SECONDS:
+                return value
+
+    value = _read_disk_temperature_c(device_name)
+    with _disk_temperature_cache_lock:
+        _disk_temperature_cache[device_name] = (now, value)
+    return value
+
+
+def _read_disk_temperature_c(device_name: str) -> float | None:
+    device_path = f"/dev/{device_name}"
+
+    smartctl_path = shutil.which("smartctl")
+    if smartctl_path is not None:
+        json_output = _run_safe_command([smartctl_path, "-A", "-j", device_path], timeout_seconds=2.5)
+        if json_output is not None:
+            parsed_json_temperature = _parse_smartctl_json_temperature(json_output)
+            if parsed_json_temperature is not None:
+                return parsed_json_temperature
+
+        text_output = _run_safe_command([smartctl_path, "-A", device_path], timeout_seconds=2.5)
+        if text_output is not None:
+            parsed_text_temperature = _parse_smartctl_text_temperature(text_output)
+            if parsed_text_temperature is not None:
+                return parsed_text_temperature
+
+    return _read_disk_temperature_from_psutil(device_name)
+
+
+def _run_safe_command(args: list[str], timeout_seconds: float) -> str | None:
+    try:
+        result = subprocess.run(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="ignore",
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        logger.debug("Command failed (%s): %s", args[0] if args else "unknown", exc)
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    output = result.stdout.strip()
+    return output or None
+
+
+def _parse_smartctl_json_temperature(raw_output: str) -> float | None:
+    try:
+        payload = json.loads(raw_output)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    candidates: list[float] = []
+
+    temperature_obj = payload.get("temperature")
+    temperature_data = temperature_obj if isinstance(temperature_obj, dict) else {}
+    direct_temperature = _normalize_temperature(temperature_data.get("current"))
+    if direct_temperature is not None:
+        candidates.append(direct_temperature)
+
+    nvme_obj = payload.get("nvme_smart_health_information_log")
+    nvme_data = nvme_obj if isinstance(nvme_obj, dict) else {}
+    nvme_temperature = _normalize_temperature(nvme_data.get("temperature"))
+    if nvme_temperature is not None:
+        candidates.append(nvme_temperature)
+
+    ata_obj = payload.get("ata_smart_attributes")
+    ata_data = ata_obj if isinstance(ata_obj, dict) else {}
+    ata_table = ata_data.get("table") or []
+    for attribute in ata_table:
+        if not isinstance(attribute, dict):
+            continue
+        attr_id = attribute.get("id")
+        if attr_id not in {190, 194}:
+            continue
+
+        raw_value = (attribute.get("raw") or {}).get("value")
+        parsed_raw_value = _normalize_temperature(raw_value)
+        if parsed_raw_value is not None:
+            candidates.append(parsed_raw_value)
+            continue
+
+        raw_string = (attribute.get("raw") or {}).get("string")
+        if raw_string:
+            parsed_from_string = _parse_first_temperature_number(str(raw_string))
+            if parsed_from_string is not None:
+                candidates.append(parsed_from_string)
+
+    if not candidates:
+        return None
+    return round(max(candidates), 1)
+
+
+def _parse_smartctl_text_temperature(raw_output: str) -> float | None:
+    candidates: list[float] = []
+
+    for line in raw_output.splitlines():
+        normalized_line = line.strip()
+        if not normalized_line:
+            continue
+
+        direct_pattern = re.search(
+            r"^(?:Temperature|Composite Temperature|Current Drive Temperature)\s*:\s*([+-]?\d+)\b",
+            normalized_line,
+            flags=re.IGNORECASE,
+        )
+        if direct_pattern is not None:
+            parsed = _normalize_temperature(direct_pattern.group(1))
+            if parsed is not None:
+                candidates.append(parsed)
+            continue
+
+        sensor_pattern = re.search(r"^Temperature Sensor \d+\s*:\s*([+-]?\d+)\b", normalized_line, flags=re.IGNORECASE)
+        if sensor_pattern is not None:
+            parsed = _normalize_temperature(sensor_pattern.group(1))
+            if parsed is not None:
+                candidates.append(parsed)
+            continue
+
+        smart_table_pattern = re.search(
+            r"^(190|194)\s+\S+.*?\s([+-]?\d+)(?:\s*\(.*\))?\s*$",
+            normalized_line,
+            flags=re.IGNORECASE,
+        )
+        if smart_table_pattern is not None:
+            parsed = _normalize_temperature(smart_table_pattern.group(2))
+            if parsed is not None:
+                candidates.append(parsed)
+
+    if not candidates:
+        return None
+    return round(max(candidates), 1)
+
+
+def _read_disk_temperature_from_psutil(device_name: str) -> float | None:
+    if psutil is None or not hasattr(psutil, "sensors_temperatures"):
+        return None
+
+    try:
+        sensors = psutil.sensors_temperatures(fahrenheit=False)
+    except (AttributeError, OSError, NotImplementedError) as exc:
+        logger.debug("Could not read psutil temperatures for disk %s: %s", device_name, exc)
+        return None
+
+    candidates: list[float] = []
+    normalized_device_name = device_name.lower()
+
+    for sensor_group, entries in (sensors or {}).items():
+        sensor_group_lower = str(sensor_group).lower()
+        for entry in entries or []:
+            label = str(getattr(entry, "label", "") or "").lower()
+            search_blob = f"{sensor_group_lower} {label}"
+
+            is_disk_group = any(keyword in sensor_group_lower for keyword in ("nvme", "drivetemp", "hdd", "ssd"))
+            references_device = normalized_device_name in search_blob
+            if not is_disk_group and not references_device:
+                continue
+
+            # NVMe sensors often expose only a composite value without explicit device label.
+            if not references_device and not normalized_device_name.startswith("nvme"):
+                continue
+
+            parsed = _normalize_temperature(getattr(entry, "current", None))
+            if parsed is not None:
+                candidates.append(parsed)
+
+    if not candidates:
+        return None
+    return round(max(candidates), 1)
+
+
+def _parse_first_temperature_number(raw_value: str) -> float | None:
+    match = re.search(r"([+-]?\d+)", raw_value)
+    if match is None:
+        return None
+    return _normalize_temperature(match.group(1))
+
+
+def _normalize_temperature(raw_value: object) -> float | None:
+    if raw_value is None:
+        return None
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        return None
+
+    # Some tools may expose Kelvin. Convert if it looks like Kelvin range.
+    if 200 <= value <= 500:
+        value = value - 273.15
+
+    if value < -20 or value > 130:
+        return None
+    return value

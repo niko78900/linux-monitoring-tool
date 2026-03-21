@@ -101,6 +101,13 @@ export class SpecsPanelComponent {
     return capabilities.length - limit;
   }
 
+  protected temperatureLabel(valueC: number | null | undefined): string {
+    if (valueC === null || valueC === undefined || Number.isNaN(valueC) || valueC < -20 || valueC > 130) {
+      return 'N/A';
+    }
+    return `${valueC.toFixed(1).replace(/\.0$/, '')} C`;
+  }
+
   private frequencyLabel(valueMhz: number | null | undefined): string | null {
     if (valueMhz === null || valueMhz === undefined || Number.isNaN(valueMhz) || valueMhz <= 0) {
       return null;

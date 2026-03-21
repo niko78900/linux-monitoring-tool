@@ -26,6 +26,7 @@ export interface CpuInfo {
   physical_cores: number;
   logical_cores: number;
   load_average: LoadAverage;
+  temperature_c?: number | null;
 }
 
 export interface CpuSpecs {
@@ -136,6 +137,7 @@ export interface PhysicalDiskInfo {
   vendor?: string | null;
   serial?: string | null;
   size_bytes: number;
+  temperature_c?: number | null;
   rotational?: boolean | null;
   removable: boolean;
   state?: string | null;
@@ -173,6 +175,7 @@ export interface SystemResponse {
   platform?: string;
   kernel_version: string;
   specs?: SystemSpecs;
+  chassis_temperature_c?: number | null;
   boot_time: string;
   uptime_seconds: number;
   uptime_human: string;

@@ -22,6 +22,7 @@
         <p class="spec-sub">{{ system.specs?.cpu?.vendor | na }} | {{ system.specs?.cpu?.architecture | na }}</p>
         <p class="spec-sub">{{ system.specs?.cpu?.physical_cores ?? system.cpu.physical_cores }}C / {{ system.specs?.cpu?.logical_cores ?? system.cpu.logical_cores }}T | {{ cpuThreadDensity() }}</p>
         <p class="spec-sub">Frequency {{ cpuFrequencyLabel(system.specs?.cpu?.min_frequency_mhz, system.specs?.cpu?.max_frequency_mhz) }}</p>
+        <p class="spec-sub">Temp {{ temperatureLabel(system.cpu.temperature_c) }}</p>
       </article>
 
       <article class="spec-card">
@@ -37,6 +38,7 @@
         <p class="spec-value">{{ system.specs?.motherboard?.vendor | na }}</p>
         <p class="spec-sub">{{ system.specs?.motherboard?.model | na }}</p>
         <p class="spec-sub">Chipset {{ system.specs?.motherboard?.chipset | na }}</p>
+        <p class="spec-sub">Chassis Temp {{ temperatureLabel(system.chassis_temperature_c) }}</p>
       </article>
 
       <article class="spec-card">

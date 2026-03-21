@@ -22,6 +22,7 @@ def _sample_system_payload() -> dict:
             "platform": "Linux-6.8.0-x86_64",
         },
         "kernel_version": "6.8.0",
+        "chassis_temperature_c": 36.5,
         "specs": {
             "cpu": {
                 "model_name": "AMD Ryzen 7 5800X",
@@ -75,6 +76,7 @@ def _sample_system_payload() -> dict:
             "usage_percent": 23.5,
             "physical_cores": 8,
             "logical_cores": 16,
+            "temperature_c": 58.2,
             "load_average": {
                 "one_min": 0.7,
                 "five_min": 0.9,
@@ -137,6 +139,7 @@ def _sample_system_payload() -> dict:
                 "vendor": "Samsung",
                 "serial": "XYZ123",
                 "size_bytes": 1000000000000,
+                "temperature_c": 39.0,
                 "rotational": False,
                 "removable": False,
                 "state": "running",
@@ -199,9 +202,12 @@ def test_system_endpoint_returns_service_data(client: TestClient, api_prefix: st
     assert seen_mountpoint["value"] == get_settings().disk_mountpoint
     assert payload["hostname"] == "homelab-server"
     assert payload["cpu"]["logical_cores"] == 16
+    assert payload["cpu"]["temperature_c"] == 58.2
+    assert payload["chassis_temperature_c"] == 36.5
     assert payload["disks"][0]["health"]["status"] == "healthy"
     assert payload["raid_arrays"][0]["name"] == "md0"
     assert payload["physical_disks"][0]["device"] == "/dev/sda"
+    assert payload["physical_disks"][0]["temperature_c"] == 39.0
 
 
 def test_gpu_endpoint_available_response(client: TestClient, api_prefix: str, monkeypatch) -> None:

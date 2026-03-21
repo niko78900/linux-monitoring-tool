@@ -25,6 +25,7 @@ class CpuMetrics(BaseModel):
     physical_cores: int = Field(ge=0)
     logical_cores: int = Field(ge=0)
     load_average: LoadAverage | None = None
+    temperature_c: float | None = Field(default=None, ge=0)
 
 
 class CpuSpecs(BaseModel):
@@ -148,6 +149,7 @@ class PhysicalDiskMetrics(BaseModel):
     vendor: str | None = None
     serial: str | None = None
     size_bytes: int = Field(ge=0)
+    temperature_c: float | None = Field(default=None, ge=0)
     rotational: bool | None = None
     removable: bool = False
     state: str | None = None
@@ -169,6 +171,7 @@ class SystemResponse(BaseModel):
     os: PlatformInfo
     kernel_version: str
     specs: SystemSpecs
+    chassis_temperature_c: float | None = Field(default=None, ge=0)
     uptime_seconds: int = Field(ge=0)
     uptime_human: str
     boot_time: datetime

@@ -20,6 +20,7 @@ from app.services.system.storage_metrics import (
     get_physical_disks_metrics,
     get_raid_arrays_metrics,
 )
+from app.services.system.temperature_metrics import get_chassis_temperature_c, get_cpu_temperature_c
 
 
 def get_system_metrics(mountpoint: str) -> SystemResponse:
@@ -31,12 +32,14 @@ def get_system_metrics(mountpoint: str) -> SystemResponse:
     memory_metrics = get_memory_metrics()
     swap_metrics = get_swap_metrics()
     cpu_metrics = get_cpu_metrics()
+    cpu_metrics.temperature_c = get_cpu_temperature_c()
 
     return SystemResponse(
         hostname=get_hostname(),
         os=get_platform_info(),
         kernel_version=platform.release(),
         specs=get_system_specs(memory_metrics=memory_metrics, swap_metrics=swap_metrics, cpu_metrics=cpu_metrics),
+        chassis_temperature_c=get_chassis_temperature_c(),
         uptime_seconds=uptime_seconds,
         uptime_human=format_duration(uptime_seconds),
         boot_time=boot_time,

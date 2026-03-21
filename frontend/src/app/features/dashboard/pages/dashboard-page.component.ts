@@ -323,6 +323,13 @@ export class DashboardPageComponent {
     return disk.state || 'N/A';
   }
 
+  protected temperatureLabel(valueC: number | null | undefined): string {
+    if (valueC === null || valueC === undefined || Number.isNaN(valueC) || valueC < -20 || valueC > 130) {
+      return 'N/A';
+    }
+    return `${valueC.toFixed(1).replace(/\.0$/, '')} C`;
+  }
+
 
   protected trackByPhysicalDisk(index: number, item: PhysicalDiskInfo): string {
     return `${item.device}-${index}`;
