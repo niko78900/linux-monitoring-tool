@@ -1,5 +1,5 @@
 export const ENV_SHARED = {
-  backendBaseUrl: 'http://192.168.100.34:4040',
+  backendBaseUrl: '',
   apiPrefix: '/api',
   polling: {
     summaryMs: 1000,
