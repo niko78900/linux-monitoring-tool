@@ -305,9 +305,17 @@ class MonitoringDiscordBot(commands.Bot):
             return
 
         for alert in new_alerts:
-            await channel.send(embed=format_alert_embed(alert))
+            await self._safe_send_embed(
+                channel=channel,
+                embed=format_alert_embed(alert),
+                context=f"alert:{alert.key}",
+            )
         for recovery in recoveries:
-            await channel.send(embed=format_recovery_embed(recovery))
+            await self._safe_send_embed(
+                channel=channel,
+                embed=format_recovery_embed(recovery),
+                context=f"recovery:{recovery.key}",
+            )
 
     @tasks.loop(seconds=3600.0)
     async def status_autopost(self) -> None:
@@ -319,7 +327,7 @@ class MonitoringDiscordBot(commands.Bot):
             return
 
         embed = await self._build_status_embed()
-        await channel.send(embed=embed)
+        await self._safe_send_embed(channel=channel, embed=embed, context="status_autopost")
 
     @alert_polling.before_loop
     async def _before_alert_polling(self) -> None:
@@ -353,6 +361,23 @@ class MonitoringDiscordBot(commands.Bot):
             logger.warning("Configured channel %s is not send-capable.", channel_id)
             return None
         return channel
+
+    async def _safe_send_embed(
+        self,
+        *,
+        channel: discord.abc.Messageable,
+        embed: discord.Embed,
+        context: str,
+    ) -> bool:
+        try:
+            await channel.send(embed=embed)
+        except (discord.Forbidden, discord.NotFound) as exc:
+            logger.warning("Cannot send embed (%s): %s", context, exc)
+            return False
+        except discord.HTTPException as exc:
+            logger.warning("Discord API error while sending embed (%s): %s", context, exc)
+            return False
+        return True
 
     def _can_manage_schedule(self, interaction: discord.Interaction) -> bool:
         guild = interaction.guild
