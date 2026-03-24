@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +47,7 @@ class MonitoringDiscordBot(commands.Bot):
         self.status_autopost_interval_seconds = 3600
         self.status_autopost_channel_id: int | None = None
         self.status_autopost_guild_id: int | None = None
+        self.status_autopost_next_run_at: datetime | None = None
         self.status_autopost_state_path = Path(config.status_schedule_state_file)
         self._load_status_schedule_state()
         self.status_autopost.change_interval(seconds=float(self.status_autopost_interval_seconds))
@@ -136,15 +138,18 @@ class MonitoringDiscordBot(commands.Bot):
             self.status_autopost_channel_id = interaction.channel_id
             self.status_autopost_guild_id = interaction.guild_id
             self.status_autopost_interval_seconds = int(interval_minutes) * 60
+            self._reset_status_autopost_deadline()
             self.status_autopost.change_interval(seconds=float(self.status_autopost_interval_seconds))
-            if not self.status_autopost.is_running():
+            if self.status_autopost.is_running():
+                self.status_autopost.restart()
+            else:
                 self.status_autopost.start()
             self._save_status_schedule_state()
 
             await interaction.followup.send(
                 (
                     f"Scheduled status posts every `{interval_minutes}` minute(s) "
-                    f"in <#{interaction.channel_id}>."
+                    f"in <#{interaction.channel_id}>. First scheduled post will be sent after the interval."
                 ),
                 ephemeral=True,
             )
@@ -169,6 +174,7 @@ class MonitoringDiscordBot(commands.Bot):
                 self.status_autopost.cancel()
             self.status_autopost_channel_id = None
             self.status_autopost_guild_id = None
+            self.status_autopost_next_run_at = None
             self._clear_status_schedule_state()
 
             if was_running:
@@ -186,12 +192,14 @@ class MonitoringDiscordBot(commands.Bot):
             enabled = self.status_autopost.is_running() and self.status_autopost_channel_id is not None
             target = f"<#{self.status_autopost_channel_id}>" if self.status_autopost_channel_id else "not set"
             guild = str(self.status_autopost_guild_id) if self.status_autopost_guild_id else "not set"
+            next_post = self._format_status_next_post()
             await interaction.response.send_message(
                 (
                     f"Enabled: `{enabled}`\n"
                     f"Interval: `{interval_minutes}` minute(s)\n"
                     f"Channel: {target}\n"
-                    f"Guild ID: `{guild}`"
+                    f"Guild ID: `{guild}`\n"
+                    f"Next Post: `{next_post}`"
                 ),
                 ephemeral=True,
             )
@@ -355,9 +363,12 @@ class MonitoringDiscordBot(commands.Bot):
     async def status_autopost(self) -> None:
         if self.status_autopost_channel_id is None:
             return
+        if not self._is_status_autopost_due():
+            return
 
         channel = await self._resolve_channel(self.status_autopost_channel_id)
         if channel is None:
+            self._reset_status_autopost_deadline()
             return
         channel_guild = getattr(channel, "guild", None)
         channel_guild_id = getattr(channel_guild, "id", None)
@@ -367,10 +378,12 @@ class MonitoringDiscordBot(commands.Bot):
                 self.status_autopost_guild_id,
                 channel_guild_id,
             )
+            self._reset_status_autopost_deadline()
             return
 
         embed = await self._build_status_embed()
         await self._safe_send_embed(channel=channel, embed=embed, context="status_autopost")
+        self._reset_status_autopost_deadline()
 
     @alert_polling.before_loop
     async def _before_alert_polling(self) -> None:
@@ -480,6 +493,7 @@ class MonitoringDiscordBot(commands.Bot):
         self.status_autopost_channel_id = channel_id
         self.status_autopost_guild_id = guild_id
         self.status_autopost_interval_seconds = interval_seconds
+        self._reset_status_autopost_deadline()
         logger.info(
             "Loaded status schedule: guild_id=%s channel_id=%s interval_seconds=%s",
             self.status_autopost_guild_id,
@@ -512,6 +526,25 @@ class MonitoringDiscordBot(commands.Bot):
                 self.status_autopost_state_path.unlink()
         except OSError as exc:
             logger.warning("Could not clear status schedule state at %s: %s", self.status_autopost_state_path, exc)
+
+    def _reset_status_autopost_deadline(self) -> None:
+        self.status_autopost_next_run_at = datetime.now(timezone.utc) + timedelta(
+            seconds=self.status_autopost_interval_seconds
+        )
+
+    def _is_status_autopost_due(self) -> bool:
+        if self.status_autopost_next_run_at is None:
+            self._reset_status_autopost_deadline()
+            return False
+        return datetime.now(timezone.utc) >= self.status_autopost_next_run_at
+
+    def _format_status_next_post(self) -> str:
+        if self.status_autopost_channel_id is None or self.status_autopost_next_run_at is None:
+            return "not scheduled"
+        remaining = int((self.status_autopost_next_run_at - datetime.now(timezone.utc)).total_seconds())
+        if remaining <= 0:
+            return "due now"
+        return f"in ~{(remaining + 59) // 60} minute(s)"
 
     def _load_alert_state(self) -> None:
         if not self.alert_state_path.exists():
