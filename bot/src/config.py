@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 _ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 _BOT_DIR = Path(__file__).resolve().parents[1]
 _DEFAULT_STATUS_SCHEDULE_STATE_FILE = _BOT_DIR / "status_schedule_state.json"
+_DEFAULT_ALERT_STATE_FILE = _BOT_DIR / "alert_state.json"
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class BotConfig:
     enable_docker_alerts: bool
     enable_raid_alerts: bool
     status_schedule_state_file: str
+    alert_state_file: str
     request_timeout_seconds: float = 8.0
 
     @classmethod
@@ -47,6 +49,7 @@ class BotConfig:
         enable_docker_alerts = _parse_bool(source, "ENABLE_DOCKER_ALERTS", default=True)
         enable_raid_alerts = _parse_bool(source, "ENABLE_RAID_ALERTS", default=True)
         status_schedule_state_file = _parse_status_schedule_state_file(source)
+        alert_state_file = _parse_alert_state_file(source)
 
         return cls(
             discord_bot_token=discord_bot_token,
@@ -61,6 +64,7 @@ class BotConfig:
             enable_docker_alerts=enable_docker_alerts,
             enable_raid_alerts=enable_raid_alerts,
             status_schedule_state_file=status_schedule_state_file,
+            alert_state_file=alert_state_file,
         )
 
 
@@ -145,6 +149,17 @@ def _parse_status_schedule_state_file(source: Mapping[str, str]) -> str:
     raw_value = _get_raw(source, "STATUS_SCHEDULE_STATE_FILE")
     if raw_value is None:
         return str(_DEFAULT_STATUS_SCHEDULE_STATE_FILE)
+
+    path = Path(raw_value).expanduser()
+    if not path.is_absolute():
+        path = _BOT_DIR / path
+    return str(path)
+
+
+def _parse_alert_state_file(source: Mapping[str, str]) -> str:
+    raw_value = _get_raw(source, "ALERT_STATE_FILE")
+    if raw_value is None:
+        return str(_DEFAULT_ALERT_STATE_FILE)
 
     path = Path(raw_value).expanduser()
     if not path.is_absolute():

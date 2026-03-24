@@ -63,6 +63,7 @@ Copy-Item .env.example .env
 - `ENABLE_DOCKER_ALERTS` (`true`/`false`, default `true`)
 - `ENABLE_RAID_ALERTS` (`true`/`false`, default `true`)
 - `STATUS_SCHEDULE_STATE_FILE` (optional, default `status_schedule_state.json` in `bot/`)
+- `ALERT_STATE_FILE` (optional, default `alert_state.json` in `bot/`)
 
 ## Run
 
@@ -83,4 +84,5 @@ python -m unittest discover tests -v
 - If `DISCORD_GUILD_ID` is set, commands are synced to that guild only.
 - If `DISCORD_GUILD_ID` is empty, commands are synced globally (can take longer to appear).
 - Scheduled status settings are persisted to disk and restored after bot restart.
+- Active alert dedupe state is persisted to disk and restored after bot restart.
 - Changing scheduled status settings requires Discord `Manage Server` permission.

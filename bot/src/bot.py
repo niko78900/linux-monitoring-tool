@@ -39,6 +39,8 @@ class MonitoringDiscordBot(commands.Bot):
             timeout_seconds=config.request_timeout_seconds,
         )
         self.alert_state = AlertState()
+        self.alert_state_path = Path(config.alert_state_file)
+        self._load_alert_state()
         self.guild_object = discord.Object(id=config.discord_guild_id) if config.discord_guild_id else None
         self.alert_polling.change_interval(seconds=float(config.poll_interval_seconds))
         self.status_autopost_interval_seconds = 3600
@@ -334,6 +336,7 @@ class MonitoringDiscordBot(commands.Bot):
         new_alerts, recoveries = self.alert_state.transition(active_alerts)
         if not new_alerts and not recoveries:
             return
+        self._save_alert_state()
 
         for alert in new_alerts:
             await self._safe_send_embed(
@@ -509,6 +512,44 @@ class MonitoringDiscordBot(commands.Bot):
                 self.status_autopost_state_path.unlink()
         except OSError as exc:
             logger.warning("Could not clear status schedule state at %s: %s", self.status_autopost_state_path, exc)
+
+    def _load_alert_state(self) -> None:
+        if not self.alert_state_path.exists():
+            return
+
+        try:
+            raw_text = self.alert_state_path.read_text(encoding="utf-8")
+            payload = json.loads(raw_text)
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Could not read alert state from %s: %s", self.alert_state_path, exc)
+            return
+
+        if not isinstance(payload, dict):
+            logger.warning("Alert state file is not an object: %s", self.alert_state_path)
+            return
+
+        self.alert_state.load_snapshot(payload)
+        logger.info("Loaded alert state with %s active alert(s).", self.alert_state.active_count)
+
+    def _save_alert_state(self) -> None:
+        if self.alert_state.active_count == 0:
+            try:
+                if self.alert_state_path.exists():
+                    self.alert_state_path.unlink()
+            except OSError as exc:
+                logger.warning("Could not clear alert state at %s: %s", self.alert_state_path, exc)
+            return
+
+        payload = self.alert_state.to_snapshot()
+        serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+        try:
+            self.alert_state_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = self.alert_state_path.with_name(self.alert_state_path.name + ".tmp")
+            tmp_path.write_text(serialized, encoding="utf-8")
+            tmp_path.replace(self.alert_state_path)
+        except OSError as exc:
+            logger.warning("Could not persist alert state to %s: %s", self.alert_state_path, exc)
 
 
 def _safe_positive_int(value: object) -> int | None:
