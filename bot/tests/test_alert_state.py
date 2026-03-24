@@ -51,6 +51,24 @@ class AlertStateTests(unittest.TestCase):
         self.assertEqual(len(new_alerts), 0)
         self.assertEqual(len(recoveries), 0)
 
+    def test_snapshot_round_trip_preserves_active_dedupe_keys(self) -> None:
+        state = AlertState()
+        cpu_alert = Alert(key="cpu-usage", title="CPU usage high", message="92%", severity="warning")
+        mem_alert = Alert(key="memory-usage", title="Memory usage high", message="95%", severity="critical")
+        state.transition([cpu_alert, mem_alert])
+        snapshot = state.to_snapshot()
+
+        restored = AlertState()
+        restored.load_snapshot(snapshot)
+
+        new_alerts, recoveries = restored.transition([cpu_alert, mem_alert])
+        self.assertEqual(len(new_alerts), 0)
+        self.assertEqual(len(recoveries), 0)
+
+        new_alerts, recoveries = restored.transition([])
+        self.assertEqual(len(new_alerts), 0)
+        self.assertEqual(len(recoveries), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
