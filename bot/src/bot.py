@@ -29,6 +29,8 @@ from monitoring_client import MonitoringAPIError, MonitoringClient
 logger = logging.getLogger("linux_monitoring.bot")
 STATUS_SCHEDULE_MIN_MINUTES = 5
 STATUS_SCHEDULE_MAX_MINUTES = 1440
+STATUS_AUTOPOST_TICK_SECONDS = 30
+STATUS_AUTOPOST_RETRY_SECONDS = 60
 
 
 class MonitoringDiscordBot(commands.Bot):
@@ -50,7 +52,6 @@ class MonitoringDiscordBot(commands.Bot):
         self.status_autopost_next_run_at: datetime | None = None
         self.status_autopost_state_path = Path(config.status_schedule_state_file)
         self._load_status_schedule_state()
-        self.status_autopost.change_interval(seconds=float(self.status_autopost_interval_seconds))
         self._register_commands()
 
     async def setup_hook(self) -> None:
@@ -139,10 +140,7 @@ class MonitoringDiscordBot(commands.Bot):
             self.status_autopost_guild_id = interaction.guild_id
             self.status_autopost_interval_seconds = int(interval_minutes) * 60
             self._reset_status_autopost_deadline()
-            self.status_autopost.change_interval(seconds=float(self.status_autopost_interval_seconds))
-            if self.status_autopost.is_running():
-                self.status_autopost.restart()
-            else:
+            if not self.status_autopost.is_running():
                 self.status_autopost.start()
             self._save_status_schedule_state()
 
@@ -359,7 +357,7 @@ class MonitoringDiscordBot(commands.Bot):
                 context=f"recovery:{recovery.key}",
             )
 
-    @tasks.loop(seconds=3600.0)
+    @tasks.loop(seconds=float(STATUS_AUTOPOST_TICK_SECONDS))
     async def status_autopost(self) -> None:
         if self.status_autopost_channel_id is None:
             return
@@ -368,7 +366,7 @@ class MonitoringDiscordBot(commands.Bot):
 
         channel = await self._resolve_channel(self.status_autopost_channel_id)
         if channel is None:
-            self._reset_status_autopost_deadline()
+            self._schedule_status_autopost_retry()
             return
         channel_guild = getattr(channel, "guild", None)
         channel_guild_id = getattr(channel_guild, "id", None)
@@ -378,12 +376,20 @@ class MonitoringDiscordBot(commands.Bot):
                 self.status_autopost_guild_id,
                 channel_guild_id,
             )
-            self._reset_status_autopost_deadline()
+            self._schedule_status_autopost_retry()
             return
 
         embed = await self._build_status_embed()
-        await self._safe_send_embed(channel=channel, embed=embed, context="status_autopost")
-        self._reset_status_autopost_deadline()
+        sent = await self._safe_send_embed(channel=channel, embed=embed, context="status_autopost")
+        if sent:
+            self._reset_status_autopost_deadline()
+            logger.info(
+                "Posted scheduled status to channel_id=%s; next run at %s",
+                self.status_autopost_channel_id,
+                self.status_autopost_next_run_at.isoformat() if self.status_autopost_next_run_at else "unknown",
+            )
+        else:
+            self._schedule_status_autopost_retry()
 
     @alert_polling.before_loop
     async def _before_alert_polling(self) -> None:
@@ -532,11 +538,18 @@ class MonitoringDiscordBot(commands.Bot):
             seconds=self.status_autopost_interval_seconds
         )
 
+    def _schedule_status_autopost_retry(self) -> None:
+        self.status_autopost_next_run_at = datetime.now(timezone.utc) + timedelta(
+            seconds=STATUS_AUTOPOST_RETRY_SECONDS
+        )
+
     def _is_status_autopost_due(self) -> bool:
         if self.status_autopost_next_run_at is None:
             self._reset_status_autopost_deadline()
             return False
-        return datetime.now(timezone.utc) >= self.status_autopost_next_run_at
+        now = datetime.now(timezone.utc)
+        # Allow a tiny boundary tolerance to avoid skipping a full interval on clock jitter.
+        return now + timedelta(seconds=1) >= self.status_autopost_next_run_at
 
     def _format_status_next_post(self) -> str:
         if self.status_autopost_channel_id is None or self.status_autopost_next_run_at is None:
