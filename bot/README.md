@@ -5,11 +5,14 @@ Separate Python service that consumes the existing FastAPI monitoring API and po
 ## What it does
 
 - Slash commands:
-  - `/status` -> uses `GET /api/summary`
+  - `/status` -> uses `GET /api/system` (+ `GET /api/gpu` fallback-aware)
   - `/health` -> uses `GET /api/health`
   - `/docker` -> uses `GET /api/docker`
   - `/gpu` -> uses `GET /api/gpu`
   - `/system` -> uses `GET /api/system`
+  - `/status_schedule <interval_minutes>` -> schedule periodic status posts in current channel
+  - `/status_schedule_off` -> disable scheduled status posts
+  - `/status_schedule_show` -> view current schedule settings
 - Background polling with alerting:
   - CPU / memory threshold alerts
   - Disk threshold + disk health alerts (`/api/system`)
@@ -78,3 +81,5 @@ python -m unittest discover tests -v
 - This bot does not duplicate monitoring logic. It only consumes the backend API contract.
 - If `DISCORD_GUILD_ID` is set, commands are synced to that guild only.
 - If `DISCORD_GUILD_ID` is empty, commands are synced globally (can take longer to appear).
+- Scheduled status settings are runtime-only (not persisted across bot restarts).
+- Changing scheduled status settings requires Discord `Manage Server` permission.

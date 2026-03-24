@@ -5,6 +5,7 @@ import logging
 from typing import Any
 
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 
 from alert_rules import evaluate_alerts
@@ -36,6 +37,8 @@ class MonitoringDiscordBot(commands.Bot):
         self.alert_state = AlertState()
         self.guild_object = discord.Object(id=config.discord_guild_id) if config.discord_guild_id else None
         self.alert_polling.change_interval(seconds=float(config.poll_interval_seconds))
+        self.status_autopost_interval_seconds = 3600
+        self.status_autopost_channel_id: int | None = None
         self._register_commands()
 
     async def setup_hook(self) -> None:
@@ -52,6 +55,8 @@ class MonitoringDiscordBot(commands.Bot):
     async def close(self) -> None:
         if self.alert_polling.is_running():
             self.alert_polling.cancel()
+        if self.status_autopost.is_running():
+            self.status_autopost.cancel()
         await self.monitoring_client.aclose()
         await super().close()
 
@@ -60,12 +65,97 @@ class MonitoringDiscordBot(commands.Bot):
         if self.guild_object is not None:
             command_kwargs["guild"] = self.guild_object
 
-        @self.tree.command(name="status", description="Quick system status from /api/summary.", **command_kwargs)
+        @self.tree.command(name="status", description="Detailed live status (CPU/GPU/RAM/storage/temps/uptime).", **command_kwargs)
         async def status_command(interaction: discord.Interaction) -> None:
-            await self._run_command(
-                interaction=interaction,
-                fetcher=self.monitoring_client.fetch_summary,
-                formatter=format_status_embed,
+            await interaction.response.defer(thinking=True)
+            embed = await self._build_status_embed()
+            await interaction.followup.send(embed=embed)
+
+        @self.tree.command(
+            name="status_schedule",
+            description="Enable periodic /status posts in this channel.",
+            **command_kwargs,
+        )
+        @app_commands.describe(interval_minutes="How often to post status updates.")
+        async def status_schedule_command(
+            interaction: discord.Interaction,
+            interval_minutes: app_commands.Range[int, 5, 1440],
+        ) -> None:
+            await interaction.response.defer(ephemeral=True, thinking=False)
+
+            if not self._can_manage_schedule(interaction):
+                await interaction.followup.send(
+                    "You need `Manage Server` permission to change scheduled status posts.",
+                    ephemeral=True,
+                )
+                return
+
+            if interaction.channel_id is None:
+                await interaction.followup.send("This command must be used in a server channel.", ephemeral=True)
+                return
+
+            channel = await self._resolve_channel(interaction.channel_id)
+            if channel is None:
+                await interaction.followup.send("I cannot access this channel.", ephemeral=True)
+                return
+
+            self.status_autopost_channel_id = interaction.channel_id
+            self.status_autopost_interval_seconds = int(interval_minutes) * 60
+            self.status_autopost.change_interval(seconds=float(self.status_autopost_interval_seconds))
+            if not self.status_autopost.is_running():
+                self.status_autopost.start()
+
+            embed = await self._build_status_embed()
+            await channel.send(embed=embed)
+            await interaction.followup.send(
+                (
+                    f"Scheduled status posts every `{interval_minutes}` minute(s) "
+                    f"in <#{interaction.channel_id}>."
+                ),
+                ephemeral=True,
+            )
+
+        @self.tree.command(
+            name="status_schedule_off",
+            description="Disable periodic /status posts.",
+            **command_kwargs,
+        )
+        async def status_schedule_off_command(interaction: discord.Interaction) -> None:
+            await interaction.response.defer(ephemeral=True, thinking=False)
+
+            if not self._can_manage_schedule(interaction):
+                await interaction.followup.send(
+                    "You need `Manage Server` permission to change scheduled status posts.",
+                    ephemeral=True,
+                )
+                return
+
+            was_running = self.status_autopost.is_running()
+            if was_running:
+                self.status_autopost.cancel()
+            self.status_autopost_channel_id = None
+
+            if was_running:
+                await interaction.followup.send("Scheduled status posts are now disabled.", ephemeral=True)
+            else:
+                await interaction.followup.send("Scheduled status posts were already disabled.", ephemeral=True)
+
+        @self.tree.command(
+            name="status_schedule_show",
+            description="Show scheduled /status posting settings.",
+            **command_kwargs,
+        )
+        async def status_schedule_show_command(interaction: discord.Interaction) -> None:
+            interval_minutes = int(self.status_autopost_interval_seconds // 60)
+            enabled = self.status_autopost.is_running() and self.status_autopost_channel_id is not None
+            target = f"<#{self.status_autopost_channel_id}>" if self.status_autopost_channel_id else "not set"
+            await interaction.response.send_message(
+                (
+                    f"Enabled: `{enabled}`\n"
+                    f"Interval: `{interval_minutes}` minute(s)\n"
+                    f"Channel: {target}"
+                ),
+                ephemeral=True,
             )
 
         @self.tree.command(name="health", description="Backend health and version from /api/health.", **command_kwargs)
@@ -114,6 +204,38 @@ class MonitoringDiscordBot(commands.Bot):
         except MonitoringAPIError as exc:
             embed = format_api_error_embed(str(exc))
         await interaction.followup.send(embed=embed)
+
+    async def _build_status_embed(self) -> discord.Embed:
+        try:
+            system_result, gpu_result = await asyncio.gather(
+                self.monitoring_client.fetch_system(),
+                self.monitoring_client.fetch_gpu(),
+                return_exceptions=True,
+            )
+
+            if isinstance(system_result, Exception):
+                raise system_result
+
+            system_payload = system_result
+            gpu_payload: dict[str, Any] | None
+            gpu_error: str | None
+
+            if isinstance(gpu_result, Exception):
+                gpu_payload = None
+                gpu_error = str(gpu_result)
+            else:
+                gpu_payload = gpu_result
+                gpu_error = None
+
+            return format_status_embed(
+                system=system_payload,
+                gpu=gpu_payload,
+                gpu_error=gpu_error,
+            )
+        except MonitoringAPIError as exc:
+            return format_api_error_embed(str(exc))
+        except Exception as exc:
+            return format_api_error_embed(str(exc))
 
     @tasks.loop(seconds=60.0)
     async def alert_polling(self) -> None:
@@ -176,27 +298,57 @@ class MonitoringDiscordBot(commands.Bot):
         for recovery in recoveries:
             await channel.send(embed=format_recovery_embed(recovery))
 
+    @tasks.loop(seconds=3600.0)
+    async def status_autopost(self) -> None:
+        if self.status_autopost_channel_id is None:
+            return
+
+        channel = await self._resolve_channel(self.status_autopost_channel_id)
+        if channel is None:
+            return
+
+        embed = await self._build_status_embed()
+        await channel.send(embed=embed)
+
     @alert_polling.before_loop
     async def _before_alert_polling(self) -> None:
+        await self.wait_until_ready()
+
+    @status_autopost.before_loop
+    async def _before_status_autopost(self) -> None:
         await self.wait_until_ready()
 
     @alert_polling.error
     async def _handle_alert_polling_error(self, exc: Exception) -> None:
         logger.exception("Alert polling loop crashed: %s", exc)
 
+    @status_autopost.error
+    async def _handle_status_autopost_error(self, exc: Exception) -> None:
+        logger.exception("Status autopost loop crashed: %s", exc)
+
     async def _resolve_alert_channel(self) -> discord.abc.Messageable | None:
-        channel = self.get_channel(self.config.discord_channel_id)
+        return await self._resolve_channel(self.config.discord_channel_id)
+
+    async def _resolve_channel(self, channel_id: int) -> discord.abc.Messageable | None:
+        channel = self.get_channel(channel_id)
         if channel is None:
             try:
-                channel = await self.fetch_channel(self.config.discord_channel_id)
+                channel = await self.fetch_channel(channel_id)
             except discord.HTTPException as exc:
-                logger.warning("Could not fetch alert channel %s: %s", self.config.discord_channel_id, exc)
+                logger.warning("Could not fetch channel %s: %s", channel_id, exc)
                 return None
 
         if not hasattr(channel, "send"):
-            logger.warning("Configured channel %s is not send-capable.", self.config.discord_channel_id)
+            logger.warning("Configured channel %s is not send-capable.", channel_id)
             return None
         return channel
+
+    def _can_manage_schedule(self, interaction: discord.Interaction) -> bool:
+        if interaction.guild is None:
+            return False
+        if not isinstance(interaction.user, discord.Member):
+            return False
+        return interaction.user.guild_permissions.manage_guild
 
 
 def configure_logging() -> None:
