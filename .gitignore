@@ -3,6 +3,10 @@ backend/.venv/
 backend/.env
 backend/__pycache__/
 backend/**/*.pyc
+bot/.venv/
+bot/.env
+bot/__pycache__/
+bot/**/*.pyc
 .pytest_cache/
 pytest-cache-files-*/
 

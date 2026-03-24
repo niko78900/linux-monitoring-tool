@@ -4,6 +4,7 @@ This repository is configured as:
 
 - `backend/`: FastAPI monitoring backend (`/api/*`)
 - `frontend/`: Angular dashboard frontend
+- `bot/`: Discord bot service (consumes backend API, separate process)
 
 ## 1) Start backend (FastAPI)
 
@@ -47,3 +48,19 @@ Shared frontend API settings are in:
 - Serve frontend and backend behind one reverse proxy origin (for example, `/api` -> backend `127.0.0.1:4040`).
 - Keep backend `HOST=127.0.0.1` in production when using a reverse proxy.
 - Set strict backend `CORS_ORIGINS` (or keep same-origin only if all API traffic goes through proxy).
+
+## 4) Start Discord bot service (optional)
+
+```powershell
+cd bot
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env
+# fill .env values
+.\.venv\Scripts\python.exe src\bot.py
+```
+
+Bot details and env configuration are documented in:
+
+- `bot/README.md`
