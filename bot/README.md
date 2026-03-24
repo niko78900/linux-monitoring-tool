@@ -11,6 +11,7 @@ Separate Python service that consumes the existing FastAPI monitoring API and po
   - `/gpu` -> uses `GET /api/gpu`
   - `/system` -> uses `GET /api/system`
   - `/status_schedule <interval_minutes>` -> schedule periodic status posts in current channel
+  - `/status_schedule_custom <windows_spec>` -> schedule by multiple time windows
   - `/status_schedule_off` -> disable scheduled status posts
   - `/status_schedule_show` -> view current schedule settings
 - Background polling with alerting:
@@ -72,6 +73,24 @@ cd bot
 python src/bot.py
 ```
 
+## Custom schedule format
+
+Use `/status_schedule_custom` with:
+
+`HH:MM-HH:MM=MINUTES;HH:MM-HH:MM=MINUTES;...`
+
+Examples:
+
+- `12:00-15:00=15;15:00-18:00=60;18:00-21:00=45;21:00-06:00=360`
+- `08:00-00:00=60;00:00-08:00=180`
+
+Rules:
+
+- Uses 24h time.
+- Windows must not overlap.
+- Windows may wrap midnight (`21:00-06:00`).
+- Bot posts only inside configured windows. If there is a gap, posting pauses until the next window starts.
+
 ## Tests
 
 ```bash
@@ -84,5 +103,6 @@ python -m unittest discover tests -v
 - If `DISCORD_GUILD_ID` is set, commands are synced to that guild only.
 - If `DISCORD_GUILD_ID` is empty, commands are synced globally (can take longer to appear).
 - Scheduled status settings are persisted to disk and restored after bot restart.
+- Scheduled status supports both fixed interval mode and custom multi-window mode.
 - Active alert dedupe state is persisted to disk and restored after bot restart.
 - Changing scheduled status settings requires Discord `Manage Server` permission.
