@@ -40,6 +40,7 @@ class BotConfigTests(unittest.TestCase):
         self.assertEqual(config.gpu_temp_alert_threshold, 82.0)
         self.assertFalse(config.enable_docker_alerts)
         self.assertTrue(config.enable_raid_alerts)
+        self.assertTrue(config.status_schedule_state_file.endswith("status_schedule_state.json"))
 
     def test_from_env_allows_empty_optional_guild_id(self) -> None:
         env = {
@@ -60,6 +61,18 @@ class BotConfigTests(unittest.TestCase):
         }
         with self.assertRaises(ValueError):
             BotConfig.from_env(env)
+
+    def test_from_env_resolves_relative_schedule_state_file(self) -> None:
+        env = {
+            "DISCORD_BOT_TOKEN": "secret-token",
+            "DISCORD_CHANNEL_ID": "111111",
+            "MONITOR_API_BASE_URL": "http://monitor:4040",
+            "STATUS_SCHEDULE_STATE_FILE": "state/schedule.json",
+        }
+
+        config = BotConfig.from_env(env)
+        self.assertTrue(Path(config.status_schedule_state_file).is_absolute())
+        self.assertTrue(config.status_schedule_state_file.endswith(str(Path("state") / "schedule.json")))
 
 
 if __name__ == "__main__":

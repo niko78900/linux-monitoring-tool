@@ -7,6 +7,7 @@ bot/.venv/
 bot/.env
 bot/__pycache__/
 bot/**/*.pyc
+bot/status_schedule_state.json
 .pytest_cache/
 pytest-cache-files-*/
 

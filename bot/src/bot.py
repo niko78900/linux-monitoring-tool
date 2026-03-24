@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+from pathlib import Path
 from typing import Any
 
 import discord
@@ -24,6 +26,8 @@ from formatters import (
 from monitoring_client import MonitoringAPIError, MonitoringClient
 
 logger = logging.getLogger("linux_monitoring.bot")
+STATUS_SCHEDULE_MIN_MINUTES = 5
+STATUS_SCHEDULE_MAX_MINUTES = 1440
 
 
 class MonitoringDiscordBot(commands.Bot):
@@ -39,6 +43,9 @@ class MonitoringDiscordBot(commands.Bot):
         self.alert_polling.change_interval(seconds=float(config.poll_interval_seconds))
         self.status_autopost_interval_seconds = 3600
         self.status_autopost_channel_id: int | None = None
+        self.status_autopost_state_path = Path(config.status_schedule_state_file)
+        self._load_status_schedule_state()
+        self.status_autopost.change_interval(seconds=float(self.status_autopost_interval_seconds))
         self._register_commands()
 
     async def setup_hook(self) -> None:
@@ -51,6 +58,8 @@ class MonitoringDiscordBot(commands.Bot):
 
         if not self.alert_polling.is_running():
             self.alert_polling.start()
+        if self.status_autopost_channel_id is not None and not self.status_autopost.is_running():
+            self.status_autopost.start()
 
     async def close(self) -> None:
         if self.alert_polling.is_running():
@@ -79,7 +88,7 @@ class MonitoringDiscordBot(commands.Bot):
         @app_commands.describe(interval_minutes="How often to post status updates.")
         async def status_schedule_command(
             interaction: discord.Interaction,
-            interval_minutes: app_commands.Range[int, 5, 1440],
+            interval_minutes: app_commands.Range[int, STATUS_SCHEDULE_MIN_MINUTES, STATUS_SCHEDULE_MAX_MINUTES],
         ) -> None:
             await interaction.response.defer(ephemeral=True, thinking=False)
 
@@ -104,6 +113,7 @@ class MonitoringDiscordBot(commands.Bot):
             self.status_autopost.change_interval(seconds=float(self.status_autopost_interval_seconds))
             if not self.status_autopost.is_running():
                 self.status_autopost.start()
+            self._save_status_schedule_state()
 
             embed = await self._build_status_embed()
             await channel.send(embed=embed)
@@ -134,6 +144,7 @@ class MonitoringDiscordBot(commands.Bot):
             if was_running:
                 self.status_autopost.cancel()
             self.status_autopost_channel_id = None
+            self._clear_status_schedule_state()
 
             if was_running:
                 await interaction.followup.send("Scheduled status posts are now disabled.", ephemeral=True)
@@ -363,6 +374,76 @@ class MonitoringDiscordBot(commands.Bot):
                 return True
 
         return False
+
+    def _load_status_schedule_state(self) -> None:
+        if not self.status_autopost_state_path.exists():
+            return
+
+        try:
+            raw_text = self.status_autopost_state_path.read_text(encoding="utf-8")
+            payload = json.loads(raw_text)
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Could not read status schedule state from %s: %s", self.status_autopost_state_path, exc)
+            return
+
+        if not isinstance(payload, dict):
+            logger.warning("Status schedule state file is not an object: %s", self.status_autopost_state_path)
+            return
+
+        channel_id_value = payload.get("channel_id")
+        interval_seconds_value = payload.get("interval_seconds")
+        channel_id = _safe_positive_int(channel_id_value)
+        interval_seconds = _safe_positive_int(interval_seconds_value)
+        min_interval = STATUS_SCHEDULE_MIN_MINUTES * 60
+        max_interval = STATUS_SCHEDULE_MAX_MINUTES * 60
+        interval_valid = interval_seconds is not None and min_interval <= interval_seconds <= max_interval
+
+        if channel_id is None or not interval_valid:
+            logger.warning("Status schedule state has invalid values and will be ignored.")
+            return
+
+        self.status_autopost_channel_id = channel_id
+        self.status_autopost_interval_seconds = interval_seconds
+        logger.info(
+            "Loaded status schedule: channel_id=%s interval_seconds=%s",
+            self.status_autopost_channel_id,
+            self.status_autopost_interval_seconds,
+        )
+
+    def _save_status_schedule_state(self) -> None:
+        if self.status_autopost_channel_id is None:
+            return
+
+        payload = {
+            "channel_id": self.status_autopost_channel_id,
+            "interval_seconds": self.status_autopost_interval_seconds,
+        }
+        serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+        try:
+            self.status_autopost_state_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = self.status_autopost_state_path.with_name(self.status_autopost_state_path.name + ".tmp")
+            tmp_path.write_text(serialized, encoding="utf-8")
+            tmp_path.replace(self.status_autopost_state_path)
+        except OSError as exc:
+            logger.warning("Could not persist status schedule state to %s: %s", self.status_autopost_state_path, exc)
+
+    def _clear_status_schedule_state(self) -> None:
+        try:
+            if self.status_autopost_state_path.exists():
+                self.status_autopost_state_path.unlink()
+        except OSError as exc:
+            logger.warning("Could not clear status schedule state at %s: %s", self.status_autopost_state_path, exc)
+
+
+def _safe_positive_int(value: object) -> int | None:
+    try:
+        parsed = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if parsed <= 0:
+        return None
+    return parsed
 
 
 def configure_logging() -> None:

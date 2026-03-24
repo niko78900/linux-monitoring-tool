@@ -62,6 +62,7 @@ Copy-Item .env.example .env
 - `GPU_TEMP_ALERT_THRESHOLD` (default `80`)
 - `ENABLE_DOCKER_ALERTS` (`true`/`false`, default `true`)
 - `ENABLE_RAID_ALERTS` (`true`/`false`, default `true`)
+- `STATUS_SCHEDULE_STATE_FILE` (optional, default `status_schedule_state.json` in `bot/`)
 
 ## Run
 
@@ -81,5 +82,5 @@ python -m unittest discover tests -v
 - This bot does not duplicate monitoring logic. It only consumes the backend API contract.
 - If `DISCORD_GUILD_ID` is set, commands are synced to that guild only.
 - If `DISCORD_GUILD_ID` is empty, commands are synced globally (can take longer to appear).
-- Scheduled status settings are runtime-only (not persisted across bot restarts).
+- Scheduled status settings are persisted to disk and restored after bot restart.
 - Changing scheduled status settings requires Discord `Manage Server` permission.
