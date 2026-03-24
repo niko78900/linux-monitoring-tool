@@ -43,6 +43,7 @@ class MonitoringDiscordBot(commands.Bot):
         self.alert_polling.change_interval(seconds=float(config.poll_interval_seconds))
         self.status_autopost_interval_seconds = 3600
         self.status_autopost_channel_id: int | None = None
+        self.status_autopost_guild_id: int | None = None
         self.status_autopost_state_path = Path(config.status_schedule_state_file)
         self._load_status_schedule_state()
         self.status_autopost.change_interval(seconds=float(self.status_autopost_interval_seconds))
@@ -99,6 +100,15 @@ class MonitoringDiscordBot(commands.Bot):
                 )
                 return
 
+            if interaction.guild_id is None:
+                await interaction.followup.send("This command must be used in a server.", ephemeral=True)
+                return
+            if self.config.discord_guild_id is not None and interaction.guild_id != self.config.discord_guild_id:
+                await interaction.followup.send(
+                    "This bot is configured for a different server. Check `DISCORD_GUILD_ID`.",
+                    ephemeral=True,
+                )
+                return
             if interaction.channel_id is None:
                 await interaction.followup.send("This command must be used in a server channel.", ephemeral=True)
                 return
@@ -122,6 +132,7 @@ class MonitoringDiscordBot(commands.Bot):
                 return
 
             self.status_autopost_channel_id = interaction.channel_id
+            self.status_autopost_guild_id = interaction.guild_id
             self.status_autopost_interval_seconds = int(interval_minutes) * 60
             self.status_autopost.change_interval(seconds=float(self.status_autopost_interval_seconds))
             if not self.status_autopost.is_running():
@@ -155,6 +166,7 @@ class MonitoringDiscordBot(commands.Bot):
             if was_running:
                 self.status_autopost.cancel()
             self.status_autopost_channel_id = None
+            self.status_autopost_guild_id = None
             self._clear_status_schedule_state()
 
             if was_running:
@@ -171,11 +183,13 @@ class MonitoringDiscordBot(commands.Bot):
             interval_minutes = int(self.status_autopost_interval_seconds // 60)
             enabled = self.status_autopost.is_running() and self.status_autopost_channel_id is not None
             target = f"<#{self.status_autopost_channel_id}>" if self.status_autopost_channel_id else "not set"
+            guild = str(self.status_autopost_guild_id) if self.status_autopost_guild_id else "not set"
             await interaction.response.send_message(
                 (
                     f"Enabled: `{enabled}`\n"
                     f"Interval: `{interval_minutes}` minute(s)\n"
-                    f"Channel: {target}"
+                    f"Channel: {target}\n"
+                    f"Guild ID: `{guild}`"
                 ),
                 ephemeral=True,
             )
@@ -342,6 +356,15 @@ class MonitoringDiscordBot(commands.Bot):
         channel = await self._resolve_channel(self.status_autopost_channel_id)
         if channel is None:
             return
+        channel_guild = getattr(channel, "guild", None)
+        channel_guild_id = getattr(channel_guild, "id", None)
+        if self.status_autopost_guild_id is not None and channel_guild_id != self.status_autopost_guild_id:
+            logger.warning(
+                "Skipping status autopost due to guild mismatch: expected=%s actual=%s",
+                self.status_autopost_guild_id,
+                channel_guild_id,
+            )
+            return
 
         embed = await self._build_status_embed()
         await self._safe_send_embed(channel=channel, embed=embed, context="status_autopost")
@@ -433,30 +456,40 @@ class MonitoringDiscordBot(commands.Bot):
             return
 
         channel_id_value = payload.get("channel_id")
+        guild_id_value = payload.get("guild_id")
         interval_seconds_value = payload.get("interval_seconds")
         channel_id = _safe_positive_int(channel_id_value)
+        guild_id = _safe_positive_int(guild_id_value)
+        if guild_id is None:
+            guild_id = self.config.discord_guild_id
         interval_seconds = _safe_positive_int(interval_seconds_value)
         min_interval = STATUS_SCHEDULE_MIN_MINUTES * 60
         max_interval = STATUS_SCHEDULE_MAX_MINUTES * 60
         interval_valid = interval_seconds is not None and min_interval <= interval_seconds <= max_interval
+        guild_valid = guild_id is not None
+        if self.config.discord_guild_id is not None:
+            guild_valid = guild_id == self.config.discord_guild_id
 
-        if channel_id is None or not interval_valid:
+        if channel_id is None or not interval_valid or not guild_valid:
             logger.warning("Status schedule state has invalid values and will be ignored.")
             return
 
         self.status_autopost_channel_id = channel_id
+        self.status_autopost_guild_id = guild_id
         self.status_autopost_interval_seconds = interval_seconds
         logger.info(
-            "Loaded status schedule: channel_id=%s interval_seconds=%s",
+            "Loaded status schedule: guild_id=%s channel_id=%s interval_seconds=%s",
+            self.status_autopost_guild_id,
             self.status_autopost_channel_id,
             self.status_autopost_interval_seconds,
         )
 
     def _save_status_schedule_state(self) -> None:
-        if self.status_autopost_channel_id is None:
+        if self.status_autopost_channel_id is None or self.status_autopost_guild_id is None:
             return
 
         payload = {
+            "guild_id": self.status_autopost_guild_id,
             "channel_id": self.status_autopost_channel_id,
             "interval_seconds": self.status_autopost_interval_seconds,
         }
