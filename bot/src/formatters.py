@@ -39,13 +39,13 @@ def format_status_embed(
         timestamp=discord.utils.utcnow(),
     )
 
-    embed.add_field(name="Storage (% full)", value=_format_storage_lines(disks), inline=False)
     embed.add_field(name="CPU Usage", value=_format_percent(cpu.get("usage_percent")), inline=True)
     embed.add_field(name="GPU Usage", value=_format_gpu_usage(gpu=gpu, gpu_error=gpu_error), inline=True)
     embed.add_field(name="RAM", value=_format_ram_usage(memory), inline=True)
     embed.add_field(name="CPU Temp", value=_format_numeric(cpu.get("temperature_c"), "C"), inline=True)
     embed.add_field(name="GPU Temp", value=_format_gpu_temp(gpu=gpu, gpu_error=gpu_error), inline=True)
     embed.add_field(name="Uptime", value=str(system.get("uptime_human") or "n/a"), inline=True)
+    embed.add_field(name="Storage (% full)", value=_format_storage_lines(disks), inline=False)
 
     if gpu_error:
         embed.set_footer(text="GPU details partially unavailable: /api/gpu request failed.")
@@ -317,7 +317,8 @@ def _format_storage_lines(disks: list[dict[str, Any]]) -> str:
 
     lines: list[str] = []
     for item in sorted_disks:
-        target = str(item.get("mountpoint") or item.get("device") or "unknown")
+        raw_target = str(item.get("mountpoint") or item.get("device") or "unknown")
+        target = _friendly_storage_name(raw_target)
         percent = _format_percent(item.get("percent"))
         line = f"{target}: {percent} full"
         tentative = "\n".join(lines + [line])
@@ -332,6 +333,17 @@ def _format_storage_lines(disks: list[dict[str, Any]]) -> str:
             lines.append(suffix)
 
     return "\n".join(lines)
+
+
+def _friendly_storage_name(target: str) -> str:
+    normalized = (target or "").strip()
+    if normalized == "/":
+        return "Boot SSD"
+    if normalized == "/mnt/warm":
+        return "Warm storage"
+    if normalized == "/mnt/storage":
+        return "Cold Storage"
+    return normalized or "unknown"
 
 
 def _status_color(cpu: float | None, ram: float | None, disk: float | None) -> discord.Color:
