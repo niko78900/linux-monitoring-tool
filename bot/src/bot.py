@@ -25,12 +25,24 @@ from formatters import (
     format_system_embed,
 )
 from monitoring_client import MonitoringAPIError, MonitoringClient
+from schedule_policy import (
+    ScheduleMode,
+    TimeWindowRule,
+    compute_next_event,
+    format_windows_for_display,
+    parse_windows_payload,
+    parse_windows_spec,
+    serialize_windows_payload,
+)
 
 logger = logging.getLogger("linux_monitoring.bot")
 STATUS_SCHEDULE_MIN_MINUTES = 5
 STATUS_SCHEDULE_MAX_MINUTES = 1440
+STATUS_SCHEDULE_MAX_WINDOWS = 24
 STATUS_AUTOPOST_TICK_SECONDS = 30
 STATUS_AUTOPOST_RETRY_SECONDS = 60
+STATUS_SCHEDULE_MODE_FIXED: ScheduleMode = "fixed"
+STATUS_SCHEDULE_MODE_WINDOWS: ScheduleMode = "windows"
 
 
 class MonitoringDiscordBot(commands.Bot):
@@ -46,10 +58,13 @@ class MonitoringDiscordBot(commands.Bot):
         self._load_alert_state()
         self.guild_object = discord.Object(id=config.discord_guild_id) if config.discord_guild_id else None
         self.alert_polling.change_interval(seconds=float(config.poll_interval_seconds))
+        self.status_autopost_mode: ScheduleMode = STATUS_SCHEDULE_MODE_FIXED
         self.status_autopost_interval_seconds = 3600
+        self.status_autopost_windows: list[TimeWindowRule] = []
         self.status_autopost_channel_id: int | None = None
         self.status_autopost_guild_id: int | None = None
         self.status_autopost_next_run_at: datetime | None = None
+        self.status_autopost_next_should_send = False
         self.status_autopost_state_path = Path(config.status_schedule_state_file)
         self._load_status_schedule_state()
         self._register_commands()
@@ -138,6 +153,8 @@ class MonitoringDiscordBot(commands.Bot):
 
             self.status_autopost_channel_id = interaction.channel_id
             self.status_autopost_guild_id = interaction.guild_id
+            self.status_autopost_mode = STATUS_SCHEDULE_MODE_FIXED
+            self.status_autopost_windows = []
             self.status_autopost_interval_seconds = int(interval_minutes) * 60
             self._reset_status_autopost_deadline()
             if not self.status_autopost.is_running():
@@ -148,6 +165,96 @@ class MonitoringDiscordBot(commands.Bot):
                 (
                     f"Scheduled status posts every `{interval_minutes}` minute(s) "
                     f"in <#{interaction.channel_id}>. First scheduled post will be sent after the interval."
+                ),
+                ephemeral=True,
+            )
+
+        @self.tree.command(
+            name="status_schedule_custom",
+            description="Set multiple time windows with custom /status intervals.",
+            **command_kwargs,
+        )
+        @app_commands.describe(
+            windows_spec="Format: HH:MM-HH:MM=MINUTES;HH:MM-HH:MM=MINUTES",
+        )
+        async def status_schedule_custom_command(
+            interaction: discord.Interaction,
+            windows_spec: str,
+        ) -> None:
+            await interaction.response.defer(ephemeral=True, thinking=False)
+
+            if not self._can_manage_schedule(interaction):
+                await interaction.followup.send(
+                    "You need `Manage Server` permission to change scheduled status posts.",
+                    ephemeral=True,
+                )
+                return
+
+            if interaction.guild_id is None:
+                await interaction.followup.send("This command must be used in a server.", ephemeral=True)
+                return
+            if self.config.discord_guild_id is not None and interaction.guild_id != self.config.discord_guild_id:
+                await interaction.followup.send(
+                    "This bot is configured for a different server. Check `DISCORD_GUILD_ID`.",
+                    ephemeral=True,
+                )
+                return
+            if interaction.channel_id is None:
+                await interaction.followup.send("This command must be used in a server channel.", ephemeral=True)
+                return
+
+            try:
+                windows = parse_windows_spec(
+                    windows_spec,
+                    min_interval_minutes=STATUS_SCHEDULE_MIN_MINUTES,
+                    max_interval_minutes=STATUS_SCHEDULE_MAX_MINUTES,
+                    max_rules=STATUS_SCHEDULE_MAX_WINDOWS,
+                )
+            except ValueError as exc:
+                await interaction.followup.send(
+                    f"Invalid windows spec: {exc}",
+                    ephemeral=True,
+                )
+                return
+
+            channel = await self._resolve_channel(interaction.channel_id)
+            if channel is None:
+                await interaction.followup.send("I cannot access this channel.", ephemeral=True)
+                return
+
+            embed = await self._build_status_embed()
+            sent = await self._safe_send_embed(
+                channel=channel,
+                embed=embed,
+                context="status_schedule_custom_test",
+            )
+            if not sent:
+                await interaction.followup.send(
+                    "I couldn't post a status embed in this channel. Check channel permissions and try again.",
+                    ephemeral=True,
+                )
+                return
+
+            self.status_autopost_channel_id = interaction.channel_id
+            self.status_autopost_guild_id = interaction.guild_id
+            self.status_autopost_mode = STATUS_SCHEDULE_MODE_WINDOWS
+            self.status_autopost_windows = windows
+            self._reset_status_autopost_deadline()
+            if not self.status_autopost.is_running():
+                self.status_autopost.start()
+            self._save_status_schedule_state()
+
+            display_lines = format_windows_for_display(windows)
+            if len(display_lines) > 8:
+                shown = "\n".join(display_lines[:8])
+                window_details = f"{shown}\n...and {len(display_lines) - 8} more window(s)"
+            else:
+                window_details = "\n".join(display_lines)
+            await interaction.followup.send(
+                (
+                    f"Scheduled custom status windows in <#{interaction.channel_id}>.\n"
+                    f"{window_details}\n"
+                    "The bot posts only within configured windows. First scheduled post will be sent after the active interval."
                 ),
                 ephemeral=True,
             )
@@ -172,7 +279,10 @@ class MonitoringDiscordBot(commands.Bot):
                 self.status_autopost.cancel()
             self.status_autopost_channel_id = None
             self.status_autopost_guild_id = None
+            self.status_autopost_mode = STATUS_SCHEDULE_MODE_FIXED
+            self.status_autopost_windows = []
             self.status_autopost_next_run_at = None
+            self.status_autopost_next_should_send = False
             self._clear_status_schedule_state()
 
             if was_running:
@@ -186,15 +296,33 @@ class MonitoringDiscordBot(commands.Bot):
             **command_kwargs,
         )
         async def status_schedule_show_command(interaction: discord.Interaction) -> None:
-            interval_minutes = int(self.status_autopost_interval_seconds // 60)
             enabled = self.status_autopost.is_running() and self.status_autopost_channel_id is not None
             target = f"<#{self.status_autopost_channel_id}>" if self.status_autopost_channel_id else "not set"
             guild = str(self.status_autopost_guild_id) if self.status_autopost_guild_id else "not set"
             next_post = self._format_status_next_post()
+            mode = self.status_autopost_mode
+            if mode == STATUS_SCHEDULE_MODE_WINDOWS:
+                display_lines = format_windows_for_display(self.status_autopost_windows)
+                if not display_lines:
+                    windows_text = "none"
+                elif len(display_lines) > 8:
+                    shown = "\n".join(display_lines[:8])
+                    windows_text = f"{shown}\n...and {len(display_lines) - 8} more window(s)"
+                else:
+                    windows_text = "\n".join(display_lines)
+                schedule_details = (
+                    "Mode: `windows`\n"
+                    f"Windows:\n{windows_text}\n"
+                )
+            else:
+                schedule_details = (
+                    "Mode: `fixed`\n"
+                    f"Interval: `{int(self.status_autopost_interval_seconds // 60)}` minute(s)\n"
+                )
             await interaction.response.send_message(
                 (
                     f"Enabled: `{enabled}`\n"
-                    f"Interval: `{interval_minutes}` minute(s)\n"
+                    f"{schedule_details}"
                     f"Channel: {target}\n"
                     f"Guild ID: `{guild}`\n"
                     f"Next Post: `{next_post}`"
@@ -363,6 +491,9 @@ class MonitoringDiscordBot(commands.Bot):
             return
         if not self._is_status_autopost_due():
             return
+        if not self.status_autopost_next_should_send:
+            self._reset_status_autopost_deadline()
+            return
 
         channel = await self._resolve_channel(self.status_autopost_channel_id)
         if channel is None:
@@ -479,32 +610,67 @@ class MonitoringDiscordBot(commands.Bot):
 
         channel_id_value = payload.get("channel_id")
         guild_id_value = payload.get("guild_id")
-        interval_seconds_value = payload.get("interval_seconds")
+        mode_value = str(payload.get("mode") or STATUS_SCHEDULE_MODE_FIXED).strip().lower()
+        mode: ScheduleMode
+        if mode_value == STATUS_SCHEDULE_MODE_WINDOWS:
+            mode = STATUS_SCHEDULE_MODE_WINDOWS
+        elif mode_value == STATUS_SCHEDULE_MODE_FIXED:
+            mode = STATUS_SCHEDULE_MODE_FIXED
+        else:
+            logger.warning("Unknown status schedule mode in state file: %s", mode_value)
+            return
+
         channel_id = _safe_positive_int(channel_id_value)
         guild_id = _safe_positive_int(guild_id_value)
         if guild_id is None:
             guild_id = self.config.discord_guild_id
-        interval_seconds = _safe_positive_int(interval_seconds_value)
+
         min_interval = STATUS_SCHEDULE_MIN_MINUTES * 60
         max_interval = STATUS_SCHEDULE_MAX_MINUTES * 60
-        interval_valid = interval_seconds is not None and min_interval <= interval_seconds <= max_interval
         guild_valid = guild_id is not None
         if self.config.discord_guild_id is not None:
             guild_valid = guild_id == self.config.discord_guild_id
 
-        if channel_id is None or not interval_valid or not guild_valid:
+        if channel_id is None or not guild_valid:
             logger.warning("Status schedule state has invalid values and will be ignored.")
             return
 
+        if mode == STATUS_SCHEDULE_MODE_FIXED:
+            interval_seconds_value = payload.get("interval_seconds")
+            interval_seconds = _safe_positive_int(interval_seconds_value)
+            interval_valid = interval_seconds is not None and min_interval <= interval_seconds <= max_interval
+            if not interval_valid:
+                logger.warning("Invalid fixed schedule interval in state file.")
+                return
+
+            self.status_autopost_interval_seconds = interval_seconds
+            self.status_autopost_windows = []
+        else:
+            raw_windows = payload.get("windows")
+            try:
+                parsed_windows = parse_windows_payload(
+                    raw_windows,
+                    min_interval_seconds=min_interval,
+                    max_interval_seconds=max_interval,
+                )
+            except ValueError as exc:
+                logger.warning("Invalid windows schedule in state file: %s", exc)
+                return
+            if not parsed_windows:
+                logger.warning("Windows schedule state is empty.")
+                return
+            self.status_autopost_windows = parsed_windows
+
         self.status_autopost_channel_id = channel_id
         self.status_autopost_guild_id = guild_id
-        self.status_autopost_interval_seconds = interval_seconds
+        self.status_autopost_mode = mode
         self._reset_status_autopost_deadline()
         logger.info(
-            "Loaded status schedule: guild_id=%s channel_id=%s interval_seconds=%s",
+            "Loaded status schedule: mode=%s guild_id=%s channel_id=%s windows=%s",
+            self.status_autopost_mode,
             self.status_autopost_guild_id,
             self.status_autopost_channel_id,
-            self.status_autopost_interval_seconds,
+            len(self.status_autopost_windows),
         )
 
     def _save_status_schedule_state(self) -> None:
@@ -512,9 +678,11 @@ class MonitoringDiscordBot(commands.Bot):
             return
 
         payload = {
+            "mode": self.status_autopost_mode,
             "guild_id": self.status_autopost_guild_id,
             "channel_id": self.status_autopost_channel_id,
             "interval_seconds": self.status_autopost_interval_seconds,
+            "windows": serialize_windows_payload(self.status_autopost_windows),
         }
         serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True)
 
@@ -534,14 +702,24 @@ class MonitoringDiscordBot(commands.Bot):
             logger.warning("Could not clear status schedule state at %s: %s", self.status_autopost_state_path, exc)
 
     def _reset_status_autopost_deadline(self) -> None:
-        self.status_autopost_next_run_at = datetime.now(timezone.utc) + timedelta(
-            seconds=self.status_autopost_interval_seconds
+        next_event = compute_next_event(
+            mode=self.status_autopost_mode,
+            now_utc=datetime.now(timezone.utc),
+            fixed_interval_seconds=self.status_autopost_interval_seconds,
+            windows=self.status_autopost_windows,
         )
+        if next_event is None:
+            self.status_autopost_next_run_at = None
+            self.status_autopost_next_should_send = False
+            return
+        self.status_autopost_next_run_at = next_event.run_at_utc
+        self.status_autopost_next_should_send = next_event.should_send
 
     def _schedule_status_autopost_retry(self) -> None:
         self.status_autopost_next_run_at = datetime.now(timezone.utc) + timedelta(
             seconds=STATUS_AUTOPOST_RETRY_SECONDS
         )
+        self.status_autopost_next_should_send = True
 
     def _is_status_autopost_due(self) -> bool:
         if self.status_autopost_next_run_at is None:
@@ -557,7 +735,10 @@ class MonitoringDiscordBot(commands.Bot):
         remaining = int((self.status_autopost_next_run_at - datetime.now(timezone.utc)).total_seconds())
         if remaining <= 0:
             return "due now"
-        return f"in ~{(remaining + 59) // 60} minute(s)"
+        prefix = "in"
+        if not self.status_autopost_next_should_send:
+            prefix = "window switch in"
+        return f"{prefix} ~{(remaining + 59) // 60} minute(s)"
 
     def _load_alert_state(self) -> None:
         if not self.alert_state_path.exists():
