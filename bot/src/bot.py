@@ -108,6 +108,19 @@ class MonitoringDiscordBot(commands.Bot):
                 await interaction.followup.send("I cannot access this channel.", ephemeral=True)
                 return
 
+            embed = await self._build_status_embed()
+            sent = await self._safe_send_embed(
+                channel=channel,
+                embed=embed,
+                context="status_schedule_test",
+            )
+            if not sent:
+                await interaction.followup.send(
+                    "I couldn't post a status embed in this channel. Check channel permissions and try again.",
+                    ephemeral=True,
+                )
+                return
+
             self.status_autopost_channel_id = interaction.channel_id
             self.status_autopost_interval_seconds = int(interval_minutes) * 60
             self.status_autopost.change_interval(seconds=float(self.status_autopost_interval_seconds))
@@ -115,8 +128,6 @@ class MonitoringDiscordBot(commands.Bot):
                 self.status_autopost.start()
             self._save_status_schedule_state()
 
-            embed = await self._build_status_embed()
-            await channel.send(embed=embed)
             await interaction.followup.send(
                 (
                     f"Scheduled status posts every `{interval_minutes}` minute(s) "
