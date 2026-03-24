@@ -224,7 +224,8 @@ class MonitoringDiscordBot(commands.Bot):
             payload = await fetcher()
             embed = formatter(payload)
         except MonitoringAPIError as exc:
-            embed = format_api_error_embed(str(exc))
+            logger.warning("Command API request failed: %s", exc)
+            embed = format_api_error_embed("Monitoring API request failed. Please try again shortly.")
         await interaction.followup.send(embed=embed)
 
     async def _build_status_embed(self) -> discord.Embed:
@@ -244,7 +245,8 @@ class MonitoringDiscordBot(commands.Bot):
 
             if isinstance(gpu_result, Exception):
                 gpu_payload = None
-                gpu_error = str(gpu_result)
+                gpu_error = "GPU endpoint unavailable."
+                logger.warning("Status GPU request failed: %s", gpu_result)
             else:
                 gpu_payload = gpu_result
                 gpu_error = None
@@ -255,9 +257,11 @@ class MonitoringDiscordBot(commands.Bot):
                 gpu_error=gpu_error,
             )
         except MonitoringAPIError as exc:
-            return format_api_error_embed(str(exc))
+            logger.warning("Status request failed: %s", exc)
+            return format_api_error_embed("Monitoring API request failed. Please try again shortly.")
         except Exception as exc:
-            return format_api_error_embed(str(exc))
+            logger.exception("Unexpected status command failure.")
+            return format_api_error_embed("Unexpected error while building status.")
 
     @tasks.loop(seconds=60.0)
     async def alert_polling(self) -> None:
@@ -276,7 +280,8 @@ class MonitoringDiscordBot(commands.Bot):
         try:
             health_payload = await self.monitoring_client.fetch_health()
         except MonitoringAPIError as exc:
-            backend_error = str(exc)
+            logger.warning("Health polling failed: %s", exc)
+            backend_error = "health endpoint is unavailable."
 
         if backend_error is None:
             endpoints = {
@@ -288,7 +293,8 @@ class MonitoringDiscordBot(commands.Bot):
             results = await asyncio.gather(*endpoints.values(), return_exceptions=True)
             for endpoint_name, result in zip(endpoints.keys(), results):
                 if isinstance(result, Exception):
-                    endpoint_errors[endpoint_name] = str(result)
+                    logger.warning("Polling failed for endpoint %s: %s", endpoint_name, result)
+                    endpoint_errors[endpoint_name] = f"{endpoint_name} endpoint is unavailable."
                     continue
 
                 if endpoint_name == "summary":
