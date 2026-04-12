@@ -57,6 +57,7 @@ Copy-Item .env.example .env
 - `DISCORD_CHANNEL_ID` (required; channel for alert messages)
 - `MONITOR_API_BASE_URL` (required; example `http://127.0.0.1:4040`)
 - `POLL_INTERVAL_SECONDS` (default `30`)
+- `ALERT_GRACE_SECONDS` (default `300`; every alert is sent only after this continuous failure duration)
 - `CPU_ALERT_THRESHOLD` (default `85`)
 - `MEMORY_ALERT_THRESHOLD` (default `90`)
 - `DISK_ALERT_THRESHOLD` (default `90`)
@@ -65,6 +66,8 @@ Copy-Item .env.example .env
 - `ENABLE_RAID_ALERTS` (`true`/`false`, default `true`)
 - `STATUS_SCHEDULE_STATE_FILE` (optional, default `status_schedule_state.json` in `bot/`)
 - `ALERT_STATE_FILE` (optional, default `alert_state.json` in `bot/`)
+
+`ENDPOINT_ALERT_GRACE_SECONDS` is still accepted as a legacy fallback if `ALERT_GRACE_SECONDS` is not set.
 
 ## Run
 

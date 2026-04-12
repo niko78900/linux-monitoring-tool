@@ -69,6 +69,83 @@ class AlertStateTests(unittest.TestCase):
         self.assertEqual(len(new_alerts), 0)
         self.assertEqual(len(recoveries), 2)
 
+    def test_delays_endpoint_alert_notification_until_grace_window(self) -> None:
+        state = AlertState(
+            notify_after_by_prefix={"endpoint-error:": 300},
+        )
+        endpoint_alert = Alert(
+            key="endpoint-error:system",
+            title="system endpoint error",
+            message="system endpoint is unavailable.",
+            severity="warning",
+        )
+
+        new_alerts, recoveries = state.transition([endpoint_alert])
+        self.assertEqual(len(new_alerts), 0)
+        self.assertEqual(len(recoveries), 0)
+
+        snapshot = state.to_snapshot()
+        active_entries = snapshot.get("active", [])
+        self.assertEqual(len(active_entries), 1)
+        active_entries[0]["first_seen"] = "2000-01-01T00:00:00+00:00"
+
+        restored = AlertState(
+            notify_after_by_prefix={"endpoint-error:": 300},
+        )
+        restored.load_snapshot(snapshot)
+
+        new_alerts, recoveries = restored.transition([endpoint_alert])
+        self.assertEqual(len(new_alerts), 1)
+        self.assertEqual(len(recoveries), 0)
+
+        new_alerts, recoveries = restored.transition([])
+        self.assertEqual(len(new_alerts), 0)
+        self.assertEqual(len(recoveries), 1)
+
+    def test_suppressed_alert_does_not_emit_recovery(self) -> None:
+        state = AlertState(
+            notify_after_by_prefix={"endpoint-error:": 300},
+        )
+        endpoint_alert = Alert(
+            key="endpoint-error:system",
+            title="system endpoint error",
+            message="system endpoint is unavailable.",
+            severity="warning",
+        )
+
+        new_alerts, recoveries = state.transition([endpoint_alert])
+        self.assertEqual(len(new_alerts), 0)
+        self.assertEqual(len(recoveries), 0)
+
+        new_alerts, recoveries = state.transition([])
+        self.assertEqual(len(new_alerts), 0)
+        self.assertEqual(len(recoveries), 0)
+
+    def test_delays_cpu_alert_when_default_grace_is_configured(self) -> None:
+        state = AlertState(default_notify_after_seconds=300)
+        cpu_alert = Alert(
+            key="cpu-usage",
+            title="CPU usage high",
+            message="CPU is above threshold.",
+            severity="warning",
+        )
+
+        new_alerts, recoveries = state.transition([cpu_alert])
+        self.assertEqual(len(new_alerts), 0)
+        self.assertEqual(len(recoveries), 0)
+
+        snapshot = state.to_snapshot()
+        active_entries = snapshot.get("active", [])
+        self.assertEqual(len(active_entries), 1)
+        active_entries[0]["first_seen"] = "2000-01-01T00:00:00+00:00"
+
+        restored = AlertState(default_notify_after_seconds=300)
+        restored.load_snapshot(snapshot)
+
+        new_alerts, recoveries = restored.transition([cpu_alert])
+        self.assertEqual(len(new_alerts), 1)
+        self.assertEqual(len(recoveries), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

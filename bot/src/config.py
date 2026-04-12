@@ -26,6 +26,7 @@ class BotConfig:
     gpu_temp_alert_threshold: float
     enable_docker_alerts: bool
     enable_raid_alerts: bool
+    alert_grace_seconds: int
     status_schedule_state_file: str
     alert_state_file: str
     request_timeout_seconds: float = 8.0
@@ -48,6 +49,7 @@ class BotConfig:
         gpu_temp_alert_threshold = _parse_float(source, "GPU_TEMP_ALERT_THRESHOLD", default=80.0, minimum=1.0)
         enable_docker_alerts = _parse_bool(source, "ENABLE_DOCKER_ALERTS", default=True)
         enable_raid_alerts = _parse_bool(source, "ENABLE_RAID_ALERTS", default=True)
+        alert_grace_seconds = _parse_alert_grace_seconds(source)
         status_schedule_state_file = _parse_status_schedule_state_file(source)
         alert_state_file = _parse_alert_state_file(source)
 
@@ -63,6 +65,7 @@ class BotConfig:
             gpu_temp_alert_threshold=gpu_temp_alert_threshold,
             enable_docker_alerts=enable_docker_alerts,
             enable_raid_alerts=enable_raid_alerts,
+            alert_grace_seconds=alert_grace_seconds,
             status_schedule_state_file=status_schedule_state_file,
             alert_state_file=alert_state_file,
         )
@@ -165,3 +168,12 @@ def _parse_alert_state_file(source: Mapping[str, str]) -> str:
     if not path.is_absolute():
         path = _BOT_DIR / path
     return str(path)
+
+
+def _parse_alert_grace_seconds(source: Mapping[str, str]) -> int:
+    # ALERT_GRACE_SECONDS applies to all alert keys.
+    # ENDPOINT_ALERT_GRACE_SECONDS is kept as a backward-compatible fallback.
+    raw_new = _get_raw(source, "ALERT_GRACE_SECONDS")
+    if raw_new is not None:
+        return _parse_int(source, "ALERT_GRACE_SECONDS", minimum=0)
+    return _parse_int(source, "ENDPOINT_ALERT_GRACE_SECONDS", default=300, minimum=0)

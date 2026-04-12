@@ -38,6 +38,7 @@ class BotConfigTests(unittest.TestCase):
         self.assertEqual(config.memory_alert_threshold, 91.5)
         self.assertEqual(config.disk_alert_threshold, 92.0)
         self.assertEqual(config.gpu_temp_alert_threshold, 82.0)
+        self.assertEqual(config.alert_grace_seconds, 300)
         self.assertFalse(config.enable_docker_alerts)
         self.assertTrue(config.enable_raid_alerts)
         self.assertTrue(config.status_schedule_state_file.endswith("status_schedule_state.json"))
@@ -69,11 +70,24 @@ class BotConfigTests(unittest.TestCase):
             "DISCORD_CHANNEL_ID": "111111",
             "MONITOR_API_BASE_URL": "http://monitor:4040",
             "STATUS_SCHEDULE_STATE_FILE": "state/schedule.json",
+            "ALERT_GRACE_SECONDS": "120",
         }
 
         config = BotConfig.from_env(env)
         self.assertTrue(Path(config.status_schedule_state_file).is_absolute())
         self.assertTrue(config.status_schedule_state_file.endswith(str(Path("state") / "schedule.json")))
+        self.assertEqual(config.alert_grace_seconds, 120)
+
+    def test_from_env_supports_legacy_endpoint_alert_grace_seconds(self) -> None:
+        env = {
+            "DISCORD_BOT_TOKEN": "secret-token",
+            "DISCORD_CHANNEL_ID": "111111",
+            "MONITOR_API_BASE_URL": "http://monitor:4040",
+            "ENDPOINT_ALERT_GRACE_SECONDS": "180",
+        }
+
+        config = BotConfig.from_env(env)
+        self.assertEqual(config.alert_grace_seconds, 180)
 
     def test_from_env_resolves_relative_alert_state_file(self) -> None:
         env = {
