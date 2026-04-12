@@ -16,6 +16,7 @@ FRONTEND_WEB_ROOT="${FRONTEND_WEB_ROOT:-/var/www/linux-monitor/browser}"
 
 RUN_FRONTEND_TESTS="${RUN_FRONTEND_TESTS:-1}"
 ALERT_GRACE_DEFAULT="${ALERT_GRACE_DEFAULT:-300}"
+FRONTEND_TEST_MODE="${FRONTEND_TEST_MODE:-auto}"
 
 
 log() {
@@ -74,6 +75,96 @@ ensure_frontend_permissions() {
 }
 
 
+detect_chrome_bin() {
+  if [[ -n "${CHROME_BIN:-}" ]]; then
+    if [[ -x "$CHROME_BIN" ]]; then
+      return 0
+    fi
+    printf '[deploy] CHROME_BIN is set but not executable: %s\n' "$CHROME_BIN" >&2
+    return 1
+  fi
+
+  local candidates=(
+    /usr/bin/google-chrome
+    /usr/bin/google-chrome-stable
+    /usr/bin/chromium-browser
+    /usr/bin/chromium
+    /snap/bin/chromium
+  )
+
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [[ -x "$candidate" ]]; then
+      export CHROME_BIN="$candidate"
+      return 0
+    fi
+  done
+
+  if command -v google-chrome >/dev/null 2>&1; then
+    CHROME_BIN="$(command -v google-chrome)"
+    export CHROME_BIN
+    return 0
+  fi
+  if command -v google-chrome-stable >/dev/null 2>&1; then
+    CHROME_BIN="$(command -v google-chrome-stable)"
+    export CHROME_BIN
+    return 0
+  fi
+  if command -v chromium-browser >/dev/null 2>&1; then
+    CHROME_BIN="$(command -v chromium-browser)"
+    export CHROME_BIN
+    return 0
+  fi
+  if command -v chromium >/dev/null 2>&1; then
+    CHROME_BIN="$(command -v chromium)"
+    export CHROME_BIN
+    return 0
+  fi
+
+  return 1
+}
+
+
+run_frontend_tests() {
+  # Compatibility with older flag usage.
+  if [[ "$RUN_FRONTEND_TESTS" == "0" ]]; then
+    log "Skipping frontend tests (RUN_FRONTEND_TESTS=0)"
+    return 0
+  fi
+
+  local mode="$FRONTEND_TEST_MODE"
+  case "$mode" in
+    never)
+      log "Skipping frontend tests (FRONTEND_TEST_MODE=never)"
+      return 0
+      ;;
+    always)
+      if ! detect_chrome_bin; then
+        printf '[deploy] FRONTEND_TEST_MODE=always but no Chrome/Chromium binary found.\n' >&2
+        printf '[deploy] Install chromium or set CHROME_BIN to a valid binary.\n' >&2
+        return 1
+      fi
+      log "Running frontend tests with CHROME_BIN=$CHROME_BIN"
+      npm test
+      return 0
+      ;;
+    auto)
+      if detect_chrome_bin; then
+        log "Running frontend tests with CHROME_BIN=$CHROME_BIN"
+        npm test
+      else
+        log "No Chrome/Chromium found; skipping frontend unit tests and continuing with build validation."
+      fi
+      return 0
+      ;;
+    *)
+      printf '[deploy] invalid FRONTEND_TEST_MODE: %s (expected: auto|always|never)\n' "$mode" >&2
+      return 1
+      ;;
+  esac
+}
+
+
 main() {
   require_cmd git
   require_cmd curl
@@ -103,11 +194,7 @@ main() {
   cd "$FRONTEND_DIR"
   ensure_frontend_permissions
   npm ci
-  if [[ "$RUN_FRONTEND_TESTS" == "1" ]]; then
-    npm test
-  else
-    log "Skipping frontend tests (RUN_FRONTEND_TESTS=$RUN_FRONTEND_TESTS)"
-  fi
+  run_frontend_tests
   npm run check:build
   sudo rsync -a --delete "$FRONTEND_DIR/dist/linux-monitoring-ui/browser/" "$FRONTEND_WEB_ROOT/"
   sudo nginx -t
