@@ -197,7 +197,7 @@ Frontend:
 
 ```powershell
 cd frontend
-npm.cmd run test:unit
+npm.cmd test
 ```
 
 ## Detailed Documentation
