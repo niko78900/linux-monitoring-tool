@@ -1,5 +1,7 @@
 # Linux Monitoring
 
+Read-only Linux homelab monitoring monorepo with a FastAPI backend, Angular dashboard, and Discord bot.
+
 Read-only homelab monitoring stack built as a monorepo:
 
 - `backend/`: FastAPI monitoring API
@@ -149,7 +151,7 @@ Key variables:
 
 - `backendBaseUrl` (default empty for same-origin)
 - `apiPrefix` (default `/api`)
-- `polling.summaryMs` (default `1000`)
+- `polling.summaryMs` (default `5000`)
 - `polling.detailsMs` (default `5000`)
 - `polling.healthMs` (default `15000`)
 
@@ -159,8 +161,11 @@ Key variables:
 - `DISCORD_CHANNEL_ID` (required)
 - `MONITOR_API_BASE_URL` (required, example `http://127.0.0.1:4040`)
 - `POLL_INTERVAL_SECONDS` (default `30`)
+- `ALERT_GRACE_SECONDS` (default `300` for all alerts)
 - Thresholds: CPU/memory/disk/GPU temp
 - Feature flags: `ENABLE_DOCKER_ALERTS`, `ENABLE_RAID_ALERTS`
+
+Legacy fallback: `ENDPOINT_ALERT_GRACE_SECONDS` is still recognized when `ALERT_GRACE_SECONDS` is unset.
 
 ## Production Shape
 

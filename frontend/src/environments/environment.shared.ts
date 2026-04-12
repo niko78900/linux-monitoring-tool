@@ -2,7 +2,7 @@ export const ENV_SHARED = {
   backendBaseUrl: '',
   apiPrefix: '/api',
   polling: {
-    summaryMs: 1000,
+    summaryMs: 5000,
     detailsMs: 5000,
     healthMs: 15000
   }

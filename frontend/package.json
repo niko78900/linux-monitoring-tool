@@ -6,9 +6,9 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "npm run test:build",
-    "test:build": "ng build --configuration development",
-    "test:unit": "ng test"
+    "test": "ng test --watch=false --browsers=ChromeHeadless",
+    "test:unit": "npm run test",
+    "check:build": "ng build --configuration development"
   },
   "prettier": {
     "printWidth": 100,
