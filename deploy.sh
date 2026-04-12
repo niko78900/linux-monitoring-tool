@@ -77,6 +77,17 @@ ensure_frontend_permissions() {
 }
 
 
+ensure_git_permissions() {
+  # Fix root-owned git metadata from previous sudo git operations.
+  if [[ "$EUID" -eq 0 && "$DEPLOY_USER" != "root" ]]; then
+    if sudo find "$ROOT_DIR/.git" -mindepth 1 -maxdepth 3 ! -user "$DEPLOY_USER" -print -quit | grep -q .; then
+      log "Repairing git metadata ownership under $ROOT_DIR/.git"
+      sudo chown -R "$DEPLOY_USER:$DEPLOY_GROUP" "$ROOT_DIR/.git"
+    fi
+  fi
+}
+
+
 run_as_deploy_user() {
   if [[ "$EUID" -eq 0 && "$DEPLOY_USER" != "root" ]]; then
     if [[ -n "${CHROME_BIN:-}" ]]; then
@@ -207,6 +218,7 @@ main() {
 
   log "Pulling latest code"
   cd "$ROOT_DIR"
+  ensure_git_permissions
   run_as_deploy_user git pull --ff-only origin main
 
   log "Deploying backend"
