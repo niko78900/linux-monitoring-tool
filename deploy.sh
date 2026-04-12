@@ -5,6 +5,8 @@ ROOT_DIR="${ROOT_DIR:-/opt/linux-monitor}"
 BACKEND_DIR="${BACKEND_DIR:-$ROOT_DIR/backend}"
 FRONTEND_DIR="${FRONTEND_DIR:-$ROOT_DIR/frontend}"
 BOT_DIR="${BOT_DIR:-$ROOT_DIR/bot}"
+DEPLOY_USER="${DEPLOY_USER:-${SUDO_USER:-$USER}}"
+DEPLOY_GROUP="${DEPLOY_GROUP:-$(id -gn "$DEPLOY_USER")}"
 
 BACKEND_SERVICE="${BACKEND_SERVICE:-linux-monitor-backend}"
 BOT_SERVICE="${BOT_SERVICE:-linux-monitor-discord-bot}"
@@ -49,7 +51,7 @@ wait_for_http() {
   local sleep_seconds="${4:-2}"
 
   for ((i = 1; i <= attempts; i += 1)); do
-    if curl -fsS "$url" >/dev/null; then
+    if curl -fsS "$url" >/dev/null 2>&1; then
       log "$label is healthy at $url"
       return 0
     fi
@@ -64,14 +66,41 @@ wait_for_http() {
 ensure_frontend_permissions() {
   # Fix common EACCES errors after mixed sudo/non-sudo npm/ng runs.
   if [[ -e "$FRONTEND_DIR/node_modules" ]]; then
-    sudo chown -R "$USER:$USER" "$FRONTEND_DIR/node_modules"
+    sudo chown -R "$DEPLOY_USER:$DEPLOY_GROUP" "$FRONTEND_DIR/node_modules"
   fi
   if [[ -e "$FRONTEND_DIR/dist" ]]; then
-    sudo chown -R "$USER:$USER" "$FRONTEND_DIR/dist"
+    sudo chown -R "$DEPLOY_USER:$DEPLOY_GROUP" "$FRONTEND_DIR/dist"
   fi
   if [[ -e "$FRONTEND_DIR/.angular" ]]; then
-    sudo chown -R "$USER:$USER" "$FRONTEND_DIR/.angular"
+    sudo chown -R "$DEPLOY_USER:$DEPLOY_GROUP" "$FRONTEND_DIR/.angular"
   fi
+}
+
+
+run_as_deploy_user() {
+  if [[ "$EUID" -eq 0 && "$DEPLOY_USER" != "root" ]]; then
+    if [[ -n "${CHROME_BIN:-}" ]]; then
+      sudo -u "$DEPLOY_USER" -H env "CHROME_BIN=$CHROME_BIN" "$@"
+    else
+      sudo -u "$DEPLOY_USER" -H "$@"
+    fi
+  else
+    "$@"
+  fi
+}
+
+
+resolve_frontend_build_dir() {
+  local base_dir="$FRONTEND_DIR/dist/linux-monitoring-ui"
+  if [[ -d "$base_dir/browser" ]]; then
+    printf '%s\n' "$base_dir/browser"
+    return 0
+  fi
+  if [[ -d "$base_dir" ]]; then
+    printf '%s\n' "$base_dir"
+    return 0
+  fi
+  return 1
 }
 
 
@@ -145,13 +174,13 @@ run_frontend_tests() {
         return 1
       fi
       log "Running frontend tests with CHROME_BIN=$CHROME_BIN"
-      npm test
+      run_as_deploy_user npm test
       return 0
       ;;
     auto)
       if detect_chrome_bin; then
         log "Running frontend tests with CHROME_BIN=$CHROME_BIN"
-        npm test
+        run_as_deploy_user npm test
       else
         log "No Chrome/Chromium found; skipping frontend unit tests and continuing with build validation."
       fi
@@ -178,11 +207,11 @@ main() {
 
   log "Pulling latest code"
   cd "$ROOT_DIR"
-  git pull --ff-only origin main
+  run_as_deploy_user git pull --ff-only origin main
 
   log "Deploying backend"
   cd "$BACKEND_DIR"
-  .venv/bin/pip install -r requirements.txt
+  run_as_deploy_user .venv/bin/pip install -r requirements.txt
   sudo systemctl restart "$BACKEND_SERVICE"
   if ! wait_for_http "$BACKEND_HEALTH_URL" "backend" 45 2; then
     sudo systemctl status "$BACKEND_SERVICE" --no-pager -l || true
@@ -193,10 +222,15 @@ main() {
   log "Deploying frontend"
   cd "$FRONTEND_DIR"
   ensure_frontend_permissions
-  npm ci
+  run_as_deploy_user npm ci --no-audit --no-fund
   run_frontend_tests
-  npm run check:build
-  sudo rsync -a --delete "$FRONTEND_DIR/dist/linux-monitoring-ui/browser/" "$FRONTEND_WEB_ROOT/"
+  run_as_deploy_user npm run check:build
+  local frontend_build_dir
+  if ! frontend_build_dir="$(resolve_frontend_build_dir)"; then
+    printf '[deploy] frontend build output not found under %s/dist/linux-monitoring-ui\n' "$FRONTEND_DIR" >&2
+    exit 1
+  fi
+  sudo rsync -a --delete "$frontend_build_dir/" "$FRONTEND_WEB_ROOT/"
   sudo nginx -t
   sudo systemctl reload "$NGINX_SERVICE"
   if ! wait_for_http "$FRONTEND_HEALTH_URL" "frontend/api" 30 2; then
@@ -206,7 +240,7 @@ main() {
 
   log "Deploying bot"
   cd "$BOT_DIR"
-  .venv/bin/pip install -r requirements.txt
+  run_as_deploy_user .venv/bin/pip install -r requirements.txt
   if [[ -f .env ]] && ! grep -q '^ALERT_GRACE_SECONDS=' .env; then
     echo "ALERT_GRACE_SECONDS=$ALERT_GRACE_DEFAULT" >> .env
     log "Added ALERT_GRACE_SECONDS=$ALERT_GRACE_DEFAULT to bot/.env"
