@@ -25,6 +25,11 @@ class AppSettings {
     required this.sshProfile,
     required this.sftpProfile,
     required this.sftpVirtualRoot,
+    required this.allowSftpUpload,
+    required this.allowSftpCreateDirectory,
+    required this.allowSftpRename,
+    required this.allowSftpMove,
+    required this.allowSftpSoftDelete,
     required this.showRawApiErrors,
     required this.showRequestTiming,
   });
@@ -44,6 +49,11 @@ class AppSettings {
       sshProfile: ConnectionProfile.empty(kind: ConnectionProfileKind.ssh),
       sftpProfile: ConnectionProfile.empty(kind: ConnectionProfileKind.sftp),
       sftpVirtualRoot: '/warm',
+      allowSftpUpload: false,
+      allowSftpCreateDirectory: false,
+      allowSftpRename: false,
+      allowSftpMove: false,
+      allowSftpSoftDelete: false,
       showRawApiErrors: false,
       showRequestTiming: false,
     );
@@ -62,6 +72,11 @@ class AppSettings {
   final ConnectionProfile sshProfile;
   final ConnectionProfile sftpProfile;
   final String sftpVirtualRoot;
+  final bool allowSftpUpload;
+  final bool allowSftpCreateDirectory;
+  final bool allowSftpRename;
+  final bool allowSftpMove;
+  final bool allowSftpSoftDelete;
   final bool showRawApiErrors;
   final bool showRequestTiming;
 
@@ -79,6 +94,11 @@ class AppSettings {
     ConnectionProfile? sshProfile,
     ConnectionProfile? sftpProfile,
     String? sftpVirtualRoot,
+    bool? allowSftpUpload,
+    bool? allowSftpCreateDirectory,
+    bool? allowSftpRename,
+    bool? allowSftpMove,
+    bool? allowSftpSoftDelete,
     bool? showRawApiErrors,
     bool? showRequestTiming,
   }) {
@@ -98,6 +118,12 @@ class AppSettings {
       sshProfile: sshProfile ?? this.sshProfile,
       sftpProfile: sftpProfile ?? this.sftpProfile,
       sftpVirtualRoot: sftpVirtualRoot ?? this.sftpVirtualRoot,
+      allowSftpUpload: allowSftpUpload ?? this.allowSftpUpload,
+      allowSftpCreateDirectory:
+          allowSftpCreateDirectory ?? this.allowSftpCreateDirectory,
+      allowSftpRename: allowSftpRename ?? this.allowSftpRename,
+      allowSftpMove: allowSftpMove ?? this.allowSftpMove,
+      allowSftpSoftDelete: allowSftpSoftDelete ?? this.allowSftpSoftDelete,
       showRawApiErrors: showRawApiErrors ?? this.showRawApiErrors,
       showRequestTiming: showRequestTiming ?? this.showRequestTiming,
     );
@@ -250,6 +276,18 @@ class SettingsController extends Notifier<AppSettings> {
       sftpVirtualRoot:
           preferences.getString(_Keys.sftpVirtualRoot) ??
           defaults.sftpVirtualRoot,
+      allowSftpUpload:
+          preferences.getBool(_Keys.allowSftpUpload) ?? defaults.allowSftpUpload,
+      allowSftpCreateDirectory:
+          preferences.getBool(_Keys.allowSftpCreateDirectory) ??
+          defaults.allowSftpCreateDirectory,
+      allowSftpRename:
+          preferences.getBool(_Keys.allowSftpRename) ?? defaults.allowSftpRename,
+      allowSftpMove:
+          preferences.getBool(_Keys.allowSftpMove) ?? defaults.allowSftpMove,
+      allowSftpSoftDelete:
+          preferences.getBool(_Keys.allowSftpSoftDelete) ??
+          defaults.allowSftpSoftDelete,
       showRawApiErrors:
           preferences.getBool(_Keys.showRawApiErrors) ??
           defaults.showRawApiErrors,
@@ -298,6 +336,17 @@ class SettingsController extends Notifier<AppSettings> {
     _preferences.setBool(_Keys.requireUnlock, settings.requirePrivilegedUnlock);
     _preferences.setString(_Keys.unlockTimeout, settings.unlockTimeout.name);
     _preferences.setString(_Keys.sftpVirtualRoot, settings.sftpVirtualRoot);
+    _preferences.setBool(_Keys.allowSftpUpload, settings.allowSftpUpload);
+    _preferences.setBool(
+      _Keys.allowSftpCreateDirectory,
+      settings.allowSftpCreateDirectory,
+    );
+    _preferences.setBool(_Keys.allowSftpRename, settings.allowSftpRename);
+    _preferences.setBool(_Keys.allowSftpMove, settings.allowSftpMove);
+    _preferences.setBool(
+      _Keys.allowSftpSoftDelete,
+      settings.allowSftpSoftDelete,
+    );
     _preferences.setBool(_Keys.showRawApiErrors, settings.showRawApiErrors);
     _preferences.setBool(_Keys.showRequestTiming, settings.showRequestTiming);
     _writeProfile(settings.sshProfile);
@@ -348,6 +397,11 @@ class _Keys {
   static const requireUnlock = 'requirePrivilegedUnlock';
   static const unlockTimeout = 'unlockTimeout';
   static const sftpVirtualRoot = 'sftpVirtualRoot';
+  static const allowSftpUpload = 'allowSftpUpload';
+  static const allowSftpCreateDirectory = 'allowSftpCreateDirectory';
+  static const allowSftpRename = 'allowSftpRename';
+  static const allowSftpMove = 'allowSftpMove';
+  static const allowSftpSoftDelete = 'allowSftpSoftDelete';
   static const showRawApiErrors = 'showRawApiErrors';
   static const showRequestTiming = 'showRequestTiming';
   static const profileName = 'displayName';

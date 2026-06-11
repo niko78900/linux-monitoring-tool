@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:dartssh2/dartssh2.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,13 +16,19 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/byte_format.dart';
 import '../../../../core/utils/path_safety.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/section_card.dart';
 import '../../../../core/widgets/status_badge.dart';
 import '../../../../core/widgets/status_tone.dart';
+import '../../data/file_browser_utils.dart';
 import '../../data/file_download_service.dart';
+import '../../data/file_metadata_store.dart';
+import '../../data/file_preview_service.dart';
+import '../../data/file_search_service.dart';
 import '../../data/sftp_connection_service.dart';
+import '../../domain/models/file_browser_models.dart';
 import '../../domain/models/remote_file_entry.dart';
 import '../../domain/models/transfer_item.dart';
-import '../../presentation/widgets/transfer_queue_panel.dart';
+import '../widgets/transfer_queue_panel.dart';
 import '../../../terminal/presentation/widgets/terminal_connection_dialogs.dart';
 
 class FilesPage extends ConsumerStatefulWidget {
@@ -37,13 +46,17 @@ class _FilesPageState extends ConsumerState<FilesPage>
   SftpSessionConnection? _connection;
   _FilesStatus _status = _FilesStatus.disconnected;
   String? _message;
+  String? _searchStatus;
   String? _currentPath;
   List<RemoteFileEntry> _entries = const [];
   List<TransferItem> _transfers = const [];
+  List<FavoriteLocation> _favorites = const [];
+  List<RecentDownloadRecord> _recentDownloads = const [];
   final Map<String, DownloadCancellationToken> _tokens =
       <String, DownloadCancellationToken>{};
   String? _activeTransferId;
   _FilesSort _sort = _FilesSort.name;
+  bool _searchingRemote = false;
 
   @override
   void initState() {
@@ -71,7 +84,9 @@ class _FilesPageState extends ConsumerState<FilesPage>
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       unawaited(
-        _disconnect(message: 'SFTP session closed after the app moved to background.'),
+        _disconnect(
+          message: 'SFTP session closed after the app moved to background.',
+        ),
       );
     }
   }
@@ -80,7 +95,11 @@ class _FilesPageState extends ConsumerState<FilesPage>
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsControllerProvider);
     final profile = settings.sftpProfile;
-    final root = normalizeVirtualPath(settings.sftpVirtualRoot, settings.sftpVirtualRoot);
+    final root = normalizeVirtualPath(
+      settings.sftpVirtualRoot,
+      settings.sftpVirtualRoot,
+    );
+    final hostProfileId = buildSftpProfileId(profile);
 
     if (!profile.isConfigured) {
       return Padding(
@@ -173,8 +192,70 @@ class _FilesPageState extends ConsumerState<FilesPage>
                 onPressed: () => _copyPath(_currentPath ?? root),
                 icon: const Icon(Icons.copy_all),
               ),
+              OutlinedButton.icon(
+                onPressed: _connection == null
+                    ? null
+                    : () => _toggleFavorite(hostProfileId),
+                icon: Icon(
+                  _isCurrentPathFavorite(hostProfileId)
+                      ? Icons.star
+                      : Icons.star_border,
+                ),
+                label: Text(
+                  _isCurrentPathFavorite(hostProfileId)
+                      ? 'Unfavorite'
+                      : 'Favorite',
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: _connection == null || _searchingRemote
+                    ? null
+                    : () => _promptRecursiveSearch(root),
+                icon: const Icon(Icons.manage_search),
+                label: Text(_searchingRemote ? 'Searching...' : 'Remote Search'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _connection == null || !settings.allowSftpUpload
+                    ? null
+                    : () => _uploadFile(root),
+                icon: const Icon(Icons.upload_file),
+                label: const Text('Upload'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _connection == null || !settings.allowSftpCreateDirectory
+                    ? null
+                    : () => _createDirectory(root),
+                icon: const Icon(Icons.create_new_folder),
+                label: const Text('New Folder'),
+              ),
             ],
           ),
+          if (_searchStatus != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(_searchStatus!),
+          ],
+          if (_favorites.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final favorite in _favorites)
+                  ActionChip(
+                    avatar: const Icon(Icons.star, size: 18),
+                    label: Text(favorite.remotePath),
+                    onPressed: _connection == null
+                        ? null
+                        : () => _loadDirectory(favorite.remotePath),
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          if (!canMutateFiles(settings))
+            Text(
+              'File writes remain disabled until enabled in Settings and supported by the restricted SFTP account.',
+            ),
           const SizedBox(height: AppSpacing.md),
           Wrap(
             spacing: AppSpacing.md,
@@ -229,14 +310,60 @@ class _FilesPageState extends ConsumerState<FilesPage>
                   currentPath: _currentPath ?? root,
                   dateFormat: _dateFormat,
                   onOpenDirectory: _openDirectory,
+                  onPreview: _previewEntry,
                   onDownload: _enqueueDownload,
+                  onEntryAction: (entry, action) =>
+                      _handleEntryAction(entry, action, root),
                   onCopyPath: _copyPath,
                 );
-                final queue = TransferQueuePanel(
-                  items: _transfers,
-                  onCancel: _cancelTransfer,
-                  onRetry: _retryTransfer,
-                  onOpen: _openDownloadedFile,
+
+                final queue = Column(
+                  children: [
+                    TransferQueuePanel(
+                      items: _transfers,
+                      onCancel: _cancelTransfer,
+                      onRetry: _retryTransfer,
+                      onOpen: _openDownloadedFile,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    SectionCard(
+                      title: 'Recent Downloads',
+                      child: _recentDownloads.isEmpty
+                          ? const Text('No recent downloads')
+                          : Column(
+                              children: [
+                                for (final item in _recentDownloads.take(5)) ...[
+                                  ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(item.fileName),
+                                    subtitle: Text(item.remotePath),
+                                    trailing: Wrap(
+                                      spacing: AppSpacing.xs,
+                                      children: [
+                                        IconButton(
+                                          tooltip: 'Open',
+                                          onPressed: () =>
+                                              _openLocalPath(item.localPath),
+                                          icon: const Icon(Icons.open_in_new),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Remove from recents',
+                                          onPressed: () => _removeRecentDownload(
+                                            hostProfileId,
+                                            item.remotePath,
+                                          ),
+                                          icon: const Icon(Icons.close),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (item != _recentDownloads.take(5).last)
+                                    const Divider(height: 1),
+                                ],
+                              ],
+                            ),
+                    ),
+                  ],
                 );
 
                 if (constraints.maxWidth >= 1200) {
@@ -245,7 +372,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
                     children: [
                       Expanded(child: list),
                       const SizedBox(width: AppSpacing.lg),
-                      SizedBox(width: 360, child: queue),
+                      SizedBox(width: 380, child: queue),
                     ],
                   );
                 }
@@ -267,7 +394,10 @@ class _FilesPageState extends ConsumerState<FilesPage>
 
   Future<void> _connect(AppSettings settings) async {
     final profile = settings.sftpProfile;
-    final root = normalizeVirtualPath(settings.sftpVirtualRoot, settings.sftpVirtualRoot);
+    final root = normalizeVirtualPath(
+      settings.sftpVirtualRoot,
+      settings.sftpVirtualRoot,
+    );
     await _disconnect(clearMessage: true);
     setState(() {
       _status = _FilesStatus.connecting;
@@ -276,21 +406,20 @@ class _FilesPageState extends ConsumerState<FilesPage>
     });
 
     try {
-      final connection = await ref
-          .read(sftpConnectionServiceProvider)
-          .open(
-            profile: profile,
-            onTrustHost: (hostKey) => showHostTrustDialog(context, hostKey),
-            onPassphraseRequired: () => showPassphrasePromptDialog(
-              context,
-              title: 'Enter the SFTP key passphrase',
-            ),
-          );
+      final connection = await ref.read(sftpConnectionServiceProvider).open(
+        profile: profile,
+        onTrustHost: (hostKey) => showHostTrustDialog(context, hostKey),
+        onPassphraseRequired: () => showPassphrasePromptDialog(
+          context,
+          title: 'Enter the SFTP key passphrase',
+        ),
+      );
       _connection = connection;
       setState(() {
         _status = _FilesStatus.connected;
         _message = 'Connected to restricted SFTP root.';
       });
+      await _refreshMetadata();
       await _loadDirectory(root);
     } catch (error) {
       setState(() {
@@ -330,7 +459,10 @@ class _FilesPageState extends ConsumerState<FilesPage>
       return;
     }
     final settings = ref.read(settingsControllerProvider);
-    final root = normalizeVirtualPath(settings.sftpVirtualRoot, settings.sftpVirtualRoot);
+    final root = normalizeVirtualPath(
+      settings.sftpVirtualRoot,
+      settings.sftpVirtualRoot,
+    );
     final safePath = normalizeVirtualPath(root, requestedPath);
 
     try {
@@ -347,9 +479,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
               sizeBytes: attrs.size,
               modifiedAt: attrs.modifyTime == null
                   ? null
-                  : DateTime.fromMillisecondsSinceEpoch(
-                      attrs.modifyTime! * 1000,
-                    ),
+                  : DateTime.fromMillisecondsSinceEpoch(attrs.modifyTime! * 1000),
             );
           })
           .toList(growable: false);
@@ -362,6 +492,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
         _status = _FilesStatus.connected;
         _message = 'Browsing $safePath';
       });
+      await _refreshMetadata();
     } catch (error) {
       if (!mounted) {
         return;
@@ -383,7 +514,10 @@ class _FilesPageState extends ConsumerState<FilesPage>
 
   Future<void> _goBack() async {
     final settings = ref.read(settingsControllerProvider);
-    final root = normalizeVirtualPath(settings.sftpVirtualRoot, settings.sftpVirtualRoot);
+    final root = normalizeVirtualPath(
+      settings.sftpVirtualRoot,
+      settings.sftpVirtualRoot,
+    );
     final current = _currentPath ?? root;
     if (current == root) {
       return;
@@ -445,6 +579,13 @@ class _FilesPageState extends ConsumerState<FilesPage>
       return;
     }
 
+    final entry = _entries.cast<RemoteFileEntry?>().firstWhere(
+      (item) => item?.path == next.remotePath,
+      orElse: () => null,
+    );
+    final profile = ref.read(settingsControllerProvider).sftpProfile;
+    final hostProfileId = buildSftpProfileId(profile);
+
     _activeTransferId = next.id;
     _updateTransfer(
       next.id,
@@ -452,28 +593,40 @@ class _FilesPageState extends ConsumerState<FilesPage>
     );
 
     try {
-      final result = await ref
-          .read(fileDownloadServiceProvider)
-          .download(
-            sftp: connection.sftp,
-            remotePath: next.remotePath,
-            fileName: next.fileName,
-            cancellationToken: token,
-            onProgress: (transferredBytes, totalBytes, localPath) {
-              if (!mounted) {
-                return;
-              }
-              _updateTransfer(
-                next.id,
-                (item) => item.copyWith(
-                  transferredBytes: transferredBytes,
-                  totalBytes: totalBytes,
-                  localPath: localPath,
-                  state: TransferState.downloading,
-                ),
-              );
-            },
+      final result = await ref.read(fileDownloadServiceProvider).download(
+        sftp: connection.sftp,
+        hostProfileId: hostProfileId,
+        remotePath: next.remotePath,
+        fileName: next.fileName,
+        remoteModifiedAt: entry?.modifiedAt?.toUtc(),
+        cancellationToken: token,
+        onProgress: (transferredBytes, totalBytes, localPath) {
+          if (!mounted) {
+            return;
+          }
+          _updateTransfer(
+            next.id,
+            (item) => item.copyWith(
+              transferredBytes: transferredBytes,
+              totalBytes: totalBytes,
+              localPath: localPath,
+              state: TransferState.downloading,
+            ),
           );
+        },
+      );
+      await ref.read(fileMetadataStoreProvider).upsertRecentDownload(
+        RecentDownloadRecord(
+          hostProfileId: hostProfileId,
+          fileName: result.fileName,
+          remotePath: next.remotePath,
+          localPath: result.localPath,
+          sizeBytes: result.totalBytes,
+          remoteModifiedAt: entry?.modifiedAt?.toUtc(),
+          downloadedAt: DateTime.now().toUtc(),
+        ),
+      );
+      await _refreshMetadata();
       _updateTransfer(
         next.id,
         (item) => item.copyWith(
@@ -546,6 +699,10 @@ class _FilesPageState extends ConsumerState<FilesPage>
     if (localPath == null) {
       return;
     }
+    await _openLocalPath(localPath);
+  }
+
+  Future<void> _openLocalPath(String localPath) async {
     final result = await OpenFilex.open(localPath);
     if (!mounted) {
       return;
@@ -580,6 +737,390 @@ class _FilesPageState extends ConsumerState<FilesPage>
   Future<void> _copyPath(String path) async {
     await Clipboard.setData(ClipboardData(text: path));
     _showSnackBar('Remote path copied.');
+  }
+
+  Future<void> _refreshMetadata() async {
+    final profile = ref.read(settingsControllerProvider).sftpProfile;
+    final hostProfileId = buildSftpProfileId(profile);
+    final store = ref.read(fileMetadataStoreProvider);
+    final favorites = await store.listFavorites(hostProfileId);
+    final recents = await store.listRecentDownloads(hostProfileId);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _favorites = favorites;
+      _recentDownloads = recents;
+    });
+  }
+
+  bool _isCurrentPathFavorite(String hostProfileId) {
+    final currentPath = _currentPath;
+    if (currentPath == null) {
+      return false;
+    }
+    return _favorites.any(
+      (favorite) =>
+          favorite.hostProfileId == hostProfileId &&
+          favorite.remotePath == currentPath,
+    );
+  }
+
+  Future<void> _toggleFavorite(String hostProfileId) async {
+    final currentPath = _currentPath;
+    if (currentPath == null) {
+      return;
+    }
+    final store = ref.read(fileMetadataStoreProvider);
+    if (_isCurrentPathFavorite(hostProfileId)) {
+      await store.removeFavorite(hostProfileId, currentPath);
+    } else {
+      await store.addFavorite(hostProfileId, currentPath);
+    }
+    await _refreshMetadata();
+  }
+
+  Future<void> _removeRecentDownload(String hostProfileId, String remotePath) async {
+    await ref.read(fileMetadataStoreProvider).removeRecentDownload(
+      hostProfileId,
+      remotePath,
+    );
+    await _refreshMetadata();
+  }
+
+  Future<void> _previewEntry(RemoteFileEntry entry) async {
+    if (entry.isDirectory || _connection == null) {
+      return;
+    }
+    final previewService = ref.read(filePreviewServiceProvider);
+    try {
+      if (isImagePreviewable(entry.name)) {
+        final path = await previewService.cacheRemoteFile(
+          sftp: _connection!.sftp,
+          remotePath: entry.path,
+          fileName: entry.name,
+          sizeBytes: entry.sizeBytes,
+        );
+        if (!mounted) {
+          return;
+        }
+        await showDialog<void>(
+          context: context,
+          builder: (context) => Dialog(
+            child: InteractiveViewer(child: Image.file(File(path))),
+          ),
+        );
+        return;
+      }
+
+      if (isTextPreviewable(entry.name)) {
+        final sizeBytes = entry.sizeBytes ?? 0;
+        final text = await previewService.readTextPreview(
+          sftp: _connection!.sftp,
+          remotePath: entry.path,
+          sizeBytes: sizeBytes,
+        );
+        if (!mounted) {
+          return;
+        }
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(entry.name),
+            content: SizedBox(
+              width: 720,
+              child: SingleChildScrollView(child: SelectableText(text)),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      if (isVideoPreviewable(entry.name)) {
+        final path = await previewService.cacheRemoteFile(
+          sftp: _connection!.sftp,
+          remotePath: entry.path,
+          fileName: entry.name,
+          sizeBytes: entry.sizeBytes,
+        );
+        await _openLocalPath(path);
+        return;
+      }
+
+      _showSnackBar('Preview is unavailable for this file type.');
+    } catch (error) {
+      _showSnackBar(_describeError(error));
+    }
+  }
+
+  Future<void> _promptRecursiveSearch(String root) async {
+    final controller = TextEditingController(text: _searchController.text);
+    final query = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remote search'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Search name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: const Text('Search'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    final trimmed = query?.trim() ?? '';
+    if (trimmed.isEmpty || _connection == null) {
+      return;
+    }
+
+    final token = FileSearchCancellationToken();
+    setState(() {
+      _searchingRemote = true;
+      _searchStatus = 'Searching recursively from ${_currentPath ?? root}';
+    });
+    try {
+      final snapshot = await ref.read(fileSearchServiceProvider).search(
+        sftp: _connection!.sftp,
+        virtualRoot: root,
+        startPath: _currentPath ?? root,
+        query: trimmed,
+        cancellationToken: token,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _searchStatus = snapshot.truncated
+            ? 'Search truncated at ${snapshot.results.length} results.'
+            : 'Search completed with ${snapshot.results.length} results.';
+      });
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Search results'),
+          content: SizedBox(
+            width: 720,
+            child: snapshot.results.isEmpty
+                ? const Text('No results found.')
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: snapshot.results.length,
+                    itemBuilder: (context, index) {
+                      final result = snapshot.results[index];
+                      return ListTile(
+                        leading: Icon(
+                          result.isDirectory
+                              ? Icons.folder
+                              : Icons.insert_drive_file,
+                        ),
+                        title: Text(result.name),
+                        subtitle: Text(result.entryPath),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          if (result.isDirectory) {
+                            _loadDirectory(result.entryPath);
+                          }
+                        },
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(() => _searchStatus = _describeError(error));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _searchingRemote = false);
+      }
+    }
+  }
+
+  Future<void> _uploadFile(String root) async {
+    final connection = _connection;
+    if (connection == null) {
+      return;
+    }
+    final result = await FilePicker.pickFiles();
+    if (result == null || result.files.single.path == null) {
+      return;
+    }
+    final selected = File(result.files.single.path!);
+    final fileName = selected.uri.pathSegments.last;
+    final currentPath = _currentPath ?? root;
+    final temporaryRemote = '$currentPath/$fileName.uploading';
+    final finalRemote = '$currentPath/$fileName';
+    final remoteFile = await connection.sftp.open(
+      temporaryRemote,
+      mode: SftpFileOpenMode.create |
+          SftpFileOpenMode.truncate |
+          SftpFileOpenMode.write,
+    );
+    try {
+      await remoteFile.write(selected.openRead().cast()).done;
+      await remoteFile.close();
+      await connection.sftp.rename(temporaryRemote, finalRemote);
+      _showSnackBar('Upload completed.');
+      await _loadDirectory(currentPath);
+    } catch (error) {
+      await remoteFile.close();
+      _showSnackBar(_describeError(error));
+    }
+  }
+
+  Future<void> _createDirectory(String root) async {
+    final connection = _connection;
+    if (connection == null) {
+      return;
+    }
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Create directory'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Directory name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    final trimmed = name?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return;
+    }
+    final currentPath = _currentPath ?? root;
+    final target = normalizeVirtualPath(root, '$currentPath/$trimmed');
+    await connection.sftp.mkdir(target);
+    await _loadDirectory(currentPath);
+  }
+
+  Future<void> _handleEntryAction(
+    RemoteFileEntry entry,
+    _EntryAction action,
+    String root,
+  ) async {
+    final settings = ref.read(settingsControllerProvider);
+    final connection = _connection;
+    if (connection == null) {
+      return;
+    }
+
+    switch (action) {
+      case _EntryAction.preview:
+        await _previewEntry(entry);
+      case _EntryAction.download:
+        _enqueueDownload(entry);
+      case _EntryAction.rename:
+        if (!settings.allowSftpRename) {
+          _showSnackBar('Rename is disabled in Settings.');
+          return;
+        }
+        final newName = await _promptForText('Rename ${entry.name}', entry.name);
+        if (newName == null || newName.trim().isEmpty) {
+          return;
+        }
+        final baseSegments = entry.path.split('/')..removeLast();
+        final target = normalizeVirtualPath(
+          root,
+          '${baseSegments.join('/')}/$newName',
+        );
+        await connection.sftp.rename(entry.path, target);
+        await _loadDirectory(_currentPath ?? root);
+      case _EntryAction.move:
+        if (!settings.allowSftpMove) {
+          _showSnackBar('Move is disabled in Settings.');
+          return;
+        }
+        final destination = await _promptForText(
+          'Move ${entry.name}',
+          _currentPath ?? root,
+        );
+        if (destination == null || destination.trim().isEmpty) {
+          return;
+        }
+        final target = normalizeVirtualPath(root, '${destination.trim()}/${entry.name}');
+        await connection.sftp.rename(entry.path, target);
+        await _loadDirectory(_currentPath ?? root);
+      case _EntryAction.softDelete:
+        if (!settings.allowSftpSoftDelete) {
+          _showSnackBar('Soft delete is disabled in Settings.');
+          return;
+        }
+        final trashRoot = normalizeVirtualPath(root, '$root/.tablet-trash');
+        try {
+          await connection.sftp.mkdir(trashRoot);
+        } catch (_) {
+          // Directory may already exist.
+        }
+        final target = buildSoftDeletePath(
+          virtualRoot: root,
+          sourcePath: entry.path,
+          now: DateTime.now().toUtc(),
+        );
+        await connection.sftp.rename(entry.path, target);
+        await _loadDirectory(_currentPath ?? root);
+    }
+  }
+
+  Future<String?> _promptForText(String title, String initialValue) async {
+    final controller = TextEditingController(text: initialValue);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
   }
 
   void _updateTransfer(
@@ -617,7 +1158,9 @@ class _FilesPageState extends ConsumerState<FilesPage>
         return left.isDirectory ? -1 : 1;
       }
       final primary = switch (_sort) {
-        _FilesSort.name => left.name.toLowerCase().compareTo(right.name.toLowerCase()),
+        _FilesSort.name => left.name.toLowerCase().compareTo(
+          right.name.toLowerCase(),
+        ),
         _FilesSort.modified => _compareNullableDates(left.modifiedAt, right.modifiedAt),
         _FilesSort.size => (left.sizeBytes ?? -1).compareTo(right.sizeBytes ?? -1),
       };
@@ -672,7 +1215,9 @@ class _RemoteFileList extends StatelessWidget {
     required this.currentPath,
     required this.dateFormat,
     required this.onOpenDirectory,
+    required this.onPreview,
     required this.onDownload,
+    required this.onEntryAction,
     required this.onCopyPath,
   });
 
@@ -680,7 +1225,9 @@ class _RemoteFileList extends StatelessWidget {
   final String currentPath;
   final DateFormat dateFormat;
   final ValueChanged<RemoteFileEntry> onOpenDirectory;
+  final ValueChanged<RemoteFileEntry> onPreview;
   final ValueChanged<RemoteFileEntry> onDownload;
+  final void Function(RemoteFileEntry entry, _EntryAction action) onEntryAction;
   final ValueChanged<String> onCopyPath;
 
   @override
@@ -717,7 +1264,7 @@ class _RemoteFileList extends StatelessWidget {
           subtitle: subtitle.isEmpty ? null : Text(subtitle),
           onTap: entry.isDirectory && !entry.isSymbolicLink
               ? () => onOpenDirectory(entry)
-              : null,
+              : (!entry.isSymbolicLink ? () => onPreview(entry) : null),
           trailing: Wrap(
             spacing: AppSpacing.xs,
             children: [
@@ -726,12 +1273,42 @@ class _RemoteFileList extends StatelessWidget {
                 onPressed: () => onCopyPath(entry.path),
                 icon: const Icon(Icons.copy_all),
               ),
+              if (!entry.isSymbolicLink)
+                IconButton(
+                  tooltip: 'Preview',
+                  onPressed: entry.isDirectory
+                      ? null
+                      : () => onEntryAction(entry, _EntryAction.preview),
+                  icon: const Icon(Icons.visibility),
+                ),
               if (!entry.isDirectory && !entry.isSymbolicLink)
                 IconButton(
                   tooltip: 'Download file',
                   onPressed: () => onDownload(entry),
                   icon: const Icon(Icons.download),
                 ),
+              PopupMenuButton<_EntryAction>(
+                onSelected: (action) => onEntryAction(entry, action),
+                itemBuilder: (context) => [
+                  if (!entry.isDirectory && !entry.isSymbolicLink)
+                    const PopupMenuItem(
+                      value: _EntryAction.preview,
+                      child: Text('Preview'),
+                    ),
+                  const PopupMenuItem(
+                    value: _EntryAction.rename,
+                    child: Text('Rename'),
+                  ),
+                  const PopupMenuItem(
+                    value: _EntryAction.move,
+                    child: Text('Move'),
+                  ),
+                  const PopupMenuItem(
+                    value: _EntryAction.softDelete,
+                    child: Text('Soft delete'),
+                  ),
+                ],
+              ),
             ],
           ),
         );
@@ -756,4 +1333,12 @@ enum _FilesSort {
   name,
   modified,
   size,
+}
+
+enum _EntryAction {
+  preview,
+  download,
+  rename,
+  move,
+  softDelete,
 }

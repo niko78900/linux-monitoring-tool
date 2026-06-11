@@ -1,10 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:homelab_tablet/core/config/app_settings.dart';
 import 'package:homelab_tablet/core/utils/byte_format.dart';
 import 'package:homelab_tablet/core/utils/duration_format.dart';
 import 'package:homelab_tablet/core/utils/path_safety.dart';
 import 'package:homelab_tablet/core/utils/ring_buffer.dart';
 import 'package:homelab_tablet/core/utils/temperature_format.dart';
 import 'package:homelab_tablet/core/utils/throughput_calculator.dart';
+import 'package:homelab_tablet/features/files/data/file_browser_utils.dart';
 
 void main() {
   test('formats bytes and temperatures safely', () {
@@ -67,5 +69,30 @@ void main() {
     expect(normalizeVirtualPath('/warm', '/warm/media'), '/warm/media');
     expect(normalizeVirtualPath('/warm', '/warm/../etc'), '/warm');
     expect(normalizeVirtualPath('/warm', '/etc'), '/warm');
+  });
+
+  test('soft delete target stays inside trash and preview rules are bounded', () {
+    final target = buildSoftDeletePath(
+      virtualRoot: '/warm',
+      sourcePath: '/warm/videos/movie.mkv',
+      now: DateTime.utc(2026, 6, 11, 20, 15, 30),
+    );
+
+    expect(target.startsWith('/warm/.tablet-trash/'), isTrue);
+    expect(isImagePreviewable('photo.jpg'), isTrue);
+    expect(isTextPreviewable('server.log'), isTrue);
+    expect(isVideoPreviewable('movie.mkv'), isTrue);
+    expect(isImagePreviewable('archive.zip'), isFalse);
+  });
+
+  test('sftp mutation flags default to disabled', () {
+    final settings = AppSettings.defaults();
+
+    expect(settings.allowSftpUpload, isFalse);
+    expect(settings.allowSftpCreateDirectory, isFalse);
+    expect(settings.allowSftpRename, isFalse);
+    expect(settings.allowSftpMove, isFalse);
+    expect(settings.allowSftpSoftDelete, isFalse);
+    expect(canMutateFiles(settings), isFalse);
   });
 }

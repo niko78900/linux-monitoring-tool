@@ -271,6 +271,43 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ),
                 ],
               ),
+              const SizedBox(height: AppSpacing.lg),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: settings.allowSftpUpload,
+                onChanged: (value) =>
+                    _save(settings.copyWith(allowSftpUpload: value)),
+                title: const Text('Allow uploads'),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: settings.allowSftpCreateDirectory,
+                onChanged: (value) => _save(
+                  settings.copyWith(allowSftpCreateDirectory: value),
+                ),
+                title: const Text('Allow create directory'),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: settings.allowSftpRename,
+                onChanged: (value) =>
+                    _save(settings.copyWith(allowSftpRename: value)),
+                title: const Text('Allow rename'),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: settings.allowSftpMove,
+                onChanged: (value) =>
+                    _save(settings.copyWith(allowSftpMove: value)),
+                title: const Text('Allow move'),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: settings.allowSftpSoftDelete,
+                onChanged: (value) =>
+                    _save(settings.copyWith(allowSftpSoftDelete: value)),
+                title: const Text('Allow soft delete'),
+              ),
             ],
           ),
         ),

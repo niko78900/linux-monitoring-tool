@@ -5,52 +5,99 @@ import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../domain/models/file_browser_models.dart';
+import 'file_metadata_store.dart';
+
 final fileDownloadServiceProvider = Provider<FileDownloadService>(
-  (ref) => const FileDownloadService(),
+  (ref) => FileDownloadService(metadataStore: ref.watch(fileMetadataStoreProvider)),
 );
 
 class FileDownloadService {
-  const FileDownloadService();
+  FileDownloadService({required FileMetadataStore metadataStore})
+    : _metadataStore = metadataStore;
+
+  final FileMetadataStore _metadataStore;
 
   Future<FileDownloadResult> download({
     required SftpClient sftp,
+    required String hostProfileId,
     required String remotePath,
     required String fileName,
+    required DateTime? remoteModifiedAt,
     required DownloadCancellationToken cancellationToken,
     required void Function(int transferredBytes, int? totalBytes, String localPath)
     onProgress,
   }) async {
     final downloadsDir = await _ensureDownloadsDirectory();
-    final outputFile = await _uniqueDestination(downloadsDir, fileName);
     final remoteFile = await sftp.open(remotePath, mode: SftpFileOpenMode.read);
     IOSink? sink;
 
     try {
       final stat = await remoteFile.stat();
       final totalBytes = stat.size;
-      var transferredBytes = 0;
+      final checkpoint = await _metadataStore.readTransferCheckpoint(
+        hostProfileId,
+        remotePath,
+      );
+      final canResume =
+          checkpoint != null &&
+          checkpoint.fileSize == totalBytes &&
+          checkpoint.remoteModifiedAt == remoteModifiedAt &&
+          await File(checkpoint.localPath).exists();
+      final outputFile = canResume
+          ? File(checkpoint.localPath)
+          : await _partDestination(downloadsDir, fileName);
+      var transferredBytes = canResume ? checkpoint.transferOffset : 0;
 
-      sink = outputFile.openWrite();
-      await for (final chunk in remoteFile.read(length: totalBytes)) {
+      sink = outputFile.openWrite(
+        mode: canResume ? FileMode.append : FileMode.writeOnly,
+      );
+      await _metadataStore.upsertTransferCheckpoint(
+        TransferCheckpoint(
+          hostProfileId: hostProfileId,
+          remotePath: remotePath,
+          localPath: outputFile.path,
+          fileSize: totalBytes,
+          remoteModifiedAt: remoteModifiedAt,
+          transferOffset: transferredBytes,
+          state: 'downloading',
+          updatedAt: DateTime.now().toUtc(),
+        ),
+      );
+      await for (final chunk in remoteFile.read(
+        length: totalBytes == null ? null : totalBytes - transferredBytes,
+        offset: transferredBytes,
+      )) {
         if (cancellationToken.isCancelled) {
           throw const DownloadCancelledException();
         }
         sink.add(chunk);
         transferredBytes += chunk.length;
+        await _metadataStore.upsertTransferCheckpoint(
+          TransferCheckpoint(
+            hostProfileId: hostProfileId,
+            remotePath: remotePath,
+            localPath: outputFile.path,
+            fileSize: totalBytes,
+            remoteModifiedAt: remoteModifiedAt,
+            transferOffset: transferredBytes,
+            state: 'downloading',
+            updatedAt: DateTime.now().toUtc(),
+          ),
+        );
         onProgress(transferredBytes, totalBytes, outputFile.path);
       }
       await sink.flush();
+      final finalFile = await _finalizeDownload(outputFile, fileName);
+      await _metadataStore.clearTransferCheckpoint(hostProfileId, remotePath);
       return FileDownloadResult(
         fileName: fileName,
-        localPath: outputFile.path,
+        localPath: finalFile.path,
         totalBytes: totalBytes,
         transferredBytes: transferredBytes,
       );
     } on DownloadCancelledException {
       await sink?.close();
-      if (await outputFile.exists()) {
-        await outputFile.delete();
-      }
       rethrow;
     } finally {
       await sink?.close();
@@ -96,6 +143,21 @@ class FileDownloadService {
       return '$name$suffix';
     }
     return '${name.substring(0, lastDot)}$suffix${name.substring(lastDot)}';
+  }
+
+  Future<File> _partDestination(Directory directory, String fileName) async {
+    final destination = await _uniqueDestination(directory, '$fileName.part');
+    return destination;
+  }
+
+  Future<File> _finalizeDownload(File partFile, String originalFileName) async {
+    final directory = partFile.parent;
+    final finalName = originalFileName.endsWith('.part')
+        ? originalFileName.substring(0, originalFileName.length - 5)
+        : originalFileName;
+    final destination = await _uniqueDestination(directory, finalName);
+    await partFile.rename(destination.path);
+    return destination;
   }
 }
 
