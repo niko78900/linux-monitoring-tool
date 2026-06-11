@@ -55,6 +55,13 @@ const appDestinations = [
     primary: false,
   ),
   AppDestination(
+    label: 'Services',
+    path: '/services',
+    icon: Icons.miscellaneous_services,
+    privileged: true,
+    primary: false,
+  ),
+  AppDestination(
     label: 'Terminal',
     path: '/terminal',
     icon: Icons.terminal,

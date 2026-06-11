@@ -4,6 +4,7 @@ import '../../../core/config/app_settings.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../../core/security/secure_storage_service.dart';
 import '../../hosts/domain/models/host_models.dart';
+import '../../services/domain/models/service_models.dart';
 import '../domain/models/device_models.dart';
 import 'control_api_client.dart';
 
@@ -54,6 +55,24 @@ class ControlRepository {
   Future<ManagedHost> fetchHost(String hostId) async {
     final client = await _client();
     return client.getHost(hostId);
+  }
+
+  Future<List<ManagedService>> fetchServices() async {
+    final client = await _client();
+    return client.getServices();
+  }
+
+  Future<ManagedService> fetchService(String serviceId) async {
+    final client = await _client();
+    return client.getService(serviceId);
+  }
+
+  Future<ServiceActionResult> performServiceAction({
+    required String serviceId,
+    required String action,
+  }) async {
+    final client = await _client();
+    return client.sendServiceAction(serviceId: serviceId, action: action);
   }
 
   Future<ControlApiClient> _client() async {

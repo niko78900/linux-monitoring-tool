@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../core/networking/dio_factory.dart';
 import '../domain/models/device_models.dart';
 import '../../hosts/domain/models/host_models.dart';
+import '../../services/domain/models/service_models.dart';
 
 class ControlApiClient {
   ControlApiClient({required String baseUrl, required String? token})
@@ -68,6 +69,32 @@ class ControlApiClient {
     final response = await _dio.get<Map<String, dynamic>>('/hosts/$hostId');
     final payload = response.data ?? const <String, dynamic>{};
     return ManagedHost.fromJson(payload);
+  }
+
+  Future<List<ManagedService>> getServices() async {
+    final response = await _dio.get<Map<String, dynamic>>('/services');
+    final payload = response.data ?? const <String, dynamic>{};
+    final services = payload['services'] as List<dynamic>? ?? const [];
+    return services
+        .map((item) => ManagedService.fromJson(item as Map<String, dynamic>))
+        .toList(growable: false);
+  }
+
+  Future<ManagedService> getService(String serviceId) async {
+    final response = await _dio.get<Map<String, dynamic>>('/services/$serviceId');
+    final payload = response.data ?? const <String, dynamic>{};
+    return ManagedService.fromJson(payload);
+  }
+
+  Future<ServiceActionResult> sendServiceAction({
+    required String serviceId,
+    required String action,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/services/$serviceId/actions/$action',
+    );
+    final payload = response.data ?? const <String, dynamic>{};
+    return ServiceActionResult.fromJson(payload);
   }
 }
 

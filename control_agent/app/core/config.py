@@ -53,6 +53,9 @@ class Settings:
     control_api_token: str | None
     known_devices_config_path: Path
     managed_hosts_config_path: Path
+    services_config_path: Path
+    service_control_helper_path: Path
+    service_command_timeout_seconds: int
     main_pc_mac: str
     wake_broadcast_host: str
     wake_port: int
@@ -82,6 +85,21 @@ def get_settings() -> Settings:
                 "MANAGED_HOSTS_CONFIG_PATH",
                 str(BASE_DIR / "config" / "managed_hosts.example.yaml"),
             )
+        ),
+        services_config_path=Path(
+            os.getenv(
+                "SERVICES_CONFIG_PATH",
+                str(BASE_DIR / "config" / "services.example.yaml"),
+            )
+        ),
+        service_control_helper_path=Path(
+            os.getenv(
+                "SERVICE_CONTROL_HELPER_PATH",
+                "/usr/local/sbin/homelab-service-control",
+            )
+        ),
+        service_command_timeout_seconds=_parse_int(
+            os.getenv("SERVICE_COMMAND_TIMEOUT_SECONDS"), 5, minimum=1
         ),
         main_pc_mac=os.getenv("MAIN_PC_MAC", "AA:BB:CC:DD:EE:FF").strip(),
         wake_broadcast_host=os.getenv("WAKE_BROADCAST_HOST", "255.255.255.255").strip(),

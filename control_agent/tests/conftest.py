@@ -71,6 +71,44 @@ hosts:
         encoding="utf-8",
     )
     monkeypatch.setenv("MANAGED_HOSTS_CONFIG_PATH", str(managed_hosts_path))
+    services_path = tmp_path / "services.yaml"
+    services_path.write_text(
+        """
+services:
+  - id: jellyfin
+    display_name: Jellyfin
+    host_id: homelab-server
+    adapter: docker
+    target: jellyfin
+    allowed_actions:
+      - start
+      - stop
+      - restart
+    health_probe:
+      type: http
+      url: http://127.0.0.1:8096
+      timeout_seconds: 3
+  - id: hfs
+    display_name: HFS
+    host_id: homelab-server
+    adapter: systemd
+    target: hfs.service
+    allowed_actions:
+      - start
+      - stop
+      - restart
+    health_probe:
+      type: http
+      url: http://127.0.0.1:8081
+      timeout_seconds: 3
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SERVICES_CONFIG_PATH", str(services_path))
+    monkeypatch.setenv(
+        "SERVICE_CONTROL_HELPER_PATH",
+        str(tmp_path / "homelab-service-control"),
+    )
 
     import app.core.config as config_module
 

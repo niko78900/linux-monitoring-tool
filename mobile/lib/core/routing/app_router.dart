@@ -16,6 +16,7 @@ import '../../features/network/presentation/pages/network_page.dart';
 import '../../features/onboarding/presentation/onboarding_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../features/storage/presentation/pages/storage_page.dart';
+import '../../features/services/presentation/pages/services_page.dart';
 import '../../features/terminal/presentation/pages/terminal_page.dart';
 import '../config/app_settings.dart';
 import '../security/app_lock_service.dart';
@@ -103,6 +104,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/files',
             builder: (context, state) =>
                 const PrivilegedRoute(title: 'Files', child: FilesPage()),
+          ),
+          GoRoute(
+            path: '/services',
+            builder: (context, state) => PrivilegedRoute(
+              title: 'Services',
+              child: ServicesPage(hostId: state.uri.queryParameters['hostId']),
+            ),
           ),
           GoRoute(
             path: '/settings',

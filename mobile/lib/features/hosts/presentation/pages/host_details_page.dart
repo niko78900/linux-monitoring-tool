@@ -91,7 +91,9 @@ class HostDetailsPage extends ConsumerWidget {
                       child: const Text('History'),
                     ),
                     OutlinedButton(
-                      onPressed: null,
+                      onPressed: host.services.isEmpty
+                          ? null
+                          : () => context.go('/services?hostId=${host.id}'),
                       child: const Text('Services'),
                     ),
                     OutlinedButton(

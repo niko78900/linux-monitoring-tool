@@ -164,7 +164,9 @@ class ManagedHostCard extends StatelessWidget {
                 child: const Text('History'),
               ),
               TextButton(
-                onPressed: host.services.isEmpty ? null : null,
+                onPressed: host.services.isEmpty
+                    ? null
+                    : () => context.go('/services?hostId=${host.id}'),
                 child: const Text('Services'),
               ),
               TextButton(
