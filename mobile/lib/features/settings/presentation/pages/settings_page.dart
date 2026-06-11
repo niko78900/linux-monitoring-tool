@@ -14,6 +14,7 @@ import '../../../../core/security/secure_storage_service.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/section_card.dart';
 import '../../../dashboard/data/monitoring_api_client.dart';
+import '../../../files/data/sftp_connection_service.dart';
 import '../../../network/data/control_api_client.dart';
 import '../../../terminal/data/ssh_connection_service.dart';
 import '../../../terminal/presentation/widgets/terminal_connection_dialogs.dart';
@@ -38,11 +39,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _sftpHost = TextEditingController();
   final _sftpPort = TextEditingController();
   final _sftpUser = TextEditingController();
+  final _sftpPassphrase = TextEditingController();
   final _sftpRoot = TextEditingController();
   bool _loaded = false;
   bool _testingSsh = false;
+  bool _testingSftp = false;
   String? _sshKeySummary;
   String? _sshTrustedFingerprint;
+  String? _sftpKeySummary;
+  String? _sftpTrustedFingerprint;
 
   @override
   void dispose() {
@@ -58,6 +63,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _sftpHost.dispose();
     _sftpPort.dispose();
     _sftpUser.dispose();
+    _sftpPassphrase.dispose();
     _sftpRoot.dispose();
     super.dispose();
   }
@@ -295,6 +301,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 decoration: const InputDecoration(labelText: 'SFTP username'),
               ),
               const SizedBox(height: AppSpacing.md),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: settings.sftpProfile.storePassphrase,
+                onChanged: (value) =>
+                    _setSftpPassphraseStorage(settings, value),
+                title: const Text('Store passphrase in secure storage'),
+              ),
+              if (settings.sftpProfile.storePassphrase) ...[
+                TextField(
+                  controller: _sftpPassphrase,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'SFTP key passphrase',
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+              ],
               TextField(
                 controller: _sftpRoot,
                 decoration: const InputDecoration(
@@ -302,17 +325,64 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              Row(
+              _InfoLine(
+                label: 'Imported key',
+                value: _sftpKeySummary ?? 'No key imported',
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              _InfoLine(
+                label: 'Trusted host fingerprint',
+                value: _sftpTrustedFingerprint ?? 'No trusted fingerprint stored',
+                selectable: true,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
                 children: [
                   FilledButton(
                     onPressed: () => _saveProfiles(settings),
                     child: const Text('Save files'),
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  const Expanded(
-                    child: Text(
-                      'Restricted SFTP connection and file downloads arrive in Phase 5.',
+                  OutlinedButton.icon(
+                    onPressed: () => _importSftpKey(settings),
+                    icon: const Icon(Icons.upload_file),
+                    label: Text(
+                      settings.sftpProfile.hasImportedKey
+                          ? 'Replace key'
+                          : 'Import restricted key',
                     ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _pasteSftpKey(settings),
+                    icon: const Icon(Icons.content_paste),
+                    label: const Text('Paste restricted key'),
+                  ),
+                  TextButton(
+                    onPressed: settings.sftpProfile.hasImportedKey
+                        ? () => _removeSftpKey(settings)
+                        : null,
+                    child: const Text('Remove key'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  OutlinedButton(
+                    onPressed: _testingSftp ? null : () => _testSftp(settings),
+                    child: Text(
+                      _testingSftp ? 'Testing...' : 'Test SFTP connection',
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _sftpTrustedFingerprint == null
+                        ? null
+                        : () =>
+                              _resetSftpTrustedFingerprint(settings.sftpProfile),
+                    child: const Text('Reset trusted fingerprint'),
                   ),
                 ],
               ),
@@ -414,7 +484,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _sshPassphrase.text = value;
       }
     });
+    storage.readSftpPassphrase().then((value) {
+      if (mounted && value != null && _sftpPassphrase.text.isEmpty) {
+        _sftpPassphrase.text = value;
+      }
+    });
     _refreshSshSecretState(settings);
+    _refreshSftpSecretState(settings);
   }
 
   void _save(AppSettings settings) {
@@ -435,6 +511,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final next = _buildSettingsFromFields(settings);
     ref.read(settingsControllerProvider.notifier).save(next);
     unawaited(_persistSshPassphrase(next));
+    unawaited(_persistSftpPassphrase(next));
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Settings saved')));
@@ -481,6 +558,37 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     await _persistSshPassphrase(next);
     if (!enabled) {
       _sshPassphrase.clear();
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Settings saved')));
+    }
+  }
+
+  Future<void> _persistSftpPassphrase(AppSettings settings) async {
+    final storage = ref.read(secureStorageServiceProvider);
+    if (settings.sftpProfile.storePassphrase &&
+        _sftpPassphrase.text.trim().isNotEmpty) {
+      await storage.writeSftpPassphrase(_sftpPassphrase.text);
+    } else {
+      await storage.clearSftpPassphrase();
+    }
+  }
+
+  Future<void> _setSftpPassphraseStorage(
+    AppSettings settings,
+    bool enabled,
+  ) async {
+    final next = _buildSettingsFromFields(
+      settings.copyWith(
+        sftpProfile: settings.sftpProfile.copyWith(storePassphrase: enabled),
+      ),
+    );
+    ref.read(settingsControllerProvider.notifier).save(next);
+    await _persistSftpPassphrase(next);
+    if (!enabled) {
+      _sftpPassphrase.clear();
     }
     if (mounted) {
       ScaffoldMessenger.of(
@@ -578,6 +686,42 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
+  Future<void> _testSftp(AppSettings settings) async {
+    final next = _buildSettingsFromFields(settings);
+    ref.read(settingsControllerProvider.notifier).save(next);
+    await _persistSftpPassphrase(next);
+
+    setState(() => _testingSftp = true);
+    try {
+      await ref
+          .read(sftpConnectionServiceProvider)
+          .testConnection(
+            profile: next.sftpProfile,
+            onTrustHost: (hostKey) => showHostTrustDialog(context, hostKey),
+            onPassphraseRequired: () => showPassphrasePromptDialog(
+              context,
+              title: 'Enter the SFTP key passphrase',
+            ),
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('SFTP connection succeeded')),
+        );
+      }
+      await _refreshSftpSecretState(next);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_describeError(error))));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _testingSftp = false);
+      }
+    }
+  }
+
   Future<void> _importSshKey(AppSettings settings) async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
@@ -663,6 +807,93 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
+  Future<void> _importSftpKey(AppSettings settings) async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pem', 'key', 'txt'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+    final file = result.files.single;
+    String? contents;
+    if (file.bytes != null) {
+      contents = utf8.decode(file.bytes!, allowMalformed: true);
+    } else if (file.path != null) {
+      contents = await File(file.path!).readAsString();
+    }
+    if (contents == null || contents.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('The selected file was empty')),
+        );
+      }
+      return;
+    }
+    await _storeSftpKey(settings, contents);
+  }
+
+  Future<void> _pasteSftpKey(AppSettings settings) async {
+    final controller = TextEditingController();
+    final contents = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Paste restricted SFTP key'),
+          content: SizedBox(
+            width: 560,
+            child: TextField(
+              controller: controller,
+              autofocus: true,
+              minLines: 12,
+              maxLines: 16,
+              decoration: const InputDecoration(
+                alignLabelWithHint: true,
+                labelText: 'PEM or OpenSSH private key',
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(controller.text),
+              child: const Text('Save key'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (contents == null || contents.trim().isEmpty) {
+      return;
+    }
+    await _storeSftpKey(settings, contents);
+  }
+
+  Future<void> _storeSftpKey(AppSettings settings, String contents) async {
+    final normalized = contents.trim();
+    await ref.read(secureStorageServiceProvider).writeSftpPrivateKey(normalized);
+    final next = _buildSettingsFromFields(
+      settings.copyWith(
+        sftpProfile: settings.sftpProfile.copyWith(hasImportedKey: true),
+      ),
+    );
+    ref.read(settingsControllerProvider.notifier).save(next);
+    await _persistSftpPassphrase(next);
+    await _refreshSftpSecretState(next);
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        const SnackBar(content: Text('Restricted SFTP key saved')),
+      );
+    }
+  }
+
   Future<void> _removeSshKey(AppSettings settings) async {
     final storage = ref.read(secureStorageServiceProvider);
     await storage.clearSshPrivateKey();
@@ -682,9 +913,40 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
+  Future<void> _removeSftpKey(AppSettings settings) async {
+    final storage = ref.read(secureStorageServiceProvider);
+    await storage.clearSftpPrivateKey();
+    await storage.clearSftpPassphrase();
+    _sftpPassphrase.clear();
+    final next = _buildSettingsFromFields(
+      settings.copyWith(
+        sftpProfile: settings.sftpProfile.copyWith(hasImportedKey: false),
+      ),
+    );
+    ref.read(settingsControllerProvider.notifier).save(next);
+    await _refreshSftpSecretState(next);
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        const SnackBar(content: Text('Restricted SFTP key removed')),
+      );
+    }
+  }
+
   Future<void> _resetTrustedFingerprint(ConnectionProfile profile) async {
     await ref.read(sshConnectionServiceProvider).resetTrustedFingerprint(profile);
     await _refreshSshSecretState(ref.read(settingsControllerProvider));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Trusted fingerprint reset')),
+      );
+    }
+  }
+
+  Future<void> _resetSftpTrustedFingerprint(ConnectionProfile profile) async {
+    await ref.read(sftpConnectionServiceProvider).resetTrustedFingerprint(profile);
+    await _refreshSftpSecretState(ref.read(settingsControllerProvider));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Trusted fingerprint reset')),
@@ -703,6 +965,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     setState(() {
       _sshKeySummary = key == null || key.isEmpty ? null : _summarizeKey(key);
       _sshTrustedFingerprint = fingerprint;
+    });
+  }
+
+  Future<void> _refreshSftpSecretState(AppSettings settings) async {
+    final storage = ref.read(secureStorageServiceProvider);
+    final service = ref.read(sftpConnectionServiceProvider);
+    final key = await storage.readSftpPrivateKey();
+    final fingerprint = await service.readTrustedFingerprint(settings.sftpProfile);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _sftpKeySummary = key == null || key.isEmpty ? null : _summarizeKey(key);
+      _sftpTrustedFingerprint = fingerprint;
     });
   }
 

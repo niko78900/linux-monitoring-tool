@@ -49,7 +49,15 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(_disconnect(clearMessage: false));
+    _terminal.onOutput = null;
+    _terminal.onResize = null;
+    unawaited(_stdoutSubscription?.cancel() ?? Future<void>.value());
+    unawaited(_stderrSubscription?.cancel() ?? Future<void>.value());
+    final connection = _connection;
+    _connection = null;
+    if (connection != null) {
+      unawaited(connection.close());
+    }
     _terminalController.dispose();
     super.dispose();
   }

@@ -163,7 +163,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                         user: _sftpUser,
                         port: _sftpPort,
                         note:
-                            'Use a separate restricted SFTP account. Direct SFTP setup arrives in Phase 5.',
+                            'Use a separate restricted SFTP account. Restricted key import and connection testing are available in Settings after onboarding.',
                       ),
                     ),
                     Step(
