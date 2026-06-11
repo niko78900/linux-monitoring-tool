@@ -36,6 +36,12 @@ const appDestinations = [
     primary: false,
   ),
   AppDestination(
+    label: 'Hosts',
+    path: '/hosts',
+    icon: Icons.dns,
+    primary: false,
+  ),
+  AppDestination(
     label: 'Devices',
     path: '/devices',
     icon: Icons.devices_other,

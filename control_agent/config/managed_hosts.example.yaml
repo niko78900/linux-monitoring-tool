@@ -1,0 +1,27 @@
+hosts:
+  - id: homelab-server
+    display_name: Homelab Server
+    category: server
+    description: Debian primary homelab server
+    lan_ip: 192.168.100.34
+    tailscale_ip: 100.64.10.22
+    tailscale_hostname: homelab-server
+    monitoring_api_url: http://100.64.10.22:8000/api
+    control_api_url: http://100.64.10.22:4042/api
+    enabled: true
+    capabilities:
+      - hardware_monitoring
+      - history
+      - service_control
+      - ssh
+      - sftp
+    services:
+      - jellyfin
+      - hfs
+    tags:
+      - debian
+      - primary
+    probes:
+      - type: tcp
+        port: 22
+        label: SSH

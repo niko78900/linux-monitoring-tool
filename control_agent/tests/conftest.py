@@ -39,6 +39,38 @@ devices:
         encoding="utf-8",
     )
     monkeypatch.setenv("KNOWN_DEVICES_CONFIG_PATH", str(known_devices_path))
+    managed_hosts_path = tmp_path / "managed_hosts.yaml"
+    managed_hosts_path.write_text(
+        """
+hosts:
+  - id: homelab-server
+    display_name: Homelab Server
+    category: server
+    description: Debian primary homelab server
+    lan_ip: 192.168.1.10
+    tailscale_ip: 100.64.10.22
+    monitoring_api_url: http://100.64.10.22:8000/api
+    control_api_url: http://100.64.10.22:4042/api
+    capabilities:
+      - hardware_monitoring
+      - history
+      - service_control
+      - ssh
+      - sftp
+    services:
+      - jellyfin
+      - hfs
+    tags:
+      - debian
+      - primary
+    probes:
+      - type: tcp
+        port: 22
+        label: SSH
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MANAGED_HOSTS_CONFIG_PATH", str(managed_hosts_path))
 
     import app.core.config as config_module
 

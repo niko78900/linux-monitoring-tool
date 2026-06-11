@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/networking/dio_factory.dart';
 import '../domain/models/device_models.dart';
+import '../../hosts/domain/models/host_models.dart';
 
 class ControlApiClient {
   ControlApiClient({required String baseUrl, required String? token})
@@ -52,6 +53,21 @@ class ControlApiClient {
           .map((item) => ObservedNeighbor.fromJson(item as Map<String, dynamic>))
           .toList(growable: false),
     );
+  }
+
+  Future<List<ManagedHost>> getHosts() async {
+    final response = await _dio.get<Map<String, dynamic>>('/hosts');
+    final payload = response.data ?? const <String, dynamic>{};
+    final hosts = payload['hosts'] as List<dynamic>? ?? const [];
+    return hosts
+        .map((item) => ManagedHost.fromJson(item as Map<String, dynamic>))
+        .toList(growable: false);
+  }
+
+  Future<ManagedHost> getHost(String hostId) async {
+    final response = await _dio.get<Map<String, dynamic>>('/hosts/$hostId');
+    final payload = response.data ?? const <String, dynamic>{};
+    return ManagedHost.fromJson(payload);
   }
 }
 

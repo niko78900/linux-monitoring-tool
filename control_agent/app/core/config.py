@@ -52,6 +52,7 @@ class Settings:
     port: int
     control_api_token: str | None
     known_devices_config_path: Path
+    managed_hosts_config_path: Path
     main_pc_mac: str
     wake_broadcast_host: str
     wake_port: int
@@ -74,6 +75,12 @@ def get_settings() -> Settings:
             os.getenv(
                 "KNOWN_DEVICES_CONFIG_PATH",
                 str(BASE_DIR / "config" / "known_devices.example.yaml"),
+            )
+        ),
+        managed_hosts_config_path=Path(
+            os.getenv(
+                "MANAGED_HOSTS_CONFIG_PATH",
+                str(BASE_DIR / "config" / "managed_hosts.example.yaml"),
             )
         ),
         main_pc_mac=os.getenv("MAIN_PC_MAC", "AA:BB:CC:DD:EE:FF").strip(),

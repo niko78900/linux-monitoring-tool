@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/app_settings.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../../core/security/secure_storage_service.dart';
+import '../../hosts/domain/models/host_models.dart';
 import '../domain/models/device_models.dart';
 import 'control_api_client.dart';
 
@@ -42,6 +43,17 @@ class ControlRepository {
   Future<WakeActionResult> wakeMainPc() async {
     final client = await _client();
     return client.wakeMainPc();
+  }
+
+  Future<ManagedHostsDashboard> fetchHostsDashboard() async {
+    final client = await _client();
+    final hosts = await client.getHosts();
+    return ManagedHostsDashboard(hosts: hosts);
+  }
+
+  Future<ManagedHost> fetchHost(String hostId) async {
+    final client = await _client();
+    return client.getHost(hostId);
   }
 
   Future<ControlApiClient> _client() async {
