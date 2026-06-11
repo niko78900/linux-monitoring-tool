@@ -2,7 +2,7 @@
 
 Android-only Flutter tablet application for the private Linux monitoring stack.
 
-Current implementation covers Phases 1-6:
+Current implementation covers Phases 1-9:
 
 ```text
 Phase 1: Flutter scaffold, Material 3 dark theme, Riverpod, go_router, responsive navigation, base utilities and tests.
@@ -11,12 +11,9 @@ Phase 3: Onboarding, shared preferences, secure storage wrapper, settings screen
 Phase 4: Direct SSH terminal with private-key import, trusted host fingerprints, SSH connection testing, xterm terminal view, copy or paste, and touch accessory keys.
 Phase 5: Restricted SFTP browser with separate key handling, directory listing clamped to the configured virtual root, streaming downloads, cancellation, local file open, and a transfer queue.
 Phase 6: Separate FastAPI control agent with bearer auth, rate-limited Wake Main PC, and a privileged mobile Actions page.
-```
-
-Later phases intentionally remain placeholders:
-
-```text
 Phase 7: Known devices dashboard.
+Phase 8: Optional observed LAN neighbors panel backed by server-side ip neigh parsing.
+Phase 9: Release hardening, Android release guide, optional release signing config, and APK audit tooling.
 ```
 
 ## Run
@@ -42,6 +39,16 @@ Tablet security and polling preferences
 ```
 
 Debug builds allow cleartext HTTP through the debug Android manifest. Release builds do not globally enable cleartext traffic.
+
+## Release
+
+Use the Android release guide:
+
+```text
+docs/ANDROID_RELEASE_GUIDE.md
+```
+
+Release signing supports `mobile/android/key.properties`. Without that file, local release builds fall back to the debug signing key and should not be distributed.
 
 ## Dependency Note
 
