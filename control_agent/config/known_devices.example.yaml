@@ -1,6 +1,24 @@
 devices:
+  - id: homelab-server
+    name: Debian Server
+    category: server
+    lan_ip: 192.168.1.10
+    tailscale_ip: 100.64.10.22
+    notes: Primary monitoring host
+    probes:
+      - type: tcp
+        port: 22
+        label: SSH
   - name: main-pc
+    id: main-pc
     category: desktop
     lan_ip: 192.168.1.50
     tailscale_ip: 100.64.10.50
+    wol_enabled: true
     wake_action: wake-main-pc
+    probes:
+      - type: tcp
+        port: 3389
+        label: RDP
+      - type: ping
+        label: ICMP

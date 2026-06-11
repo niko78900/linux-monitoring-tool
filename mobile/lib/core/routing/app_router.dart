@@ -8,6 +8,7 @@ import '../../features/files/presentation/pages/files_page.dart';
 import '../../features/gpu/presentation/pages/gpu_page.dart';
 import '../../features/hardware/presentation/pages/hardware_page.dart';
 import '../../features/network/presentation/pages/devices_page.dart';
+import '../../features/network/presentation/pages/device_detail_page.dart';
 import '../../features/network/presentation/pages/network_page.dart';
 import '../../features/onboarding/presentation/onboarding_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
@@ -60,6 +61,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/devices',
             builder: (context, state) => const DevicesPage(),
+            routes: [
+              GoRoute(
+                path: ':deviceId',
+                builder: (context, state) => DeviceDetailPage(
+                  deviceId: state.pathParameters['deviceId'] ?? '',
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: '/actions',

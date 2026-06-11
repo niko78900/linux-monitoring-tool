@@ -1,9 +1,10 @@
 # Homelab Control Agent
 
-Restricted FastAPI control service for private homelab actions. Phase 6 intentionally exposes only:
+Restricted FastAPI control service for private homelab actions. Current implementation exposes:
 
 ```text
 GET  /api/health
+GET  /api/devices
 POST /api/actions/wake-main-pc
 ```
 
@@ -19,6 +20,7 @@ MAIN_PC_MAC
 WAKE_BROADCAST_HOST
 WAKE_PORT
 WAKE_RATE_LIMIT_SECONDS
+KNOWN_DEVICES_CONFIG_PATH
 ```
 
 Prefer binding the service to `127.0.0.1` and exposing it only through a private reverse proxy or Tailscale Serve inside the tailnet.

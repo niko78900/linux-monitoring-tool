@@ -51,6 +51,7 @@ class Settings:
     host: str
     port: int
     control_api_token: str | None
+    known_devices_config_path: Path
     main_pc_mac: str
     wake_broadcast_host: str
     wake_port: int
@@ -69,6 +70,12 @@ def get_settings() -> Settings:
         host=os.getenv("HOST", "127.0.0.1"),
         port=_parse_int(os.getenv("PORT"), 4042, minimum=1),
         control_api_token=_parse_optional_string(os.getenv("CONTROL_API_TOKEN")),
+        known_devices_config_path=Path(
+            os.getenv(
+                "KNOWN_DEVICES_CONFIG_PATH",
+                str(BASE_DIR / "config" / "known_devices.example.yaml"),
+            )
+        ),
         main_pc_mac=os.getenv("MAIN_PC_MAC", "AA:BB:CC:DD:EE:FF").strip(),
         wake_broadcast_host=os.getenv("WAKE_BROADCAST_HOST", "255.255.255.255").strip(),
         wake_port=_parse_int(os.getenv("WAKE_PORT"), 9, minimum=1),

@@ -8,6 +8,7 @@ Current phase exposes only:
 
 ```text
 GET  /api/health
+GET  /api/devices
 POST /api/actions/wake-main-pc
 ```
 

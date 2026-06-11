@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/networking/dio_factory.dart';
+import '../domain/models/device_models.dart';
 
 class ControlApiClient {
   ControlApiClient({required String baseUrl, required String? token})
@@ -30,6 +31,15 @@ class ControlApiClient {
       target: payload['target'] as String? ?? 'main_pc',
       rateLimitSeconds: payload['rate_limit_seconds'] as int? ?? 0,
     );
+  }
+
+  Future<List<KnownDevice>> getDevices() async {
+    final response = await _dio.get<Map<String, dynamic>>('/devices');
+    final payload = response.data ?? const <String, dynamic>{};
+    final devices = payload['devices'] as List<dynamic>? ?? const [];
+    return devices
+        .map((item) => KnownDevice.fromJson(item as Map<String, dynamic>))
+        .toList(growable: false);
   }
 }
 
