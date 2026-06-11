@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_status_online">#6BD39A</color>
+    <color name="widget_status_stale">#F3C969</color>
+    <color name="widget_status_offline">#F07F7F</color>
+    <color name="widget_text_muted">#A9B3C4</color>
+</resources>

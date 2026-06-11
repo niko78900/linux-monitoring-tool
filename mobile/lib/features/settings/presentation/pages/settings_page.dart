@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:home_widget/home_widget.dart';
 
 import '../../../../core/config/app_settings.dart';
 import '../../../../core/errors/app_exception.dart';
@@ -41,9 +42,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _sftpUser = TextEditingController();
   final _sftpPassphrase = TextEditingController();
   final _sftpRoot = TextEditingController();
+  final _widgetMountpoint = TextEditingController();
   bool _loaded = false;
   bool _testingSsh = false;
   bool _testingSftp = false;
+  bool _requestingWidgetPin = false;
   String? _sshKeySummary;
   String? _sshTrustedFingerprint;
   String? _sftpKeySummary;
@@ -65,6 +68,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _sftpUser.dispose();
     _sftpPassphrase.dispose();
     _sftpRoot.dispose();
+    _widgetMountpoint.dispose();
     super.dispose();
   }
 
@@ -220,7 +224,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               const SizedBox(height: AppSpacing.sm),
               _InfoLine(
                 label: 'Trusted host fingerprint',
-                value: _sshTrustedFingerprint ?? 'No trusted fingerprint stored',
+                value:
+                    _sshTrustedFingerprint ?? 'No trusted fingerprint stored',
                 selectable: true,
               ),
               const SizedBox(height: AppSpacing.md),
@@ -261,7 +266,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 children: [
                   OutlinedButton(
                     onPressed: _testingSsh ? null : () => _testSsh(settings),
-                    child: Text(_testingSsh ? 'Testing...' : 'Test SSH connection'),
+                    child: Text(
+                      _testingSsh ? 'Testing...' : 'Test SSH connection',
+                    ),
                   ),
                   TextButton(
                     onPressed: _sshTrustedFingerprint == null
@@ -282,9 +289,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: settings.allowSftpCreateDirectory,
-                onChanged: (value) => _save(
-                  settings.copyWith(allowSftpCreateDirectory: value),
-                ),
+                onChanged: (value) =>
+                    _save(settings.copyWith(allowSftpCreateDirectory: value)),
                 title: const Text('Allow create directory'),
               ),
               SwitchListTile(
@@ -369,7 +375,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               const SizedBox(height: AppSpacing.sm),
               _InfoLine(
                 label: 'Trusted host fingerprint',
-                value: _sftpTrustedFingerprint ?? 'No trusted fingerprint stored',
+                value:
+                    _sftpTrustedFingerprint ?? 'No trusted fingerprint stored',
                 selectable: true,
               ),
               const SizedBox(height: AppSpacing.md),
@@ -417,9 +424,72 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   TextButton(
                     onPressed: _sftpTrustedFingerprint == null
                         ? null
-                        : () =>
-                              _resetSftpTrustedFingerprint(settings.sftpProfile),
+                        : () => _resetSftpTrustedFingerprint(
+                            settings.sftpProfile,
+                          ),
                     child: const Text('Reset trusted fingerprint'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        SectionCard(
+          title: 'Android Widget',
+          child: Column(
+            children: [
+              TextField(
+                controller: _widgetMountpoint,
+                decoration: const InputDecoration(
+                  labelText: 'Widget storage mountpoint',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<int>(
+                initialValue: settings.widgetBackgroundRefreshMinutes,
+                decoration: const InputDecoration(
+                  labelText: 'Background refresh interval',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 15, child: Text('15 minutes')),
+                  DropdownMenuItem(value: 30, child: Text('30 minutes')),
+                  DropdownMenuItem(value: 60, child: Text('60 minutes')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    _save(
+                      settings.copyWith(widgetBackgroundRefreshMinutes: value),
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: AppSpacing.md),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: settings.widgetShowNetworkThroughput,
+                onChanged: (value) => _save(
+                  settings.copyWith(widgetShowNetworkThroughput: value),
+                ),
+                title: const Text('Show network throughput row'),
+              ),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  FilledButton(
+                    onPressed: () => _save(
+                      settings.copyWith(
+                        widgetStorageMountpoint: _widgetMountpoint.text,
+                      ),
+                    ),
+                    child: const Text('Save widget'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _requestingWidgetPin ? null : _requestPinWidget,
+                    icon: const Icon(Icons.widgets),
+                    label: Text(
+                      _requestingWidgetPin ? 'Requesting...' : 'Add widget',
+                    ),
                   ),
                 ],
               ),
@@ -510,6 +580,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _sftpPort.text = settings.sftpProfile.port.toString();
     _sftpUser.text = settings.sftpProfile.username;
     _sftpRoot.text = settings.sftpVirtualRoot;
+    _widgetMountpoint.text = settings.widgetStorageMountpoint;
     final storage = ref.read(secureStorageServiceProvider);
     storage.readControlToken().then((value) {
       if (mounted && value != null && _controlToken.text.isEmpty) {
@@ -683,6 +754,46 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Control agent unreachable')),
         );
+      }
+    }
+  }
+
+  Future<void> _requestPinWidget() async {
+    if (!Platform.isAndroid) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Widget pinning is Android only')),
+        );
+      }
+      return;
+    }
+
+    setState(() => _requestingWidgetPin = true);
+    try {
+      final supported = await HomeWidget.isRequestPinWidgetSupported();
+      if (supported != true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Launcher does not support pinning')),
+          );
+        }
+        return;
+      }
+      await HomeWidget.requestPinWidget(name: 'ServerEssentialsWidgetProvider');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Widget add request sent')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to request widget pinning')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _requestingWidgetPin = false);
       }
     }
   }
@@ -913,7 +1024,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _storeSftpKey(AppSettings settings, String contents) async {
     final normalized = contents.trim();
-    await ref.read(secureStorageServiceProvider).writeSftpPrivateKey(normalized);
+    await ref
+        .read(secureStorageServiceProvider)
+        .writeSftpPrivateKey(normalized);
     final next = _buildSettingsFromFields(
       settings.copyWith(
         sftpProfile: settings.sftpProfile.copyWith(hasImportedKey: true),
@@ -923,9 +1036,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     await _persistSftpPassphrase(next);
     await _refreshSftpSecretState(next);
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Restricted SFTP key saved')),
       );
     }
@@ -963,16 +1074,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     ref.read(settingsControllerProvider.notifier).save(next);
     await _refreshSftpSecretState(next);
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Restricted SFTP key removed')),
       );
     }
   }
 
   Future<void> _resetTrustedFingerprint(ConnectionProfile profile) async {
-    await ref.read(sshConnectionServiceProvider).resetTrustedFingerprint(profile);
+    await ref
+        .read(sshConnectionServiceProvider)
+        .resetTrustedFingerprint(profile);
     await _refreshSshSecretState(ref.read(settingsControllerProvider));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -982,7 +1093,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _resetSftpTrustedFingerprint(ConnectionProfile profile) async {
-    await ref.read(sftpConnectionServiceProvider).resetTrustedFingerprint(profile);
+    await ref
+        .read(sftpConnectionServiceProvider)
+        .resetTrustedFingerprint(profile);
     await _refreshSftpSecretState(ref.read(settingsControllerProvider));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -995,7 +1108,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final storage = ref.read(secureStorageServiceProvider);
     final service = ref.read(sshConnectionServiceProvider);
     final key = await storage.readSshPrivateKey();
-    final fingerprint = await service.readTrustedFingerprint(settings.sshProfile);
+    final fingerprint = await service.readTrustedFingerprint(
+      settings.sshProfile,
+    );
     if (!mounted) {
       return;
     }
@@ -1009,7 +1124,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final storage = ref.read(secureStorageServiceProvider);
     final service = ref.read(sftpConnectionServiceProvider);
     final key = await storage.readSftpPrivateKey();
-    final fingerprint = await service.readTrustedFingerprint(settings.sftpProfile);
+    final fingerprint = await service.readTrustedFingerprint(
+      settings.sftpProfile,
+    );
     if (!mounted) {
       return;
     }

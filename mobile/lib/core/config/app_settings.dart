@@ -30,6 +30,9 @@ class AppSettings {
     required this.allowSftpRename,
     required this.allowSftpMove,
     required this.allowSftpSoftDelete,
+    required this.widgetStorageMountpoint,
+    required this.widgetBackgroundRefreshMinutes,
+    required this.widgetShowNetworkThroughput,
     required this.showRawApiErrors,
     required this.showRequestTiming,
   });
@@ -54,6 +57,9 @@ class AppSettings {
       allowSftpRename: false,
       allowSftpMove: false,
       allowSftpSoftDelete: false,
+      widgetStorageMountpoint: '/mnt/storage',
+      widgetBackgroundRefreshMinutes: 15,
+      widgetShowNetworkThroughput: false,
       showRawApiErrors: false,
       showRequestTiming: false,
     );
@@ -77,6 +83,9 @@ class AppSettings {
   final bool allowSftpRename;
   final bool allowSftpMove;
   final bool allowSftpSoftDelete;
+  final String widgetStorageMountpoint;
+  final int widgetBackgroundRefreshMinutes;
+  final bool widgetShowNetworkThroughput;
   final bool showRawApiErrors;
   final bool showRequestTiming;
 
@@ -99,6 +108,9 @@ class AppSettings {
     bool? allowSftpRename,
     bool? allowSftpMove,
     bool? allowSftpSoftDelete,
+    String? widgetStorageMountpoint,
+    int? widgetBackgroundRefreshMinutes,
+    bool? widgetShowNetworkThroughput,
     bool? showRawApiErrors,
     bool? showRequestTiming,
   }) {
@@ -124,6 +136,12 @@ class AppSettings {
       allowSftpRename: allowSftpRename ?? this.allowSftpRename,
       allowSftpMove: allowSftpMove ?? this.allowSftpMove,
       allowSftpSoftDelete: allowSftpSoftDelete ?? this.allowSftpSoftDelete,
+      widgetStorageMountpoint:
+          widgetStorageMountpoint ?? this.widgetStorageMountpoint,
+      widgetBackgroundRefreshMinutes:
+          widgetBackgroundRefreshMinutes ?? this.widgetBackgroundRefreshMinutes,
+      widgetShowNetworkThroughput:
+          widgetShowNetworkThroughput ?? this.widgetShowNetworkThroughput,
       showRawApiErrors: showRawApiErrors ?? this.showRawApiErrors,
       showRequestTiming: showRequestTiming ?? this.showRequestTiming,
     );
@@ -209,7 +227,7 @@ class SettingsController extends Notifier<AppSettings> {
   @override
   AppSettings build() {
     _preferences = ref.watch(sharedPreferencesProvider);
-    return _load(_preferences);
+    return loadAppSettings(_preferences);
   }
 
   void save(AppSettings settings) {
@@ -221,6 +239,12 @@ class SettingsController extends Notifier<AppSettings> {
       detailsPollingMs: _clampPolling(settings.detailsPollingMs),
       healthPollingMs: _clampPolling(settings.healthPollingMs),
       dockerPollingMs: _clampPolling(settings.dockerPollingMs),
+      widgetStorageMountpoint: _normalizeWidgetMountpoint(
+        settings.widgetStorageMountpoint,
+      ),
+      widgetBackgroundRefreshMinutes: normalizeWidgetRefreshMinutes(
+        settings.widgetBackgroundRefreshMinutes,
+      ),
     );
     _write(state);
   }
@@ -231,97 +255,6 @@ class SettingsController extends Notifier<AppSettings> {
 
   void resetOnboarding() {
     save(state.copyWith(onboardingComplete: false));
-  }
-
-  static AppSettings _load(SharedPreferences preferences) {
-    final defaults = AppSettings.defaults();
-    return defaults.copyWith(
-      onboardingComplete:
-          preferences.getBool(_Keys.onboardingComplete) ??
-          defaults.onboardingComplete,
-      monitoringApiUrl:
-          preferences.getString(_Keys.monitoringApiUrl) ??
-          defaults.monitoringApiUrl,
-      controlApiUrl:
-          preferences.getString(_Keys.controlApiUrl) ?? defaults.controlApiUrl,
-      summaryPollingMs:
-          preferences.getInt(_Keys.summaryPollingMs) ??
-          defaults.summaryPollingMs,
-      detailsPollingMs:
-          preferences.getInt(_Keys.detailsPollingMs) ??
-          defaults.detailsPollingMs,
-      healthPollingMs:
-          preferences.getInt(_Keys.healthPollingMs) ?? defaults.healthPollingMs,
-      dockerPollingMs:
-          preferences.getInt(_Keys.dockerPollingMs) ?? defaults.dockerPollingMs,
-      keepScreenAwakeOnOverview:
-          preferences.getBool(_Keys.keepAwake) ??
-          defaults.keepScreenAwakeOnOverview,
-      requirePrivilegedUnlock:
-          preferences.getBool(_Keys.requireUnlock) ??
-          defaults.requirePrivilegedUnlock,
-      unlockTimeout: PrivilegedUnlockTimeout.fromName(
-        preferences.getString(_Keys.unlockTimeout),
-      ),
-      sshProfile: _loadProfile(
-        preferences,
-        ConnectionProfileKind.ssh,
-        defaults.sshProfile,
-      ),
-      sftpProfile: _loadProfile(
-        preferences,
-        ConnectionProfileKind.sftp,
-        defaults.sftpProfile.copyWith(port: AppConfig.defaultSftpPort),
-      ),
-      sftpVirtualRoot:
-          preferences.getString(_Keys.sftpVirtualRoot) ??
-          defaults.sftpVirtualRoot,
-      allowSftpUpload:
-          preferences.getBool(_Keys.allowSftpUpload) ?? defaults.allowSftpUpload,
-      allowSftpCreateDirectory:
-          preferences.getBool(_Keys.allowSftpCreateDirectory) ??
-          defaults.allowSftpCreateDirectory,
-      allowSftpRename:
-          preferences.getBool(_Keys.allowSftpRename) ?? defaults.allowSftpRename,
-      allowSftpMove:
-          preferences.getBool(_Keys.allowSftpMove) ?? defaults.allowSftpMove,
-      allowSftpSoftDelete:
-          preferences.getBool(_Keys.allowSftpSoftDelete) ??
-          defaults.allowSftpSoftDelete,
-      showRawApiErrors:
-          preferences.getBool(_Keys.showRawApiErrors) ??
-          defaults.showRawApiErrors,
-      showRequestTiming:
-          preferences.getBool(_Keys.showRequestTiming) ??
-          defaults.showRequestTiming,
-    );
-  }
-
-  static ConnectionProfile _loadProfile(
-    SharedPreferences preferences,
-    ConnectionProfileKind kind,
-    ConnectionProfile defaults,
-  ) {
-    final prefix = kind.name;
-    return ConnectionProfile(
-      kind: kind,
-      displayName:
-          preferences.getString('$prefix.${_Keys.profileName}') ??
-          defaults.displayName,
-      host:
-          preferences.getString('$prefix.${_Keys.profileHost}') ??
-          defaults.host,
-      port: preferences.getInt('$prefix.${_Keys.profilePort}') ?? defaults.port,
-      username:
-          preferences.getString('$prefix.${_Keys.profileUsername}') ??
-          defaults.username,
-      hasImportedKey:
-          preferences.getBool('$prefix.${_Keys.profileHasKey}') ??
-          defaults.hasImportedKey,
-      storePassphrase:
-          preferences.getBool('$prefix.${_Keys.profileStorePassphrase}') ??
-          defaults.storePassphrase,
-    );
   }
 
   void _write(AppSettings settings) {
@@ -346,6 +279,18 @@ class SettingsController extends Notifier<AppSettings> {
     _preferences.setBool(
       _Keys.allowSftpSoftDelete,
       settings.allowSftpSoftDelete,
+    );
+    _preferences.setString(
+      _Keys.widgetStorageMountpoint,
+      settings.widgetStorageMountpoint,
+    );
+    _preferences.setInt(
+      _Keys.widgetBackgroundRefreshMinutes,
+      settings.widgetBackgroundRefreshMinutes,
+    );
+    _preferences.setBool(
+      _Keys.widgetShowNetworkThroughput,
+      settings.widgetShowNetworkThroughput,
     );
     _preferences.setBool(_Keys.showRawApiErrors, settings.showRawApiErrors);
     _preferences.setBool(_Keys.showRequestTiming, settings.showRequestTiming);
@@ -385,6 +330,119 @@ class SettingsController extends Notifier<AppSettings> {
   }
 }
 
+AppSettings loadAppSettings(SharedPreferences preferences) {
+  final defaults = AppSettings.defaults();
+  return defaults.copyWith(
+    onboardingComplete:
+        preferences.getBool(_Keys.onboardingComplete) ??
+        defaults.onboardingComplete,
+    monitoringApiUrl:
+        preferences.getString(_Keys.monitoringApiUrl) ??
+        defaults.monitoringApiUrl,
+    controlApiUrl:
+        preferences.getString(_Keys.controlApiUrl) ?? defaults.controlApiUrl,
+    summaryPollingMs:
+        preferences.getInt(_Keys.summaryPollingMs) ?? defaults.summaryPollingMs,
+    detailsPollingMs:
+        preferences.getInt(_Keys.detailsPollingMs) ?? defaults.detailsPollingMs,
+    healthPollingMs:
+        preferences.getInt(_Keys.healthPollingMs) ?? defaults.healthPollingMs,
+    dockerPollingMs:
+        preferences.getInt(_Keys.dockerPollingMs) ?? defaults.dockerPollingMs,
+    keepScreenAwakeOnOverview:
+        preferences.getBool(_Keys.keepAwake) ??
+        defaults.keepScreenAwakeOnOverview,
+    requirePrivilegedUnlock:
+        preferences.getBool(_Keys.requireUnlock) ??
+        defaults.requirePrivilegedUnlock,
+    unlockTimeout: PrivilegedUnlockTimeout.fromName(
+      preferences.getString(_Keys.unlockTimeout),
+    ),
+    sshProfile: _loadProfile(
+      preferences,
+      ConnectionProfileKind.ssh,
+      defaults.sshProfile,
+    ),
+    sftpProfile: _loadProfile(
+      preferences,
+      ConnectionProfileKind.sftp,
+      defaults.sftpProfile.copyWith(port: AppConfig.defaultSftpPort),
+    ),
+    sftpVirtualRoot:
+        preferences.getString(_Keys.sftpVirtualRoot) ??
+        defaults.sftpVirtualRoot,
+    allowSftpUpload:
+        preferences.getBool(_Keys.allowSftpUpload) ?? defaults.allowSftpUpload,
+    allowSftpCreateDirectory:
+        preferences.getBool(_Keys.allowSftpCreateDirectory) ??
+        defaults.allowSftpCreateDirectory,
+    allowSftpRename:
+        preferences.getBool(_Keys.allowSftpRename) ?? defaults.allowSftpRename,
+    allowSftpMove:
+        preferences.getBool(_Keys.allowSftpMove) ?? defaults.allowSftpMove,
+    allowSftpSoftDelete:
+        preferences.getBool(_Keys.allowSftpSoftDelete) ??
+        defaults.allowSftpSoftDelete,
+    widgetStorageMountpoint:
+        preferences.getString(_Keys.widgetStorageMountpoint) ??
+        defaults.widgetStorageMountpoint,
+    widgetBackgroundRefreshMinutes: normalizeWidgetRefreshMinutes(
+      preferences.getInt(_Keys.widgetBackgroundRefreshMinutes) ??
+          defaults.widgetBackgroundRefreshMinutes,
+    ),
+    widgetShowNetworkThroughput:
+        preferences.getBool(_Keys.widgetShowNetworkThroughput) ??
+        defaults.widgetShowNetworkThroughput,
+    showRawApiErrors:
+        preferences.getBool(_Keys.showRawApiErrors) ??
+        defaults.showRawApiErrors,
+    showRequestTiming:
+        preferences.getBool(_Keys.showRequestTiming) ??
+        defaults.showRequestTiming,
+  );
+}
+
+ConnectionProfile _loadProfile(
+  SharedPreferences preferences,
+  ConnectionProfileKind kind,
+  ConnectionProfile defaults,
+) {
+  final prefix = kind.name;
+  return ConnectionProfile(
+    kind: kind,
+    displayName:
+        preferences.getString('$prefix.${_Keys.profileName}') ??
+        defaults.displayName,
+    host:
+        preferences.getString('$prefix.${_Keys.profileHost}') ?? defaults.host,
+    port: preferences.getInt('$prefix.${_Keys.profilePort}') ?? defaults.port,
+    username:
+        preferences.getString('$prefix.${_Keys.profileUsername}') ??
+        defaults.username,
+    hasImportedKey:
+        preferences.getBool('$prefix.${_Keys.profileHasKey}') ??
+        defaults.hasImportedKey,
+    storePassphrase:
+        preferences.getBool('$prefix.${_Keys.profileStorePassphrase}') ??
+        defaults.storePassphrase,
+  );
+}
+
+int normalizeWidgetRefreshMinutes(int value) {
+  if (const {15, 30, 60}.contains(value)) {
+    return value;
+  }
+  return 15;
+}
+
+String _normalizeWidgetMountpoint(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    return '/mnt/storage';
+  }
+  return trimmed.startsWith('/') ? trimmed : '/$trimmed';
+}
+
 class _Keys {
   static const onboardingComplete = 'onboardingComplete';
   static const monitoringApiUrl = 'monitoringApiUrl';
@@ -402,6 +460,10 @@ class _Keys {
   static const allowSftpRename = 'allowSftpRename';
   static const allowSftpMove = 'allowSftpMove';
   static const allowSftpSoftDelete = 'allowSftpSoftDelete';
+  static const widgetStorageMountpoint = 'widgetStorageMountpoint';
+  static const widgetBackgroundRefreshMinutes =
+      'widgetBackgroundRefreshMinutes';
+  static const widgetShowNetworkThroughput = 'widgetShowNetworkThroughput';
   static const showRawApiErrors = 'showRawApiErrors';
   static const showRequestTiming = 'showRequestTiming';
   static const profileName = 'displayName';

@@ -10,6 +10,7 @@ import '../../data/monitoring_repository.dart';
 import '../../domain/models/metric_sample.dart';
 import '../../domain/models/monitoring_models.dart';
 import '../../domain/models/resource_state.dart';
+import '../../../server_widget/data/server_widget_service.dart';
 
 final monitoringControllerProvider =
     NotifierProvider<MonitoringController, MonitoringState>(
@@ -219,6 +220,7 @@ class MonitoringController extends Notifier<MonitoringState> {
         gpuTemperatureHistory: _gpuTemperatureHistory.values,
         lastRefresh: now,
       );
+      _syncWidget(now);
     } catch (error) {
       state = state.copyWith(summary: state.summary.failure(_message(error)));
     }
@@ -258,6 +260,7 @@ class MonitoringController extends Notifier<MonitoringState> {
         throughput: throughput,
         lastRefresh: now,
       );
+      _syncWidget(now);
     } catch (error) {
       state = state.copyWith(system: state.system.failure(_message(error)));
     }
@@ -298,6 +301,7 @@ class MonitoringController extends Notifier<MonitoringState> {
         gpuPowerHistory: _gpuPowerHistory.values,
         lastRefresh: now,
       );
+      _syncWidget(now);
     } catch (error) {
       state = state.copyWith(gpu: state.gpu.failure(_message(error)));
     }
@@ -369,5 +373,23 @@ class MonitoringController extends Notifier<MonitoringState> {
       timer.cancel();
     }
     _timers.clear();
+  }
+
+  void _syncWidget(DateTime updatedAt) {
+    final settings = _settings;
+    final summary = state.summary.data;
+    final system = state.system.data;
+    if (settings == null || summary == null || system == null) {
+      return;
+    }
+    unawaited(
+      ServerWidgetService.instance.updateFromLiveData(
+        summary: summary,
+        system: system,
+        settings: settings,
+        updatedAt: updatedAt,
+        gpu: state.gpu.data,
+      ),
+    );
   }
 }
