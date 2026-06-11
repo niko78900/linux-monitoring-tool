@@ -178,6 +178,11 @@ def test_docs_and_openapi_are_exposed(client: TestClient, api_prefix: str) -> No
     assert openapi_response.status_code == 200
     openapi = openapi_response.json()
     assert f"{api_prefix}/health" in openapi["paths"]
+    assert f"{api_prefix}/history/ranges" in openapi["paths"]
+    assert f"{api_prefix}/history/overview" in openapi["paths"]
+    assert f"{api_prefix}/history/storage" in openapi["paths"]
+    assert f"{api_prefix}/history/disks" in openapi["paths"]
+    assert f"{api_prefix}/history/raid" in openapi["paths"]
     assert f"{api_prefix}/system" in openapi["paths"]
     assert f"{api_prefix}/gpu" in openapi["paths"]
     assert f"{api_prefix}/docker" in openapi["paths"]

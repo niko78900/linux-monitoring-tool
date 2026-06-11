@@ -58,6 +58,12 @@ class Settings:
     port: int
     reload: bool
     docker_timeout_seconds: int
+    history_enabled: bool
+    history_db_path: Path
+    history_sample_interval_seconds: int
+    history_retention_days: int
+    history_retention_cleanup_interval_seconds: int
+    history_max_response_points: int
 
 
 @lru_cache(maxsize=1)
@@ -77,4 +83,31 @@ def get_settings() -> Settings:
         port=_parse_int(os.getenv("PORT"), 4040, minimum=1),
         reload=_parse_bool(os.getenv("RELOAD"), default=False),
         docker_timeout_seconds=_parse_int(os.getenv("DOCKER_TIMEOUT_SECONDS"), 3, minimum=1),
+        history_enabled=_parse_bool(os.getenv("HISTORY_ENABLED"), default=True),
+        history_db_path=Path(
+            os.getenv(
+                "HISTORY_DB_PATH",
+                "/var/lib/linux-monitoring/history.sqlite3",
+            )
+        ),
+        history_sample_interval_seconds=_parse_int(
+            os.getenv("HISTORY_SAMPLE_INTERVAL_SECONDS"),
+            60,
+            minimum=5,
+        ),
+        history_retention_days=_parse_int(
+            os.getenv("HISTORY_RETENTION_DAYS"),
+            30,
+            minimum=1,
+        ),
+        history_retention_cleanup_interval_seconds=_parse_int(
+            os.getenv("HISTORY_RETENTION_CLEANUP_INTERVAL_SECONDS"),
+            3600,
+            minimum=60,
+        ),
+        history_max_response_points=_parse_int(
+            os.getenv("HISTORY_MAX_RESPONSE_POINTS"),
+            720,
+            minimum=60,
+        ),
     )

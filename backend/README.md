@@ -51,6 +51,12 @@ Adjust `.env` values if needed:
 - `DISK_MOUNTPOINT`: disk mount to report (default `/`)
 - `HOST`/`PORT`: bind address and port
 - `DOCKER_TIMEOUT_SECONDS`: Docker SDK timeout for daemon calls (default `3`)
+- `HISTORY_ENABLED`: enable or disable persistent history collection
+- `HISTORY_DB_PATH`: SQLite history database path
+- `HISTORY_SAMPLE_INTERVAL_SECONDS`: background history sample interval
+- `HISTORY_RETENTION_DAYS`: retention window for history rows
+- `HISTORY_RETENTION_CLEANUP_INTERVAL_SECONDS`: cleanup cadence for old history rows
+- `HISTORY_MAX_RESPONSE_POINTS`: upper bound for history response bucketing
 
 ## 3) Run the API
 
@@ -80,6 +86,8 @@ curl http://localhost:4040/api/system
 curl http://localhost:4040/api/gpu
 curl http://localhost:4040/api/docker
 curl http://localhost:4040/api/summary
+curl http://localhost:4040/api/history/ranges
+curl "http://localhost:4040/api/history/overview?range=24h"
 ```
 
 `/api/system` now includes:
@@ -119,3 +127,4 @@ Disk list intentionally excludes pseudo/system mounts and EFI boot mountpoints s
   - NVML library available on host
   - process permission to access NVIDIA device files
 - If Docker/NVIDIA access is missing, endpoints return `available: false` style responses instead of crashing.
+- History collection runs in a background task and should not break live read-only endpoints if persistence fails.
