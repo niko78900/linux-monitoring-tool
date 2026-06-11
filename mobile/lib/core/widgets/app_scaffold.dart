@@ -30,6 +30,12 @@ const appDestinations = [
   AppDestination(label: 'GPU', path: '/gpu', icon: Icons.developer_board),
   AppDestination(label: 'Network', path: '/network', icon: Icons.hub),
   AppDestination(
+    label: 'History',
+    path: '/history',
+    icon: Icons.query_stats,
+    primary: false,
+  ),
+  AppDestination(
     label: 'Devices',
     path: '/devices',
     icon: Icons.devices_other,

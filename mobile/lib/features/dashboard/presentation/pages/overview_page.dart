@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -88,6 +89,15 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
           ),
           const SizedBox(height: AppSpacing.md),
           HealthStrip(state: state),
+          const SizedBox(height: AppSpacing.lg),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: () => context.go('/history'),
+              icon: const Icon(Icons.query_stats),
+              label: const Text('View history'),
+            ),
+          ),
           const SizedBox(height: AppSpacing.lg),
           if (state.firstLoadPending)
             const Center(child: CircularProgressIndicator())
