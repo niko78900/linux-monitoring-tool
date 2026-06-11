@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from app.services.device_probe import load_known_devices, probe_ping, probe_tcp
+from app.services.neighbors import read_neighbors
 from app.services.tailscale_peers import read_tailscale_peers
 
 
@@ -88,6 +89,13 @@ def test_tailscale_cli_unavailable_fallback() -> None:
     assert read_tailscale_peers(subprocess_runner=_missing) == {}
 
 
+def test_ip_neigh_unavailable_fallback() -> None:
+    def _missing(*_args, **_kwargs):
+        raise FileNotFoundError
+
+    assert read_neighbors(subprocess_runner=_missing) == []
+
+
 def test_devices_endpoint_returns_known_devices(client, auth_headers, monkeypatch) -> None:
     monkeypatch.setattr(
         "app.api.routes.devices.read_tailscale_peers",
@@ -105,3 +113,17 @@ def test_devices_endpoint_returns_known_devices(client, auth_headers, monkeypatc
     assert len(payload["devices"]) == 2
     assert payload["devices"][0]["name"] == "Debian Server"
     assert payload["devices"][1]["wol_enabled"] is True
+
+
+def test_neighbors_endpoint_returns_notice(client, auth_headers, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.api.routes.neighbors.read_neighbors",
+        lambda: [],
+    )
+
+    response = client.get("/api/neighbors", headers=auth_headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["neighbors"] == []
+    assert "approximate server-side neighbor view" in payload["notice"]

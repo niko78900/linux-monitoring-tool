@@ -41,6 +41,18 @@ class ControlApiClient {
         .map((item) => KnownDevice.fromJson(item as Map<String, dynamic>))
         .toList(growable: false);
   }
+
+  Future<NeighborsSnapshot> getNeighbors() async {
+    final response = await _dio.get<Map<String, dynamic>>('/neighbors');
+    final payload = response.data ?? const <String, dynamic>{};
+    final neighbors = payload['neighbors'] as List<dynamic>? ?? const [];
+    return NeighborsSnapshot(
+      notice: payload['notice'] as String? ?? '',
+      neighbors: neighbors
+          .map((item) => ObservedNeighbor.fromJson(item as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
 }
 
 class ControlHealth {
@@ -67,4 +79,14 @@ class WakeActionResult {
   final String status;
   final String target;
   final int rateLimitSeconds;
+}
+
+class NeighborsSnapshot {
+  const NeighborsSnapshot({
+    required this.notice,
+    required this.neighbors,
+  });
+
+  final String notice;
+  final List<ObservedNeighbor> neighbors;
 }

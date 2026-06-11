@@ -1,9 +1,13 @@
 class DevicesDashboard {
   const DevicesDashboard({
     required this.devices,
+    required this.neighbors,
+    required this.neighborsNotice,
   });
 
   final List<KnownDevice> devices;
+  final List<ObservedNeighbor> neighbors;
+  final String neighborsNotice;
 }
 
 class KnownDevice {
@@ -89,6 +93,32 @@ class DeviceProbeResult {
       reachable: json['reachable'] as bool? ?? false,
       latencyMs: (json['latency_ms'] as num?)?.toDouble(),
       summary: json['summary'] as String? ?? '',
+    );
+  }
+}
+
+class ObservedNeighbor {
+  const ObservedNeighbor({
+    required this.ip,
+    required this.macAddress,
+    required this.interfaceName,
+    required this.state,
+    required this.hostname,
+  });
+
+  final String ip;
+  final String? macAddress;
+  final String? interfaceName;
+  final String? state;
+  final String? hostname;
+
+  factory ObservedNeighbor.fromJson(Map<String, dynamic> json) {
+    return ObservedNeighbor(
+      ip: json['ip'] as String? ?? 'unknown',
+      macAddress: json['mac_address'] as String?,
+      interfaceName: json['interface_name'] as String?,
+      state: json['state'] as String?,
+      hostname: json['hostname'] as String?,
     );
   }
 }

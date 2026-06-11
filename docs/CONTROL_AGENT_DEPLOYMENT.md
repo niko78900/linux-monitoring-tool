@@ -10,6 +10,7 @@ Current phase exposes only:
 GET  /api/health
 GET  /api/devices
 POST /api/actions/wake-main-pc
+GET  /api/neighbors
 ```
 
 It does not expose:

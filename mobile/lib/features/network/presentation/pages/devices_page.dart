@@ -90,6 +90,25 @@ class _DevicesView extends ConsumerWidget {
               ),
           ],
         ),
+        const SizedBox(height: AppSpacing.xl),
+        SectionCard(
+          title: 'Observed LAN Neighbors',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(snapshot.neighborsNotice),
+              const SizedBox(height: AppSpacing.md),
+              if (snapshot.neighbors.isEmpty)
+                const Text('No neighbors reported right now.')
+              else
+                for (final neighbor in snapshot.neighbors) ...[
+                  _NeighborRow(neighbor: neighbor),
+                  if (neighbor != snapshot.neighbors.last)
+                    const Divider(height: AppSpacing.lg),
+                ],
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -176,6 +195,30 @@ class _DeviceCard extends StatelessWidget {
       return 'N/A';
     }
     return DateFormat.yMd().add_Hm().format(value.toLocal());
+  }
+}
+
+class _NeighborRow extends StatelessWidget {
+  const _NeighborRow({required this.neighbor});
+
+  final ObservedNeighbor neighbor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(neighbor.ip, style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          [
+            if (neighbor.macAddress != null) neighbor.macAddress,
+            if (neighbor.interfaceName != null) neighbor.interfaceName,
+            if (neighbor.state != null) neighbor.state,
+          ].join('  |  '),
+        ),
+      ],
+    );
   }
 }
 

@@ -6,6 +6,7 @@ Restricted FastAPI control service for private homelab actions. Current implemen
 GET  /api/health
 GET  /api/devices
 POST /api/actions/wake-main-pc
+GET  /api/neighbors
 ```
 
 The service does not accept client-supplied MAC addresses and does not expose generic shell execution.
