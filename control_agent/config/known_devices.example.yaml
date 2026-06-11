@@ -1,0 +1,6 @@
+devices:
+  - name: main-pc
+    category: desktop
+    lan_ip: 192.168.1.50
+    tailscale_ip: 100.64.10.50
+    wake_action: wake-main-pc

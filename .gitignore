@@ -9,6 +9,10 @@ bot/__pycache__/
 bot/**/*.pyc
 bot/status_schedule_state.json
 bot/alert_state.json
+control_agent/.venv/
+control_agent/.env
+control_agent/__pycache__/
+control_agent/**/*.pyc
 .pytest_cache/
 pytest-cache-files-*/
 
