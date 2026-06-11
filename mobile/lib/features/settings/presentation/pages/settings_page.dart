@@ -1,14 +1,22 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/app_settings.dart';
+import '../../../../core/errors/app_exception.dart';
+import '../../../../core/networking/dio_factory.dart';
 import '../../../../core/security/app_lock_service.dart';
 import '../../../../core/security/secure_storage_service.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/section_card.dart';
 import '../../../dashboard/data/monitoring_api_client.dart';
 import '../../../network/data/control_api_client.dart';
-import '../../../../core/networking/dio_factory.dart';
+import '../../../terminal/data/ssh_connection_service.dart';
+import '../../../terminal/presentation/widgets/terminal_connection_dialogs.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -25,12 +33,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _sshHost = TextEditingController();
   final _sshPort = TextEditingController();
   final _sshUser = TextEditingController();
+  final _sshPassphrase = TextEditingController();
   final _sftpName = TextEditingController();
   final _sftpHost = TextEditingController();
   final _sftpPort = TextEditingController();
   final _sftpUser = TextEditingController();
   final _sftpRoot = TextEditingController();
   bool _loaded = false;
+  bool _testingSsh = false;
+  String? _sshKeySummary;
+  String? _sshTrustedFingerprint;
 
   @override
   void dispose() {
@@ -41,6 +53,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _sshHost.dispose();
     _sshPort.dispose();
     _sshUser.dispose();
+    _sshPassphrase.dispose();
     _sftpName.dispose();
     _sftpHost.dispose();
     _sftpPort.dispose();
@@ -153,6 +166,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         SectionCard(
           title: 'Terminal',
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TextField(
                 controller: _sshName,
@@ -177,14 +191,78 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 decoration: const InputDecoration(labelText: 'SSH username'),
               ),
               const SizedBox(height: AppSpacing.md),
-              Row(
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: settings.sshProfile.storePassphrase,
+                onChanged: (value) => _setSshPassphraseStorage(settings, value),
+                title: const Text('Store passphrase in secure storage'),
+              ),
+              if (settings.sshProfile.storePassphrase) ...[
+                TextField(
+                  controller: _sshPassphrase,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'SSH key passphrase',
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+              ],
+              _InfoLine(
+                label: 'Imported key',
+                value: _sshKeySummary ?? 'No key imported',
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              _InfoLine(
+                label: 'Trusted host fingerprint',
+                value: _sshTrustedFingerprint ?? 'No trusted fingerprint stored',
+                selectable: true,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
                 children: [
                   FilledButton(
                     onPressed: () => _saveProfiles(settings),
                     child: const Text('Save terminal'),
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  const Text('Key import and SSH test arrive in Phase 4.'),
+                  OutlinedButton.icon(
+                    onPressed: () => _importSshKey(settings),
+                    icon: const Icon(Icons.upload_file),
+                    label: Text(
+                      settings.sshProfile.hasImportedKey
+                          ? 'Replace key'
+                          : 'Import private key',
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _pasteSshKey(settings),
+                    icon: const Icon(Icons.content_paste),
+                    label: const Text('Paste private key'),
+                  ),
+                  TextButton(
+                    onPressed: settings.sshProfile.hasImportedKey
+                        ? () => _removeSshKey(settings)
+                        : null,
+                    child: const Text('Remove key'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  OutlinedButton(
+                    onPressed: _testingSsh ? null : () => _testSsh(settings),
+                    child: Text(_testingSsh ? 'Testing...' : 'Test SSH connection'),
+                  ),
+                  TextButton(
+                    onPressed: _sshTrustedFingerprint == null
+                        ? null
+                        : () => _resetTrustedFingerprint(settings.sshProfile),
+                    child: const Text('Reset trusted fingerprint'),
+                  ),
                 ],
               ),
             ],
@@ -231,8 +309,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     child: const Text('Save files'),
                   ),
                   const SizedBox(width: AppSpacing.sm),
-                  const Text(
-                    'Restricted SFTP connection test arrives in Phase 5.',
+                  const Expanded(
+                    child: Text(
+                      'Restricted SFTP connection and file downloads arrive in Phase 5.',
+                    ),
                   ),
                 ],
               ),
@@ -323,11 +403,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _sftpPort.text = settings.sftpProfile.port.toString();
     _sftpUser.text = settings.sftpProfile.username;
     _sftpRoot.text = settings.sftpVirtualRoot;
-    ref.read(secureStorageServiceProvider).readControlToken().then((value) {
+    final storage = ref.read(secureStorageServiceProvider);
+    storage.readControlToken().then((value) {
       if (mounted && value != null && _controlToken.text.isEmpty) {
         _controlToken.text = value;
       }
     });
+    storage.readSshPassphrase().then((value) {
+      if (mounted && value != null && _sshPassphrase.text.isEmpty) {
+        _sshPassphrase.text = value;
+      }
+    });
+    _refreshSshSecretState(settings);
   }
 
   void _save(AppSettings settings) {
@@ -345,23 +432,61 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   void _saveProfiles(AppSettings settings) {
-    _save(
+    final next = _buildSettingsFromFields(settings);
+    ref.read(settingsControllerProvider.notifier).save(next);
+    unawaited(_persistSshPassphrase(next));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Settings saved')));
+  }
+
+  AppSettings _buildSettingsFromFields(AppSettings settings) {
+    return settings.copyWith(
+      sshProfile: settings.sshProfile.copyWith(
+        displayName: _sshName.text,
+        host: _sshHost.text,
+        port: int.tryParse(_sshPort.text) ?? 22,
+        username: _sshUser.text,
+      ),
+      sftpProfile: settings.sftpProfile.copyWith(
+        displayName: _sftpName.text,
+        host: _sftpHost.text,
+        port: int.tryParse(_sftpPort.text) ?? 22,
+        username: _sftpUser.text,
+      ),
+      sftpVirtualRoot: _sftpRoot.text,
+    );
+  }
+
+  Future<void> _persistSshPassphrase(AppSettings settings) async {
+    final storage = ref.read(secureStorageServiceProvider);
+    if (settings.sshProfile.storePassphrase &&
+        _sshPassphrase.text.trim().isNotEmpty) {
+      await storage.writeSshPassphrase(_sshPassphrase.text);
+    } else {
+      await storage.clearSshPassphrase();
+    }
+  }
+
+  Future<void> _setSshPassphraseStorage(
+    AppSettings settings,
+    bool enabled,
+  ) async {
+    final next = _buildSettingsFromFields(
       settings.copyWith(
-        sshProfile: settings.sshProfile.copyWith(
-          displayName: _sshName.text,
-          host: _sshHost.text,
-          port: int.tryParse(_sshPort.text) ?? 22,
-          username: _sshUser.text,
-        ),
-        sftpProfile: settings.sftpProfile.copyWith(
-          displayName: _sftpName.text,
-          host: _sftpHost.text,
-          port: int.tryParse(_sftpPort.text) ?? 22,
-          username: _sftpUser.text,
-        ),
-        sftpVirtualRoot: _sftpRoot.text,
+        sshProfile: settings.sshProfile.copyWith(storePassphrase: enabled),
       ),
     );
+    ref.read(settingsControllerProvider.notifier).save(next);
+    await _persistSshPassphrase(next);
+    if (!enabled) {
+      _sshPassphrase.clear();
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Settings saved')));
+    }
   }
 
   Future<void> _clearToken() async {
@@ -416,6 +541,190 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       }
     }
   }
+
+  Future<void> _testSsh(AppSettings settings) async {
+    final next = _buildSettingsFromFields(settings);
+    ref.read(settingsControllerProvider.notifier).save(next);
+    await _persistSshPassphrase(next);
+
+    setState(() => _testingSsh = true);
+    try {
+      await ref
+          .read(sshConnectionServiceProvider)
+          .testConnection(
+            profile: next.sshProfile,
+            onTrustHost: (hostKey) => showHostTrustDialog(context, hostKey),
+            onPassphraseRequired: () => showPassphrasePromptDialog(
+              context,
+              title: 'Enter the SSH key passphrase',
+            ),
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('SSH connection succeeded')),
+        );
+      }
+      await _refreshSshSecretState(next);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_describeError(error))));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _testingSsh = false);
+      }
+    }
+  }
+
+  Future<void> _importSshKey(AppSettings settings) async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pem', 'key', 'txt'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+    final file = result.files.single;
+    String? contents;
+    if (file.bytes != null) {
+      contents = utf8.decode(file.bytes!, allowMalformed: true);
+    } else if (file.path != null) {
+      contents = await File(file.path!).readAsString();
+    }
+    if (contents == null || contents.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('The selected file was empty')),
+        );
+      }
+      return;
+    }
+    await _storeSshKey(settings, contents);
+  }
+
+  Future<void> _pasteSshKey(AppSettings settings) async {
+    final controller = TextEditingController();
+    final contents = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Paste private key'),
+          content: SizedBox(
+            width: 560,
+            child: TextField(
+              controller: controller,
+              autofocus: true,
+              minLines: 12,
+              maxLines: 16,
+              decoration: const InputDecoration(
+                alignLabelWithHint: true,
+                labelText: 'PEM or OpenSSH private key',
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(controller.text),
+              child: const Text('Save key'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (contents == null || contents.trim().isEmpty) {
+      return;
+    }
+    await _storeSshKey(settings, contents);
+  }
+
+  Future<void> _storeSshKey(AppSettings settings, String contents) async {
+    final normalized = contents.trim();
+    await ref.read(secureStorageServiceProvider).writeSshPrivateKey(normalized);
+    final next = _buildSettingsFromFields(
+      settings.copyWith(
+        sshProfile: settings.sshProfile.copyWith(hasImportedKey: true),
+      ),
+    );
+    ref.read(settingsControllerProvider.notifier).save(next);
+    await _persistSshPassphrase(next);
+    await _refreshSshSecretState(next);
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('SSH private key saved')));
+    }
+  }
+
+  Future<void> _removeSshKey(AppSettings settings) async {
+    final storage = ref.read(secureStorageServiceProvider);
+    await storage.clearSshPrivateKey();
+    await storage.clearSshPassphrase();
+    _sshPassphrase.clear();
+    final next = _buildSettingsFromFields(
+      settings.copyWith(
+        sshProfile: settings.sshProfile.copyWith(hasImportedKey: false),
+      ),
+    );
+    ref.read(settingsControllerProvider.notifier).save(next);
+    await _refreshSshSecretState(next);
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('SSH private key removed')));
+    }
+  }
+
+  Future<void> _resetTrustedFingerprint(ConnectionProfile profile) async {
+    await ref.read(sshConnectionServiceProvider).resetTrustedFingerprint(profile);
+    await _refreshSshSecretState(ref.read(settingsControllerProvider));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Trusted fingerprint reset')),
+      );
+    }
+  }
+
+  Future<void> _refreshSshSecretState(AppSettings settings) async {
+    final storage = ref.read(secureStorageServiceProvider);
+    final service = ref.read(sshConnectionServiceProvider);
+    final key = await storage.readSshPrivateKey();
+    final fingerprint = await service.readTrustedFingerprint(settings.sshProfile);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _sshKeySummary = key == null || key.isEmpty ? null : _summarizeKey(key);
+      _sshTrustedFingerprint = fingerprint;
+    });
+  }
+
+  String _summarizeKey(String key) {
+    final header = key
+        .split('\n')
+        .firstWhere(
+          (line) => line.startsWith('-----BEGIN '),
+          orElse: () => 'Imported key',
+        )
+        .replaceAll('-----BEGIN ', '')
+        .replaceAll('-----', '')
+        .trim();
+    return '$header (${key.length} chars)';
+  }
+
+  String _describeError(Object error) {
+    if (error is AppException) {
+      return error.message;
+    }
+    return error.toString();
+  }
 }
 
 class _PollingField extends StatelessWidget {
@@ -449,6 +758,38 @@ class _PollingField extends StatelessWidget {
           }
         },
       ),
+    );
+  }
+}
+
+class _InfoLine extends StatelessWidget {
+  const _InfoLine({
+    required this.label,
+    required this.value,
+    this.selectable = false,
+  });
+
+  final String label;
+  final String value;
+  final bool selectable;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodyMedium;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 180,
+          child: Text(
+            label,
+            style: style?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
+        Expanded(
+          child: selectable ? SelectableText(value) : Text(value, style: style),
+        ),
+      ],
     );
   }
 }

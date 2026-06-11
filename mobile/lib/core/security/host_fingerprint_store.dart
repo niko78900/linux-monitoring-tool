@@ -1,4 +1,10 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'secure_storage_service.dart';
+
+final hostFingerprintStoreProvider = Provider<HostFingerprintStore>(
+  (ref) => HostFingerprintStore(ref.watch(secureStorageServiceProvider)),
+);
 
 class HostFingerprintStore {
   HostFingerprintStore(this._storage);

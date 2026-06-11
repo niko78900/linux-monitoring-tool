@@ -151,7 +151,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                         user: _sshUser,
                         port: _sshPort,
                         note:
-                            'Private-key import and host-key trust are implemented in Phase 4.',
+                            'Private-key import, host-key trust, and SSH testing are available in Settings after onboarding.',
                       ),
                     ),
                     Step(
@@ -163,7 +163,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                         user: _sftpUser,
                         port: _sftpPort,
                         note:
-                            'Use a separate restricted SFTP account. Key import arrives in Phase 5.',
+                            'Use a separate restricted SFTP account. Direct SFTP setup arrives in Phase 5.',
                       ),
                     ),
                     Step(

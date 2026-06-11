@@ -1,0 +1,33 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:homelab_tablet/core/config/app_settings.dart';
+import 'package:homelab_tablet/features/terminal/presentation/pages/terminal_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+void main() {
+  testWidgets('shows private-key import state when SSH key is missing', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'onboardingComplete': true,
+      'ssh.host': 'server.tailnet.ts.net',
+      'ssh.port': 22,
+      'ssh.username': 'tablet_shell',
+      'ssh.hasImportedKey': false,
+    });
+    final preferences = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+        child: const MaterialApp(home: Scaffold(body: TerminalPage())),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('Import a private key'), findsOneWidget);
+    expect(find.text('Open Settings'), findsOneWidget);
+  });
+}
