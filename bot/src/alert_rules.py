@@ -179,19 +179,32 @@ def _gpu_alerts(*, gpu: dict[str, Any], config: BotConfig) -> list[Alert]:
     if not bool(gpu.get("available")):
         return []
 
-    temp_c = _to_float(gpu.get("temperature_c"))
-    if temp_c is None or temp_c < config.gpu_temp_alert_threshold:
-        return []
-
-    return [
-        _threshold_alert(
-            key="gpu-temperature",
-            title="GPU temperature high",
-            value=temp_c,
-            threshold=config.gpu_temp_alert_threshold,
-            unit="C",
+    alerts: list[Alert] = []
+    utilization = _to_float(gpu.get("utilization_percent"))
+    if utilization is not None and utilization >= config.gpu_usage_alert_threshold:
+        alerts.append(
+            _threshold_alert(
+                key="gpu-usage",
+                title="GPU usage high",
+                value=utilization,
+                threshold=config.gpu_usage_alert_threshold,
+                unit="%",
+            )
         )
-    ]
+
+    temp_c = _to_float(gpu.get("temperature_c"))
+    if temp_c is not None and temp_c >= config.gpu_temp_alert_threshold:
+        alerts.append(
+            _threshold_alert(
+                key="gpu-temperature",
+                title="GPU temperature high",
+                value=temp_c,
+                threshold=config.gpu_temp_alert_threshold,
+                unit="C",
+            )
+        )
+
+    return alerts
 
 
 def _docker_alerts(*, docker: dict[str, Any]) -> list[Alert]:

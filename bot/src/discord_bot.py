@@ -20,6 +20,7 @@ from bot_constants import (
 from commands import register_slash_commands
 from config import BotConfig
 from formatters import format_api_error_embed, format_status_embed
+from mobile_push import MobilePushDispatcher
 from monitoring_client import MonitoringAPIError, MonitoringClient
 from schedule_policy import ScheduleMode, TimeWindowRule, compute_next_event
 from services import (
@@ -54,6 +55,7 @@ class MonitoringDiscordBot(commands.Bot):
         )
         self.alert_state_path = Path(config.alert_state_file)
         self._load_alert_state()
+        self.mobile_push_dispatcher = MobilePushDispatcher.from_config(config)
         self.guild_object = discord.Object(id=config.discord_guild_id) if config.discord_guild_id else None
         self.alert_polling.change_interval(seconds=float(config.poll_interval_seconds))
         self.status_autopost_mode: ScheduleMode = STATUS_SCHEDULE_MODE_FIXED

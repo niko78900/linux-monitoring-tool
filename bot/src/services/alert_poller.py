@@ -16,8 +16,6 @@ logger = logging.getLogger("linux_monitoring.bot")
 
 async def run_alert_polling(bot: MonitoringDiscordBot) -> None:
     channel = await bot._resolve_alert_channel()
-    if channel is None:
-        return
 
     health_payload: dict[str, Any] | None = None
     summary_payload: dict[str, Any] | None = None
@@ -72,15 +70,18 @@ async def run_alert_polling(bot: MonitoringDiscordBot) -> None:
         return
     bot._save_alert_state()
 
-    for alert in new_alerts:
-        await bot._safe_send_embed(
-            channel=channel,
-            embed=format_alert_embed(alert),
-            context=f"alert:{alert.key}",
-        )
-    for recovery in recoveries:
-        await bot._safe_send_embed(
-            channel=channel,
-            embed=format_recovery_embed(recovery),
-            context=f"recovery:{recovery.key}",
-        )
+    await bot.mobile_push_dispatcher.dispatch(alerts=new_alerts, recoveries=recoveries)
+
+    if channel is not None:
+        for alert in new_alerts:
+            await bot._safe_send_embed(
+                channel=channel,
+                embed=format_alert_embed(alert),
+                context=f"alert:{alert.key}",
+            )
+        for recovery in recoveries:
+            await bot._safe_send_embed(
+                channel=channel,
+                embed=format_recovery_embed(recovery),
+                context=f"recovery:{recovery.key}",
+            )

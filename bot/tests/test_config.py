@@ -23,8 +23,13 @@ class BotConfigTests(unittest.TestCase):
             "MEMORY_ALERT_THRESHOLD": "91.5",
             "DISK_ALERT_THRESHOLD": "92",
             "GPU_TEMP_ALERT_THRESHOLD": "82",
+            "GPU_USAGE_ALERT_THRESHOLD": "87",
             "ENABLE_DOCKER_ALERTS": "false",
             "ENABLE_RAID_ALERTS": "true",
+            "MOBILE_PUSH_ENABLED": "true",
+            "MOBILE_PUSH_INCLUDE_RECOVERY": "false",
+            "MOBILE_PUSH_TOKEN_REGISTRY_FILE": "/tmp/mobile_push_tokens.json",
+            "FIREBASE_SERVICE_ACCOUNT_FILE": "/tmp/firebase.json",
         }
 
         config = BotConfig.from_env(env)
@@ -38,9 +43,20 @@ class BotConfigTests(unittest.TestCase):
         self.assertEqual(config.memory_alert_threshold, 91.5)
         self.assertEqual(config.disk_alert_threshold, 92.0)
         self.assertEqual(config.gpu_temp_alert_threshold, 82.0)
+        self.assertEqual(config.gpu_usage_alert_threshold, 87.0)
         self.assertEqual(config.alert_grace_seconds, 300)
         self.assertFalse(config.enable_docker_alerts)
         self.assertTrue(config.enable_raid_alerts)
+        self.assertTrue(config.mobile_push_enabled)
+        self.assertFalse(config.mobile_push_include_recovery)
+        self.assertEqual(
+            Path(config.mobile_push_token_registry_file),
+            Path("/tmp/mobile_push_tokens.json").expanduser(),
+        )
+        self.assertEqual(
+            Path(config.firebase_service_account_file),
+            Path("/tmp/firebase.json").expanduser(),
+        )
         self.assertTrue(config.status_schedule_state_file.endswith("status_schedule_state.json"))
         self.assertTrue(config.alert_state_file.endswith("alert_state.json"))
 

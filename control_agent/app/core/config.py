@@ -56,6 +56,8 @@ class Settings:
     services_config_path: Path
     service_control_helper_path: Path
     service_command_timeout_seconds: int
+    mobile_push_token_registry_file: Path
+    firebase_service_account_file: Path
     main_pc_mac: str
     wake_broadcast_host: str
     wake_port: int
@@ -100,6 +102,18 @@ def get_settings() -> Settings:
         ),
         service_command_timeout_seconds=_parse_int(
             os.getenv("SERVICE_COMMAND_TIMEOUT_SECONDS"), 5, minimum=1
+        ),
+        mobile_push_token_registry_file=Path(
+            os.getenv(
+                "MOBILE_PUSH_TOKEN_REGISTRY_FILE",
+                "/var/lib/linux-monitoring/mobile_push_tokens.json",
+            )
+        ),
+        firebase_service_account_file=Path(
+            os.getenv(
+                "FIREBASE_SERVICE_ACCOUNT_FILE",
+                "/etc/linux-monitor-mobile-alerts/firebase-service-account.json",
+            )
         ),
         main_pc_mac=os.getenv("MAIN_PC_MAC", "AA:BB:CC:DD:EE:FF").strip(),
         wake_broadcast_host=os.getenv("WAKE_BROADCAST_HOST", "255.255.255.255").strip(),

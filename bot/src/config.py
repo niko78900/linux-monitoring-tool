@@ -24,9 +24,14 @@ class BotConfig:
     memory_alert_threshold: float
     disk_alert_threshold: float
     gpu_temp_alert_threshold: float
+    gpu_usage_alert_threshold: float
     enable_docker_alerts: bool
     enable_raid_alerts: bool
     alert_grace_seconds: int
+    mobile_push_enabled: bool
+    mobile_push_include_recovery: bool
+    mobile_push_token_registry_file: str
+    firebase_service_account_file: str
     status_schedule_state_file: str
     alert_state_file: str
     request_timeout_seconds: float = 8.0
@@ -47,9 +52,22 @@ class BotConfig:
         memory_alert_threshold = _parse_percent(source, "MEMORY_ALERT_THRESHOLD", default=90.0)
         disk_alert_threshold = _parse_percent(source, "DISK_ALERT_THRESHOLD", default=90.0)
         gpu_temp_alert_threshold = _parse_float(source, "GPU_TEMP_ALERT_THRESHOLD", default=80.0, minimum=1.0)
+        gpu_usage_alert_threshold = _parse_percent(source, "GPU_USAGE_ALERT_THRESHOLD", default=85.0)
         enable_docker_alerts = _parse_bool(source, "ENABLE_DOCKER_ALERTS", default=True)
         enable_raid_alerts = _parse_bool(source, "ENABLE_RAID_ALERTS", default=True)
         alert_grace_seconds = _parse_alert_grace_seconds(source)
+        mobile_push_enabled = _parse_bool(source, "MOBILE_PUSH_ENABLED", default=False)
+        mobile_push_include_recovery = _parse_bool(source, "MOBILE_PUSH_INCLUDE_RECOVERY", default=True)
+        mobile_push_token_registry_file = _parse_path(
+            source,
+            "MOBILE_PUSH_TOKEN_REGISTRY_FILE",
+            "/var/lib/linux-monitoring/mobile_push_tokens.json",
+        )
+        firebase_service_account_file = _parse_path(
+            source,
+            "FIREBASE_SERVICE_ACCOUNT_FILE",
+            "/etc/linux-monitor-mobile-alerts/firebase-service-account.json",
+        )
         status_schedule_state_file = _parse_status_schedule_state_file(source)
         alert_state_file = _parse_alert_state_file(source)
 
@@ -63,9 +81,14 @@ class BotConfig:
             memory_alert_threshold=memory_alert_threshold,
             disk_alert_threshold=disk_alert_threshold,
             gpu_temp_alert_threshold=gpu_temp_alert_threshold,
+            gpu_usage_alert_threshold=gpu_usage_alert_threshold,
             enable_docker_alerts=enable_docker_alerts,
             enable_raid_alerts=enable_raid_alerts,
             alert_grace_seconds=alert_grace_seconds,
+            mobile_push_enabled=mobile_push_enabled,
+            mobile_push_include_recovery=mobile_push_include_recovery,
+            mobile_push_token_registry_file=mobile_push_token_registry_file,
+            firebase_service_account_file=firebase_service_account_file,
             status_schedule_state_file=status_schedule_state_file,
             alert_state_file=alert_state_file,
         )
@@ -168,6 +191,13 @@ def _parse_alert_state_file(source: Mapping[str, str]) -> str:
     if not path.is_absolute():
         path = _BOT_DIR / path
     return str(path)
+
+
+def _parse_path(source: Mapping[str, str], name: str, default: str) -> str:
+    raw_value = _get_raw(source, name)
+    if raw_value is None:
+        return default
+    return str(Path(raw_value).expanduser())
 
 
 def _parse_alert_grace_seconds(source: Mapping[str, str]) -> int:
