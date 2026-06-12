@@ -21,7 +21,12 @@ class HardwarePage extends ConsumerWidget {
       onRetry: () =>
           ref.read(monitoringControllerProvider.notifier).fetchSystem(),
       builder: (system) => ListView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg + MediaQuery.paddingOf(context).bottom + 72,
+        ),
         children: [
           SectionCard(
             title: 'System Identity',
