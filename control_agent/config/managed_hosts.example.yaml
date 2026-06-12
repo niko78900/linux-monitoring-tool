@@ -6,7 +6,7 @@ hosts:
     lan_ip: 192.168.100.34
     tailscale_ip: 100.64.10.22
     tailscale_hostname: homelab-server
-    monitoring_api_url: http://100.64.10.22:8000/api
+    monitoring_api_url: http://100.64.10.22:4040/api
     control_api_url: http://100.64.10.22:4042/api
     enabled: true
     capabilities:

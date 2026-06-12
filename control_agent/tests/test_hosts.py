@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+import asyncio
 
 import pytest
 
+from app.models.devices import DeviceProbeConfig, DeviceProbeStatus
+from app.models.hosts import ManagedHostConfig
+from app.services.managed_hosts import probe_managed_host
 from app.services.managed_hosts import load_managed_hosts
 
 
@@ -147,3 +151,95 @@ def test_host_details_endpoint_returns_single_host(
     payload = response.json()
     assert payload["id"] == "homelab-server"
     assert payload["services"] == ["jellyfin", "hfs"]
+
+
+def test_managed_host_successful_tcp_probe_is_online(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_run_probe(_target, probe):
+        return DeviceProbeStatus(
+            type=probe.type,
+            label=probe.label,
+            port=probe.port,
+            reachable=True,
+            latency_ms=2.5,
+            summary="SSH: reachable",
+        )
+
+    monkeypatch.setattr("app.services.managed_hosts.run_probe", fake_run_probe)
+
+    status = asyncio.run(probe_managed_host(_host_with_probe(), tailscale_peers={}))
+
+    assert status.online is True
+    assert status.status == "online"
+    assert status.probe_summary == "SSH: reachable; Tailscale peer status unavailable"
+
+
+def test_managed_host_failed_configured_probe_is_unreachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_run_probe(_target, probe):
+        return DeviceProbeStatus(
+            type=probe.type,
+            label=probe.label,
+            port=probe.port,
+            reachable=False,
+            latency_ms=None,
+            summary="SSH: unreachable",
+        )
+
+    monkeypatch.setattr("app.services.managed_hosts.run_probe", fake_run_probe)
+
+    status = asyncio.run(probe_managed_host(_host_with_probe(), tailscale_peers={}))
+
+    assert status.online is False
+    assert status.status == "unreachable"
+    assert "SSH: unreachable" in status.probe_summary
+
+
+def test_managed_host_without_probe_or_peer_information_is_unknown() -> None:
+    status = asyncio.run(
+        probe_managed_host(
+            _host_with_probe(probes=[]),
+            tailscale_peers={},
+        )
+    )
+
+    assert status.online is False
+    assert status.status == "unknown"
+    assert status.last_seen is None
+    assert status.probe_summary == "No probes configured; Tailscale peer status unavailable"
+
+
+def test_local_managed_host_does_not_require_tailscale_peer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_run_probe(_target, probe):
+        return DeviceProbeStatus(
+            type=probe.type,
+            label=probe.label,
+            port=probe.port,
+            reachable=True,
+            latency_ms=1.0,
+            summary="SSH: reachable",
+        )
+
+    monkeypatch.setattr("app.services.managed_hosts.run_probe", fake_run_probe)
+
+    status = asyncio.run(probe_managed_host(_host_with_probe(), tailscale_peers={}))
+
+    assert status.status == "online"
+    assert status.last_seen is not None
+
+
+def _host_with_probe(
+    probes: list[DeviceProbeConfig] | None = None,
+) -> ManagedHostConfig:
+    return ManagedHostConfig(
+        id="homelab-server",
+        display_name="Homelab Server",
+        category="server",
+        lan_ip="192.168.100.34",
+        tailscale_ip="100.64.10.22",
+        probes=probes
+        if probes is not None
+        else [DeviceProbeConfig(type="tcp", port=22, label="SSH")],
+    )

@@ -17,6 +17,7 @@ HostCategory = Literal[
     "phone",
     "other",
 ]
+HostAvailability = Literal["online", "unreachable", "unknown"]
 
 
 class ManagedHostConfig(BaseModel):
@@ -52,6 +53,7 @@ class ManagedHostStatus(BaseModel):
     control_api_url: str | None = None
     enabled: bool
     online: bool
+    status: HostAvailability = "unknown"
     latency_ms: float | None = None
     last_checked: datetime
     last_seen: datetime | None = None

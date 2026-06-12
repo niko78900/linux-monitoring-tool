@@ -17,6 +17,7 @@ class ManagedHost {
     required this.controlApiUrl,
     required this.enabled,
     required this.online,
+    required this.status,
     required this.latencyMs,
     required this.lastChecked,
     required this.lastSeen,
@@ -40,6 +41,10 @@ class ManagedHost {
       controlApiUrl: json['control_api_url'] as String?,
       enabled: json['enabled'] as bool? ?? true,
       online: json['online'] as bool? ?? false,
+      status: HostAvailability.fromJson(
+        json['status'],
+        online: json['online'] as bool?,
+      ),
       latencyMs: (json['latency_ms'] as num?)?.toDouble(),
       lastChecked: _parseDateTime(json['last_checked']),
       lastSeen: _parseDateTime(json['last_seen']),
@@ -74,6 +79,7 @@ class ManagedHost {
   final String? controlApiUrl;
   final bool enabled;
   final bool online;
+  final HostAvailability status;
   final double? latencyMs;
   final DateTime? lastChecked;
   final DateTime? lastSeen;
@@ -84,6 +90,31 @@ class ManagedHost {
   final String probeSummary;
 
   String? get preferredIp => tailscaleIp ?? lanIp;
+}
+
+enum HostAvailability {
+  online('Online'),
+  unreachable('Unreachable'),
+  unknown('Unknown');
+
+  const HostAvailability(this.label);
+
+  final String label;
+
+  static HostAvailability fromJson(Object? value, {bool? online}) {
+    final raw = value?.toString().trim().toLowerCase();
+    return switch (raw) {
+      'online' => HostAvailability.online,
+      'unreachable' || 'offline' => HostAvailability.unreachable,
+      'unknown' || 'not_checked' || 'not checked' => HostAvailability.unknown,
+      _ =>
+        online == true
+            ? HostAvailability.online
+            : online == false
+            ? HostAvailability.unreachable
+            : HostAvailability.unknown,
+    };
+  }
 }
 
 class HostProbeResult {

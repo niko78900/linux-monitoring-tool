@@ -45,6 +45,8 @@ python mobile\tool\release_audit.py mobile\build\app\outputs\flutter-apk\app-rel
 ```text
 [ ] Only configured managed hosts appear
 [ ] Homelab Server host card renders with reachable status and capabilities
+[ ] Homelab Server has an explicit `probes` entry for SSH TCP port 22
+[ ] Hosts without usable probes or peer data render as Unknown, not Unreachable
 [ ] Existing known-device Wake-on-LAN behavior still works
 ```
 
@@ -89,6 +91,7 @@ python mobile\tool\release_audit.py mobile\build\app\outputs\flutter-apk\app-rel
 [ ] HISTORY_DB_PATH target directory exists and is writable by the backend service user
 [ ] control-agent service-control helper installation and sudoers review are complete
 [ ] Jellyfin runtime target and HFS systemd unit were verified on the real server
+[ ] `/etc/linux-monitor-control-agent/managed_hosts.yaml` contains the Homelab Server SSH probe
 [ ] Restricted SFTP account write permissions were reviewed before enabling write toggles
 [ ] Release APK is signed with a real release keystore before distribution
 ```

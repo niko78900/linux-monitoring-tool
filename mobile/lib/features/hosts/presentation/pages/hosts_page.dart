@@ -62,7 +62,8 @@ class _HostsView extends ConsumerWidget {
           child: EmptyState(
             icon: Icons.dns,
             title: 'No managed hosts configured',
-            message: 'Add enabled hosts in the control-agent managed-host YAML.',
+            message:
+                'Add enabled hosts in the control-agent managed-host YAML.',
           ),
         ),
       );
@@ -96,10 +97,7 @@ class _HostsView extends ConsumerWidget {
           runSpacing: AppSpacing.md,
           children: [
             for (final host in snapshot.hosts)
-              SizedBox(
-                width: 380,
-                child: ManagedHostCard(host: host),
-              ),
+              SizedBox(width: 380, child: ManagedHostCard(host: host)),
           ],
         ),
       ],
@@ -120,7 +118,8 @@ class ManagedHostCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (host.description != null && host.description!.trim().isNotEmpty) ...[
+          if (host.description != null &&
+              host.description!.trim().isNotEmpty) ...[
             Text(host.description!),
             const SizedBox(height: AppSpacing.md),
           ],
@@ -210,18 +209,17 @@ class HostStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StatusBadge(
-      label: host.online ? 'Online' : 'Unreachable',
-      tone: host.online ? StatusTone.healthy : StatusTone.offline,
-    );
+    final tone = switch (host.status) {
+      HostAvailability.online => StatusTone.healthy,
+      HostAvailability.unreachable => StatusTone.offline,
+      HostAvailability.unknown => StatusTone.neutral,
+    };
+    return StatusBadge(label: host.status.label, tone: tone);
   }
 }
 
 class _InfoLine extends StatelessWidget {
-  const _InfoLine({
-    required this.label,
-    required this.value,
-  });
+  const _InfoLine({required this.label, required this.value});
 
   final String label;
   final String value;

@@ -8,6 +8,7 @@ import yaml
 
 from ..models.devices import DeviceProbeStatus
 from ..models.hosts import (
+    HostAvailability,
     ManagedHostConfig,
     ManagedHostsConfigDocument,
     ManagedHostsResponse,
@@ -57,7 +58,8 @@ async def probe_managed_host(
     probe_tasks = [run_probe(_host_as_probe_target(config), probe) for probe in config.probes]
     probe_results = await asyncio.gather(*probe_tasks) if probe_tasks else []
 
-    online = any(result.reachable for result in probe_results)
+    status = _host_status(probe_results, None)
+    online = status == "online"
     latency_ms = next(
         (result.latency_ms for result in probe_results if result.latency_ms is not None),
         None,
@@ -66,20 +68,19 @@ async def probe_managed_host(
     peer_status = None
     if config.tailscale_ip:
         peer_status = peers.get(config.tailscale_ip)
-        if peer_status and peer_status.online:
-            online = True
+        status = _host_status(probe_results, peer_status)
+        online = status == "online"
 
     checked_at = datetime.now(timezone.utc)
     summary_parts = [result.summary for result in probe_results]
+    if not probe_results:
+        summary_parts.append("No probes configured")
     if peer_status is None and config.tailscale_ip:
         summary_parts.append("Tailscale peer status unavailable")
     elif peer_status is not None:
         summary_parts.append(
             f"Tailscale peer {'online' if peer_status.online else 'offline'}"
         )
-
-    if not summary_parts:
-        summary_parts.append("No probes configured")
 
     return ManagedHostStatus(
         id=config.id,
@@ -93,6 +94,7 @@ async def probe_managed_host(
         control_api_url=config.control_api_url,
         enabled=config.enabled,
         online=online,
+        status=status,
         latency_ms=latency_ms,
         last_checked=checked_at,
         last_seen=checked_at if online else None,
@@ -115,3 +117,26 @@ class ManagedHostConfigProbeAdapter:
     def __init__(self, *, lan_ip: str | None, tailscale_ip: str | None) -> None:
         self.lan_ip = lan_ip
         self.tailscale_ip = tailscale_ip
+
+
+def _host_status(
+    probe_results: list[DeviceProbeStatus],
+    peer_status: TailscalePeerStatus | None,
+) -> HostAvailability:
+    if any(result.reachable for result in probe_results):
+        return "online"
+    if peer_status is not None:
+        return "online" if peer_status.online else "unreachable"
+    if any(_is_meaningful_probe_failure(result) for result in probe_results):
+        return "unreachable"
+    return "unknown"
+
+
+def _is_meaningful_probe_failure(result: DeviceProbeStatus) -> bool:
+    summary = result.summary.lower()
+    unusable_fragments = (
+        "no target ip configured",
+        "port not configured",
+        "ping unavailable",
+    )
+    return not any(fragment in summary for fragment in unusable_fragments)
