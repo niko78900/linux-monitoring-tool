@@ -74,6 +74,16 @@ void main() {
     expect(unknown.status, HostAvailability.unknown);
   });
 
+  test('missing host status does not infer unreachable from online false', () {
+    final unknown = ManagedHost.fromJson(const {
+      'id': 'homelab-server',
+      'display_name': 'Homelab Server',
+      'online': false,
+    });
+
+    expect(unknown.status, HostAvailability.unknown);
+  });
+
   testWidgets('renders unknown host status neutrally', (tester) async {
     await tester.pumpWidget(
       ProviderScope(

@@ -93,3 +93,48 @@ Confirm:
 [ ] The configured MAC is used even if the client sends a different value
 [ ] The service is reachable only inside the tailnet or local reverse-proxy boundary
 ```
+
+## Read-only Debian verification
+
+Run these checks on the Debian server when validating a live deployment. They do not modify files, restart services, or print the API token.
+
+```bash
+systemctl is-active linux-monitor-control-agent.service
+
+sudo grep -A3 -B2 'label: SSH' /etc/linux-monitor-control-agent/managed_hosts.yaml
+
+nc -vz 127.0.0.1 22
+
+CONTROL_API_TOKEN_FILE=/etc/linux-monitor-control-agent/api-token
+CONTROL_API_TOKEN="$(sudo cat "$CONTROL_API_TOKEN_FILE")"
+curl -fsS \
+  -H "Authorization: Bearer ${CONTROL_API_TOKEN}" \
+  http://100.64.10.22:4042/api/hosts \
+  | python3 -m json.tool \
+  | grep -A20 '"id": "homelab-server"'
+unset CONTROL_API_TOKEN
+
+python3 - <<'PY'
+from pathlib import Path
+source = Path('/opt/linux-monitoring/control_agent/app/services/managed_hosts.py')
+text = source.read_text(encoding='utf-8')
+checks = [
+    'status == "online"',
+    'return "unknown"',
+    'Tailscale peer status unavailable',
+]
+for check in checks:
+    print(f'{check}: {"present" if check in text else "missing"}')
+PY
+```
+
+Expected live host fragment:
+
+```yaml
+probes:
+  - type: tcp
+    port: 22
+    label: SSH
+```
+
+If the YAML fragment is present but `/api/hosts` still does not return `status: online` for `homelab-server`, sync the latest control-agent source to the server and restart `linux-monitor-control-agent.service` during a maintenance window.

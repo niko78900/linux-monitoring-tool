@@ -107,12 +107,7 @@ enum HostAvailability {
       'online' => HostAvailability.online,
       'unreachable' || 'offline' => HostAvailability.unreachable,
       'unknown' || 'not_checked' || 'not checked' => HostAvailability.unknown,
-      _ =>
-        online == true
-            ? HostAvailability.online
-            : online == false
-            ? HostAvailability.unreachable
-            : HostAvailability.unknown,
+      _ => online == true ? HostAvailability.online : HostAvailability.unknown,
     };
   }
 }

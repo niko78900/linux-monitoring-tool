@@ -131,6 +131,8 @@ def test_hosts_endpoint_returns_enabled_managed_hosts(
     assert len(payload["hosts"]) == 1
     assert payload["hosts"][0]["id"] == "homelab-server"
     assert payload["hosts"][0]["display_name"] == "Homelab Server"
+    assert payload["hosts"][0]["online"] is True
+    assert payload["hosts"][0]["status"] == "online"
 
 
 def test_host_details_endpoint_returns_single_host(
