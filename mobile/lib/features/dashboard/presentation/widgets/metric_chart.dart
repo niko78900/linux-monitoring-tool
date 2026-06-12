@@ -8,7 +8,7 @@ export 'chart_helpers.dart';
 
 import 'chart_helpers.dart';
 
-class MetricChart extends StatelessWidget {
+class MetricChart extends StatefulWidget {
   const MetricChart({
     super.key,
     required this.title,
@@ -20,6 +20,7 @@ class MetricChart extends StatelessWidget {
     this.tooltipValueFormatter,
     this.leftReservedSize,
     this.minimumY,
+    @visibleForTesting this.onSelectedSampleChanged,
   });
 
   final String title;
@@ -31,38 +32,103 @@ class MetricChart extends StatelessWidget {
   final MetricChartValueFormatter? tooltipValueFormatter;
   final double? leftReservedSize;
   final double? minimumY;
+  final ValueChanged<int?>? onSelectedSampleChanged;
+
+  @override
+  State<MetricChart> createState() => _MetricChartState();
+}
+
+class _MetricChartState extends State<MetricChart> {
+  final MetricChartScaleHysteresis _scaleHysteresis =
+      MetricChartScaleHysteresis();
+  int? _selectedPointIndex;
+
+  @override
+  void didUpdateWidget(covariant MetricChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.title != widget.title ||
+        oldWidget.valueType != widget.valueType ||
+        oldWidget.minimumY != widget.minimumY ||
+        oldWidget.maxY != widget.maxY) {
+      _scaleHysteresis.reset();
+      _selectedPointIndex = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (samples.isEmpty) {
+    if (widget.samples.isEmpty) {
+      _scaleHysteresis.reset();
+      _selectedPointIndex = null;
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: SizedBox(
             height: 180,
-            child: Center(child: Text('$title: waiting for samples')),
+            child: Center(child: Text('${widget.title}: waiting for samples')),
           ),
         ),
       );
     }
-    final spots = <FlSpot>[
-      for (var index = 0; index < samples.length; index += 1)
-        FlSpot(index.toDouble(), samples[index].value),
-    ];
-    final effectiveMaxY = metricChartEffectiveMaxY(
-      samples.map((item) => item.value),
-      valueType: valueType,
-      minimumY: minimumY,
-      maxY: maxY,
+    final series = buildMetricChartPlotSeries<MetricSample>(
+      widget.samples,
+      timestampOf: (sample) => sample.timestamp,
+      valueOf: (sample) => sample.value,
     );
+    if (series.points.isEmpty) {
+      _scaleHysteresis.reset();
+      _selectedPointIndex = null;
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: SizedBox(
+            height: 180,
+            child: Center(child: Text('${widget.title}: waiting for samples')),
+          ),
+        ),
+      );
+    }
+
+    if (_selectedPointIndex != null &&
+        _selectedPointIndex! >= series.points.length) {
+      _selectedPointIndex = null;
+    }
+
+    final targetMaxY = metricChartEffectiveMaxY(
+      series.points.map((item) => item.value),
+      valueType: widget.valueType,
+      minimumY: widget.minimumY,
+      maxY: widget.maxY,
+    );
+    final effectiveMaxY = widget.maxY == null
+        ? _scaleHysteresis.update(targetMaxY)
+        : targetMaxY;
     final horizontalInterval = metricChartInterval(effectiveMaxY);
     final axisFormatter =
-        valueFormatter ?? (value) => formatMetricChartValue(value, valueType);
+        widget.valueFormatter ??
+        (value) => formatMetricChartValue(value, widget.valueType);
     final tooltipFormatter =
-        tooltipValueFormatter ??
-        valueFormatter ??
-        (value) => formatMetricChartValue(value, valueType);
-    final reservedSize = leftReservedSize ?? metricChartReservedSize(valueType);
+        widget.tooltipValueFormatter ??
+        widget.valueFormatter ??
+        (value) => formatMetricChartValue(value, widget.valueType);
+    final reservedSize =
+        widget.leftReservedSize ?? metricChartReservedSize(widget.valueType);
+    final selectedPointIndex = _selectedPointIndex;
+    final spots = series.spots;
+    final barData = LineChartBarData(
+      spots: spots,
+      isCurved: true,
+      color: widget.color,
+      barWidth: 2.4,
+      dotData: const FlDotData(show: false),
+      showingIndicators: selectedPointIndex == null
+          ? const []
+          : [selectedPointIndex],
+      belowBarData: BarAreaData(
+        show: true,
+        color: widget.color.withValues(alpha: 0.12),
+      ),
+    );
 
     return Card(
       child: Padding(
@@ -70,25 +136,34 @@ class MetricChart extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: Theme.of(context).textTheme.titleSmall),
+            Text(widget.title, style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: AppSpacing.lg),
             SizedBox(
               height: 160,
               child: LineChart(
                 LineChartData(
                   minY: 0,
-                  minX: 0,
-                  maxX: spots.length > 1 ? (spots.length - 1).toDouble() : 1,
+                  minX: series.minX,
+                  maxX: series.maxX,
                   maxY: effectiveMaxY,
+                  showingTooltipIndicators: selectedPointIndex == null
+                      ? const []
+                      : [
+                          ShowingTooltipIndicators([
+                            LineBarSpot(barData, 0, spots[selectedPointIndex]),
+                          ]),
+                        ],
                   lineTouchData: LineTouchData(
-                    handleBuiltInTouches: true,
+                    handleBuiltInTouches: false,
+                    touchCallback: (event, response) =>
+                        _handleTouch(event, response, series),
                     touchSpotThreshold: metricChartTouchSpotThreshold,
                     getTouchedSpotIndicator: (barData, spotIndexes) =>
                         spotIndexes
                             .map(
                               (_) => TouchedSpotIndicatorData(
                                 FlLine(
-                                  color: color.withValues(alpha: 0.35),
+                                  color: widget.color.withValues(alpha: 0.35),
                                   strokeWidth: 1,
                                 ),
                                 FlDotData(
@@ -97,7 +172,7 @@ class MetricChart extends StatelessWidget {
                                       (spot, percent, barData, index) =>
                                           FlDotCirclePainter(
                                             radius: 4,
-                                            color: color,
+                                            color: widget.color,
                                             strokeWidth: 2,
                                             strokeColor: AppColors.surface,
                                           ),
@@ -111,7 +186,10 @@ class MetricChart extends StatelessWidget {
                       getTooltipItems: (spots) => [
                         for (final spot in spots)
                           LineTooltipItem(
-                            _tooltipText(spot, tooltipFormatter),
+                            _tooltipText(
+                              series.points[spot.spotIndex],
+                              tooltipFormatter,
+                            ),
                             const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w600,
@@ -161,19 +239,7 @@ class MetricChart extends StatelessWidget {
                     ),
                   ),
                   borderData: FlBorderData(show: false),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: spots,
-                      isCurved: true,
-                      color: color,
-                      barWidth: 2.4,
-                      dotData: const FlDotData(show: false),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        color: color.withValues(alpha: 0.12),
-                      ),
-                    ),
-                  ],
+                  lineBarsData: [barData],
                 ),
               ),
             ),
@@ -183,12 +249,36 @@ class MetricChart extends StatelessWidget {
     );
   }
 
-  String _tooltipText(FlSpot spot, MetricChartValueFormatter formatter) {
-    final index = spot.x.round().clamp(0, samples.length - 1);
-    return formatMetricChartTooltip(
-      samples[index].timestamp,
-      samples[index].value,
-      formatter,
+  void _handleTouch(
+    FlTouchEvent event,
+    LineTouchResponse? response,
+    MetricChartPlotSeries series,
+  ) {
+    if (!event.isInterestedForInteractions || response == null) {
+      _selectPoint(null);
+      return;
+    }
+
+    final index = series.nearestPointIndexForX(
+      response.touchChartCoordinate.dx,
     );
+    _selectPoint(index);
+  }
+
+  void _selectPoint(int? index) {
+    if (_selectedPointIndex == index) {
+      return;
+    }
+    setState(() {
+      _selectedPointIndex = index;
+    });
+    widget.onSelectedSampleChanged?.call(index);
+  }
+
+  String _tooltipText(
+    MetricChartPlotPoint point,
+    MetricChartValueFormatter formatter,
+  ) {
+    return formatMetricChartTooltip(point.timestamp, point.value, formatter);
   }
 }

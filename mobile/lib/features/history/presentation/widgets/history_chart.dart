@@ -6,7 +6,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../dashboard/presentation/widgets/metric_chart.dart';
 import '../../domain/models/history_models.dart';
 
-class HistoryChart extends StatelessWidget {
+class HistoryChart extends StatefulWidget {
   const HistoryChart({
     super.key,
     required this.title,
@@ -18,6 +18,7 @@ class HistoryChart extends StatelessWidget {
     this.tooltipValueFormatter,
     this.leftReservedSize,
     this.minimumY,
+    @visibleForTesting this.onSelectedSampleChanged,
   });
 
   final String title;
@@ -29,43 +30,75 @@ class HistoryChart extends StatelessWidget {
   final MetricChartValueFormatter? tooltipValueFormatter;
   final double? leftReservedSize;
   final double? minimumY;
+  final ValueChanged<int?>? onSelectedSampleChanged;
+
+  @override
+  State<HistoryChart> createState() => _HistoryChartState();
+}
+
+class _HistoryChartState extends State<HistoryChart> {
+  int? _selectedPointIndex;
 
   @override
   Widget build(BuildContext context) {
     final populated = [
-      for (final point in points)
+      for (final point in widget.points)
         if (point.value != null) point,
     ];
     if (populated.isEmpty) {
+      _selectedPointIndex = null;
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: SizedBox(
             height: 180,
-            child: Center(child: Text('$title: no history data')),
+            child: Center(child: Text('${widget.title}: no history data')),
           ),
         ),
       );
     }
 
-    final spots = <FlSpot>[
-      for (var index = 0; index < populated.length; index += 1)
-        FlSpot(index.toDouble(), populated[index].value!),
-    ];
+    final series = buildMetricChartPlotSeries<HistoryChartPoint>(
+      populated,
+      timestampOf: (point) => point.timestamp,
+      valueOf: (point) => point.value,
+    );
+    if (_selectedPointIndex != null &&
+        _selectedPointIndex! >= series.points.length) {
+      _selectedPointIndex = null;
+    }
     final effectiveMaxY = metricChartEffectiveMaxY(
       populated.map((item) => item.value),
-      valueType: valueType,
-      minimumY: minimumY,
-      maxY: maxY,
+      valueType: widget.valueType,
+      minimumY: widget.minimumY,
+      maxY: widget.maxY,
     );
     final horizontalInterval = metricChartInterval(effectiveMaxY);
     final axisFormatter =
-        valueFormatter ?? (value) => formatMetricChartValue(value, valueType);
+        widget.valueFormatter ??
+        (value) => formatMetricChartValue(value, widget.valueType);
     final tooltipFormatter =
-        tooltipValueFormatter ??
-        valueFormatter ??
-        (value) => formatMetricChartValue(value, valueType);
-    final reservedSize = leftReservedSize ?? metricChartReservedSize(valueType);
+        widget.tooltipValueFormatter ??
+        widget.valueFormatter ??
+        (value) => formatMetricChartValue(value, widget.valueType);
+    final reservedSize =
+        widget.leftReservedSize ?? metricChartReservedSize(widget.valueType);
+    final selectedPointIndex = _selectedPointIndex;
+    final spots = series.spots;
+    final barData = LineChartBarData(
+      spots: spots,
+      isCurved: true,
+      color: widget.color,
+      barWidth: 2.4,
+      dotData: const FlDotData(show: false),
+      showingIndicators: selectedPointIndex == null
+          ? const []
+          : [selectedPointIndex],
+      belowBarData: BarAreaData(
+        show: true,
+        color: widget.color.withValues(alpha: 0.12),
+      ),
+    );
 
     return Card(
       child: Padding(
@@ -73,25 +106,34 @@ class HistoryChart extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: Theme.of(context).textTheme.titleSmall),
+            Text(widget.title, style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: AppSpacing.md),
             SizedBox(
               height: 160,
               child: LineChart(
                 LineChartData(
                   minY: 0,
-                  minX: 0,
-                  maxX: spots.length > 1 ? (spots.length - 1).toDouble() : 1,
+                  minX: series.minX,
+                  maxX: series.maxX,
                   maxY: effectiveMaxY,
+                  showingTooltipIndicators: selectedPointIndex == null
+                      ? const []
+                      : [
+                          ShowingTooltipIndicators([
+                            LineBarSpot(barData, 0, spots[selectedPointIndex]),
+                          ]),
+                        ],
                   lineTouchData: LineTouchData(
-                    handleBuiltInTouches: true,
+                    handleBuiltInTouches: false,
+                    touchCallback: (event, response) =>
+                        _handleTouch(event, response, series),
                     touchSpotThreshold: metricChartTouchSpotThreshold,
                     getTouchedSpotIndicator: (barData, spotIndexes) =>
                         spotIndexes
                             .map(
                               (_) => TouchedSpotIndicatorData(
                                 FlLine(
-                                  color: color.withValues(alpha: 0.35),
+                                  color: widget.color.withValues(alpha: 0.35),
                                   strokeWidth: 1,
                                 ),
                                 FlDotData(
@@ -100,7 +142,7 @@ class HistoryChart extends StatelessWidget {
                                       (spot, percent, barData, index) =>
                                           FlDotCirclePainter(
                                             radius: 4,
-                                            color: color,
+                                            color: widget.color,
                                             strokeWidth: 2,
                                             strokeColor: AppColors.surface,
                                           ),
@@ -114,7 +156,10 @@ class HistoryChart extends StatelessWidget {
                       getTooltipItems: (spots) => [
                         for (final spot in spots)
                           LineTooltipItem(
-                            _tooltipText(spot, tooltipFormatter, populated),
+                            _tooltipText(
+                              series.points[spot.spotIndex],
+                              tooltipFormatter,
+                            ),
                             const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w600,
@@ -164,19 +209,7 @@ class HistoryChart extends StatelessWidget {
                     ),
                   ),
                   borderData: FlBorderData(show: false),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: spots,
-                      isCurved: true,
-                      color: color,
-                      barWidth: 2.4,
-                      dotData: const FlDotData(show: false),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        color: color.withValues(alpha: 0.12),
-                      ),
-                    ),
-                  ],
+                  lineBarsData: [barData],
                 ),
               ),
             ),
@@ -186,13 +219,36 @@ class HistoryChart extends StatelessWidget {
     );
   }
 
-  String _tooltipText(
-    FlSpot spot,
-    MetricChartValueFormatter formatter,
-    List<HistoryChartPoint> populated,
+  void _handleTouch(
+    FlTouchEvent event,
+    LineTouchResponse? response,
+    MetricChartPlotSeries series,
   ) {
-    final index = spot.x.round().clamp(0, populated.length - 1);
-    final point = populated[index];
+    if (!event.isInterestedForInteractions || response == null) {
+      _selectPoint(null);
+      return;
+    }
+
+    final index = series.nearestPointIndexForX(
+      response.touchChartCoordinate.dx,
+    );
+    _selectPoint(index);
+  }
+
+  void _selectPoint(int? index) {
+    if (_selectedPointIndex == index) {
+      return;
+    }
+    setState(() {
+      _selectedPointIndex = index;
+    });
+    widget.onSelectedSampleChanged?.call(index);
+  }
+
+  String _tooltipText(
+    MetricChartPlotPoint point,
+    MetricChartValueFormatter formatter,
+  ) {
     return formatMetricChartTooltip(point.timestamp, point.value, formatter);
   }
 }

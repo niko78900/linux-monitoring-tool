@@ -101,12 +101,40 @@ Run these checks on the Debian server when validating a live deployment. They do
 ```bash
 systemctl is-active linux-monitor-control-agent.service
 
-sudo grep -A3 -B2 'label: SSH' /etc/linux-monitor-control-agent/managed_hosts.yaml
+systemctl cat linux-monitor-control-agent.service
+systemctl show linux-monitor-control-agent.service \
+  --property=WorkingDirectory,EnvironmentFiles,Environment,ExecStart
+
+ENV_FILE="$(
+  systemctl show linux-monitor-control-agent.service --property=EnvironmentFiles |
+    sed 's/^EnvironmentFiles=//' |
+    tr ' ' '\n' |
+    sed 's/^-//' |
+    cut -d: -f1 |
+    awk 'NF {print; exit}'
+)"
+ENV_FILE="${ENV_FILE:-/etc/linux-monitor-control-agent.env}"
+sudo test -r "$ENV_FILE"
+
+MANAGED_HOSTS_CONFIG_PATH="$(
+  sudo awk '/^MANAGED_HOSTS_CONFIG_PATH=/ {sub(/^MANAGED_HOSTS_CONFIG_PATH=/, ""); print; exit}' "$ENV_FILE"
+)"
+MANAGED_HOSTS_CONFIG_PATH="${MANAGED_HOSTS_CONFIG_PATH:-/etc/linux-monitor-control-agent/managed_hosts.yaml}"
+sudo grep -A3 -B2 'label: SSH' "$MANAGED_HOSTS_CONFIG_PATH"
+
+REPO_DIR="$(
+  systemctl show linux-monitor-control-agent.service --property=WorkingDirectory |
+    sed 's/^WorkingDirectory=//'
+)"
+REPO_DIR="${REPO_DIR:-/mnt/warm/homelab/linux-monitoring}"
+sudo test -f "$REPO_DIR/control_agent/app/services/managed_hosts.py"
 
 nc -vz 127.0.0.1 22
 
-CONTROL_API_TOKEN_FILE=/etc/linux-monitor-control-agent/api-token
-CONTROL_API_TOKEN="$(sudo cat "$CONTROL_API_TOKEN_FILE")"
+CONTROL_API_TOKEN="$(
+  sudo awk '/^CONTROL_API_TOKEN=/ {sub(/^CONTROL_API_TOKEN=/, ""); print; exit}' "$ENV_FILE"
+)"
+test -n "${CONTROL_API_TOKEN:-}"
 curl -fsS \
   -H "Authorization: Bearer ${CONTROL_API_TOKEN}" \
   http://100.64.10.22:4042/api/hosts \
@@ -114,9 +142,12 @@ curl -fsS \
   | grep -A20 '"id": "homelab-server"'
 unset CONTROL_API_TOKEN
 
-python3 - <<'PY'
+sudo python3 - "$REPO_DIR" <<'PY'
 from pathlib import Path
-source = Path('/opt/linux-monitoring/control_agent/app/services/managed_hosts.py')
+import sys
+
+repo_dir = Path(sys.argv[1])
+source = repo_dir / 'control_agent/app/services/managed_hosts.py'
 text = source.read_text(encoding='utf-8')
 checks = [
     'status == "online"',
@@ -137,4 +168,4 @@ probes:
     label: SSH
 ```
 
-If the YAML fragment is present but `/api/hosts` still does not return `status: online` for `homelab-server`, sync the latest control-agent source to the server and restart `linux-monitor-control-agent.service` during a maintenance window.
+If the YAML fragment is present but `/api/hosts` still does not return `status: online` for `homelab-server`, sync the latest control-agent source to `/mnt/warm/homelab/linux-monitoring` or the `WorkingDirectory` reported by `systemctl show`, then restart `linux-monitor-control-agent.service` during a maintenance window.

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/utils/byte_format.dart';
@@ -18,6 +19,135 @@ enum MetricChartValueType {
 
 const double metricChartTouchSpotThreshold = 28;
 const bool metricChartIncludeMaxTitle = false;
+const double _repeatedTimestampStepSeconds = 0.001;
+
+class MetricChartPlotPoint {
+  const MetricChartPlotPoint({
+    required this.spot,
+    required this.timestamp,
+    required this.value,
+    required this.sourceIndex,
+  });
+
+  final FlSpot spot;
+  final DateTime? timestamp;
+  final double value;
+  final int sourceIndex;
+}
+
+class MetricChartPlotSeries {
+  const MetricChartPlotSeries(this.points);
+
+  final List<MetricChartPlotPoint> points;
+
+  List<FlSpot> get spots => [for (final point in points) point.spot];
+
+  double get minX => points.isEmpty ? 0 : points.first.spot.x;
+
+  double get maxX {
+    if (points.isEmpty) {
+      return 1;
+    }
+    final first = points.first.spot.x;
+    final last = points.last.spot.x;
+    return last > first ? last : first + 1;
+  }
+
+  int? nearestPointIndexForX(double x) {
+    if (points.isEmpty) {
+      return null;
+    }
+    var selectedIndex = 0;
+    var selectedDistance = (points.first.spot.x - x).abs();
+    for (var index = 1; index < points.length; index += 1) {
+      final distance = (points[index].spot.x - x).abs();
+      if (distance < selectedDistance) {
+        selectedIndex = index;
+        selectedDistance = distance;
+      }
+    }
+    return selectedIndex;
+  }
+}
+
+class MetricChartScaleHysteresis {
+  MetricChartScaleHysteresis({this.contractionSamples = 4});
+
+  final int contractionSamples;
+  double? _effectiveMaxY;
+  double? _lowerTargetY;
+  int _lowerSampleCount = 0;
+
+  double update(double targetMaxY) {
+    final previous = _effectiveMaxY;
+    if (previous == null || targetMaxY >= previous) {
+      _effectiveMaxY = targetMaxY;
+      _lowerTargetY = null;
+      _lowerSampleCount = 0;
+      return targetMaxY;
+    }
+
+    if (_lowerTargetY != targetMaxY) {
+      _lowerTargetY = targetMaxY;
+      _lowerSampleCount = 1;
+      return previous;
+    }
+
+    _lowerSampleCount += 1;
+    if (_lowerSampleCount < contractionSamples) {
+      return previous;
+    }
+
+    _effectiveMaxY = targetMaxY;
+    _lowerTargetY = null;
+    _lowerSampleCount = 0;
+    return targetMaxY;
+  }
+
+  void reset() {
+    _effectiveMaxY = null;
+    _lowerTargetY = null;
+    _lowerSampleCount = 0;
+  }
+}
+
+MetricChartPlotSeries buildMetricChartPlotSeries<T>(
+  List<T> items, {
+  required DateTime? Function(T item) timestampOf,
+  required double? Function(T item) valueOf,
+}) {
+  final points = <MetricChartPlotPoint>[];
+  DateTime? firstTimestamp;
+
+  for (var sourceIndex = 0; sourceIndex < items.length; sourceIndex += 1) {
+    final item = items[sourceIndex];
+    final value = valueOf(item);
+    if (value == null || value.isNaN || value.isInfinite) {
+      continue;
+    }
+
+    final timestamp = timestampOf(item);
+    firstTimestamp ??= timestamp;
+    var x = timestamp != null && firstTimestamp != null
+        ? timestamp.difference(firstTimestamp).inMilliseconds / 1000
+        : points.length.toDouble();
+
+    if (points.isNotEmpty && x <= points.last.spot.x) {
+      x = points.last.spot.x + _repeatedTimestampStepSeconds;
+    }
+
+    points.add(
+      MetricChartPlotPoint(
+        spot: FlSpot(x, value),
+        timestamp: timestamp,
+        value: value,
+        sourceIndex: sourceIndex,
+      ),
+    );
+  }
+
+  return MetricChartPlotSeries(points);
+}
 
 String formatMetricChartValue(num? value, MetricChartValueType type) {
   if (value == null || value.isNaN) {

@@ -140,6 +140,7 @@ class MonitoringController extends Notifier<MonitoringState> {
   final _networkReceiveHistory = RingBuffer<MetricSample>(120);
   final _networkSendHistory = RingBuffer<MetricSample>(120);
   final List<Timer> _timers = [];
+  final Map<_MonitoringEndpoint, Future<void>> _inFlightRequests = {};
   AppSettings? _settings;
   NetworkCounterSample? _previousNetworkSample;
 
@@ -180,7 +181,11 @@ class MonitoringController extends Notifier<MonitoringState> {
     ]);
   }
 
-  Future<void> fetchHealth() async {
+  Future<void> fetchHealth() {
+    return _runOnce(_MonitoringEndpoint.health, _fetchHealth);
+  }
+
+  Future<void> _fetchHealth() async {
     state = state.copyWith(health: state.health.startRequest());
     try {
       final data = await _repo.client.getHealth();
@@ -193,7 +198,11 @@ class MonitoringController extends Notifier<MonitoringState> {
     }
   }
 
-  Future<void> fetchSummary() async {
+  Future<void> fetchSummary() {
+    return _runOnce(_MonitoringEndpoint.summary, _fetchSummary);
+  }
+
+  Future<void> _fetchSummary() async {
     state = state.copyWith(summary: state.summary.startRequest());
     try {
       final data = await _repo.client.getSummary();
@@ -202,22 +211,10 @@ class MonitoringController extends Notifier<MonitoringState> {
       _memoryHistory.add(
         MetricSample(timestamp: now, value: data.memoryPercent),
       );
-      if (data.gpuUtilizationPercent != null) {
-        _gpuUtilizationHistory.add(
-          MetricSample(timestamp: now, value: data.gpuUtilizationPercent!),
-        );
-      }
-      if (data.gpuTempC != null) {
-        _gpuTemperatureHistory.add(
-          MetricSample(timestamp: now, value: data.gpuTempC!),
-        );
-      }
       state = state.copyWith(
         summary: state.summary.success(data),
         cpuHistory: _cpuHistory.values,
         memoryHistory: _memoryHistory.values,
-        gpuUtilizationHistory: _gpuUtilizationHistory.values,
-        gpuTemperatureHistory: _gpuTemperatureHistory.values,
         lastRefresh: now,
       );
       _syncWidget(now);
@@ -226,7 +223,11 @@ class MonitoringController extends Notifier<MonitoringState> {
     }
   }
 
-  Future<void> fetchSystem() async {
+  Future<void> fetchSystem() {
+    return _runOnce(_MonitoringEndpoint.system, _fetchSystem);
+  }
+
+  Future<void> _fetchSystem() async {
     state = state.copyWith(system: state.system.startRequest());
     try {
       final data = await _repo.client.getSystem();
@@ -266,7 +267,11 @@ class MonitoringController extends Notifier<MonitoringState> {
     }
   }
 
-  Future<void> fetchGpu() async {
+  Future<void> fetchGpu() {
+    return _runOnce(_MonitoringEndpoint.gpu, _fetchGpu);
+  }
+
+  Future<void> _fetchGpu() async {
     state = state.copyWith(gpu: state.gpu.startRequest());
     try {
       final data = await _repo.client.getGpu();
@@ -307,7 +312,11 @@ class MonitoringController extends Notifier<MonitoringState> {
     }
   }
 
-  Future<void> fetchDocker() async {
+  Future<void> fetchDocker() {
+    return _runOnce(_MonitoringEndpoint.docker, _fetchDocker);
+  }
+
+  Future<void> _fetchDocker() async {
     state = state.copyWith(docker: state.docker.startRequest());
     try {
       final data = await _repo.client.getDocker();
@@ -321,6 +330,25 @@ class MonitoringController extends Notifier<MonitoringState> {
   }
 
   MonitoringRepository get _repo => ref.read(monitoringRepositoryProvider);
+
+  Future<void> _runOnce(
+    _MonitoringEndpoint endpoint,
+    Future<void> Function() run,
+  ) {
+    final existing = _inFlightRequests[endpoint];
+    if (existing != null) {
+      return existing;
+    }
+
+    late final Future<void> pending;
+    pending = run().whenComplete(() {
+      if (identical(_inFlightRequests[endpoint], pending)) {
+        _inFlightRequests.remove(endpoint);
+      }
+    });
+    _inFlightRequests[endpoint] = pending;
+    return pending;
+  }
 
   String _message(Object error) {
     final AppSettings settings =
@@ -393,3 +421,5 @@ class MonitoringController extends Notifier<MonitoringState> {
     );
   }
 }
+
+enum _MonitoringEndpoint { health, summary, system, gpu, docker }

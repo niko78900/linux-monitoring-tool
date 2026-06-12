@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:homelab_tablet/features/dashboard/domain/models/metric_sample.dart';
@@ -102,6 +103,77 @@ void main() {
     expect(metricChartTouchSpotThreshold, greaterThanOrEqualTo(24));
   });
 
+  test('timestamp plot series preserves uneven gaps and one-point ranges', () {
+    final start = DateTime.utc(2026, 6, 12, 2);
+    final series = buildMetricChartPlotSeries<MetricSample>(
+      [
+        MetricSample(timestamp: start, value: 1),
+        MetricSample(
+          timestamp: start.add(const Duration(seconds: 5)),
+          value: 2,
+        ),
+        MetricSample(
+          timestamp: start.add(const Duration(minutes: 5, seconds: 5)),
+          value: 3,
+        ),
+      ],
+      timestampOf: (sample) => sample.timestamp,
+      valueOf: (sample) => sample.value,
+    );
+
+    expect(series.points[0].spot.x, 0);
+    expect(series.points[1].spot.x, 5);
+    expect(series.points[2].spot.x, 305);
+    expect(
+      series.points[2].spot.x - series.points[1].spot.x,
+      greaterThan(series.points[1].spot.x - series.points[0].spot.x),
+    );
+
+    final onePoint = buildMetricChartPlotSeries<MetricSample>(
+      [MetricSample(timestamp: start, value: 1)],
+      timestampOf: (sample) => sample.timestamp,
+      valueOf: (sample) => sample.value,
+    );
+    expect(onePoint.maxX, greaterThan(onePoint.minX));
+  });
+
+  test('timestamp plot series handles repeated timestamps and lookup', () {
+    final start = DateTime.utc(2026, 6, 12, 2);
+    final series = buildMetricChartPlotSeries<MetricSample>(
+      [
+        MetricSample(timestamp: start, value: 1),
+        MetricSample(timestamp: start, value: 2),
+        MetricSample(
+          timestamp: start.add(const Duration(seconds: 10)),
+          value: 3,
+        ),
+      ],
+      timestampOf: (sample) => sample.timestamp,
+      valueOf: (sample) => sample.value,
+    );
+
+    expect(series.points[1].spot.x, greaterThan(series.points[0].spot.x));
+    expect(series.points[2].spot.x, greaterThan(series.points[1].spot.x));
+    expect(series.nearestPointIndexForX(0.0009), 1);
+    expect(series.nearestPointIndexForX(9), 2);
+    expect(series.points[series.nearestPointIndexForX(9)!].sourceIndex, 2);
+  });
+
+  test('scale hysteresis expands immediately and contracts later', () {
+    final hysteresis = MetricChartScaleHysteresis(contractionSamples: 3);
+
+    expect(hysteresis.update(50), 50);
+    expect(hysteresis.update(200), 200);
+    expect(hysteresis.update(50), 200);
+    expect(hysteresis.update(50), 200);
+    expect(hysteresis.update(50), 50);
+
+    final floor = metricChartEffectiveMaxY([
+      0,
+    ], valueType: MetricChartValueType.percent);
+    expect(MetricChartScaleHysteresis().update(floor), 10);
+  });
+
   testWidgets('metric chart handles zero, one, and all-zero samples', (
     tester,
   ) async {
@@ -141,6 +213,52 @@ void main() {
     expect(find.text('Two Samples'), findsOneWidget);
   });
 
+  testWidgets('metric chart keeps nearest-X selection during vertical drag', (
+    tester,
+  ) async {
+    final selected = <int?>[];
+    final timestamp = DateTime.utc(2026, 6, 12, 2);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MetricChart(
+            title: 'Drag Chart',
+            samples: [
+              MetricSample(timestamp: timestamp, value: 10),
+              MetricSample(
+                timestamp: timestamp.add(const Duration(seconds: 10)),
+                value: 30,
+              ),
+              MetricSample(
+                timestamp: timestamp.add(const Duration(seconds: 20)),
+                value: 20,
+              ),
+            ],
+            valueType: MetricChartValueType.percent,
+            onSelectedSampleChanged: selected.add,
+          ),
+        ),
+      ),
+    );
+
+    final chartRect = tester.getRect(find.byType(LineChart));
+    final gesture = await tester.startGesture(
+      Offset(chartRect.left + 64, chartRect.center.dy + 32),
+    );
+    await tester.pump();
+    await gesture.moveTo(
+      Offset(chartRect.right - 20, chartRect.center.dy - 54),
+    );
+    await tester.pump();
+
+    expect(selected.whereType<int>(), isNotEmpty);
+    expect(selected.whereType<int>().last, 2);
+    expect(selected.take(selected.length - 1), isNot(contains(null)));
+
+    await gesture.up();
+  });
+
   testWidgets('history chart uses shared sparse-data chart behavior', (
     tester,
   ) async {
@@ -166,5 +284,51 @@ void main() {
     );
 
     expect(find.text('History Network'), findsOneWidget);
+  });
+
+  testWidgets('history chart keeps nearest-X selection during vertical drag', (
+    tester,
+  ) async {
+    final selected = <int?>[];
+    final timestamp = DateTime.utc(2026, 6, 12, 2);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HistoryChart(
+            title: 'History Drag',
+            valueType: MetricChartValueType.percent,
+            onSelectedSampleChanged: selected.add,
+            points: [
+              HistoryChartPoint(timestamp: timestamp, value: 10),
+              HistoryChartPoint(
+                timestamp: timestamp.add(const Duration(seconds: 10)),
+                value: 30,
+              ),
+              HistoryChartPoint(
+                timestamp: timestamp.add(const Duration(seconds: 20)),
+                value: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final chartRect = tester.getRect(find.byType(LineChart));
+    final gesture = await tester.startGesture(
+      Offset(chartRect.left + 64, chartRect.center.dy + 32),
+    );
+    await tester.pump();
+    await gesture.moveTo(
+      Offset(chartRect.right - 20, chartRect.center.dy - 54),
+    );
+    await tester.pump();
+
+    expect(selected.whereType<int>(), isNotEmpty);
+    expect(selected.whereType<int>().last, 2);
+    expect(selected.take(selected.length - 1), isNot(contains(null)));
+
+    await gesture.up();
   });
 }
