@@ -28,3 +28,8 @@ Thumbs.db
 # Local planning notes
 plans.txt
 hosting-deploy-notes.txt
+
+# Firebase credentials/config are installed manually.
+mobile/android/app/google-services.json
+firebase-service-account.json
+**/firebase-service-account.json

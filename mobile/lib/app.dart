@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/config/app_settings.dart';
 import 'core/routing/app_router.dart';
+import 'core/security/secure_storage_service.dart';
 import 'core/theme/app_theme.dart';
+import 'features/mobile_alerts/data/mobile_alert_service.dart';
 import 'features/server_widget/data/server_widget_service.dart';
 
 class HomelabTabletApp extends ConsumerStatefulWidget {
@@ -19,6 +21,7 @@ class HomelabTabletApp extends ConsumerStatefulWidget {
 
 class _HomelabTabletAppState extends ConsumerState<HomelabTabletApp> {
   StreamSubscription<String>? _widgetLaunchSubscription;
+  StreamSubscription<String>? _notificationLaunchSubscription;
   bool _handledInitialWidgetRoute = false;
 
   @override
@@ -33,6 +36,11 @@ class _HomelabTabletAppState extends ConsumerState<HomelabTabletApp> {
       _widgetLaunchSubscription = ServerWidgetService.instance
           .widgetLaunchRoutes()
           .listen(_handleWidgetRoute);
+      _notificationLaunchSubscription = MobileAlertService
+          .instance
+          .notificationRoutes
+          .listen(_handleWidgetRoute);
+      unawaited(_bootstrapMobileAlerts());
       _applyInitialWidgetRoute();
     });
   }
@@ -40,6 +48,7 @@ class _HomelabTabletAppState extends ConsumerState<HomelabTabletApp> {
   @override
   void dispose() {
     _widgetLaunchSubscription?.cancel();
+    _notificationLaunchSubscription?.cancel();
     super.dispose();
   }
 
@@ -47,6 +56,7 @@ class _HomelabTabletAppState extends ConsumerState<HomelabTabletApp> {
   Widget build(BuildContext context) {
     ref.listen<AppSettings>(settingsControllerProvider, (_, next) {
       unawaited(ServerWidgetService.instance.syncSettings(next));
+      unawaited(_configureMobileAlerts(next));
     });
     final router = ref.watch(appRouterProvider);
 
@@ -75,5 +85,22 @@ class _HomelabTabletAppState extends ConsumerState<HomelabTabletApp> {
       return;
     }
     ref.read(appRouterProvider).go(route);
+  }
+
+  Future<void> _bootstrapMobileAlerts() async {
+    final settings = ref.read(settingsControllerProvider);
+    await MobileAlertService.instance.bootstrap(
+      settings: settings,
+      preferences: ref.read(sharedPreferencesProvider),
+      readControlToken: ref.read(secureStorageServiceProvider).readControlToken,
+    );
+  }
+
+  Future<void> _configureMobileAlerts(AppSettings settings) {
+    return MobileAlertService.instance.configure(
+      settings: settings,
+      preferences: ref.read(sharedPreferencesProvider),
+      readControlToken: ref.read(secureStorageServiceProvider).readControlToken,
+    );
   }
 }

@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../core/networking/dio_factory.dart';
 import '../domain/models/device_models.dart';
 import '../../hosts/domain/models/host_models.dart';
+import '../../mobile_alerts/domain/models/mobile_alert_models.dart';
 import '../../services/domain/models/service_models.dart';
 
 class ControlApiClient {
@@ -80,6 +81,45 @@ class ControlApiClient {
     return services
         .map((item) => ManagedService.fromJson(item as Map<String, dynamic>))
         .toList(growable: false);
+  }
+
+  Future<MobileAlertStatus> getMobileAlertStatus({
+    required String installationId,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/mobile-alerts/status',
+      queryParameters: {'installation_id': installationId},
+    );
+    return MobileAlertStatus.fromJson(response.data ?? const {});
+  }
+
+  Future<MobileAlertStatus> registerMobileAlertDevice(
+    MobileAlertRegistrationRequest request,
+  ) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/mobile-alerts/register',
+      data: request.toJson(),
+    );
+    return MobileAlertStatus.fromJson(response.data ?? const {});
+  }
+
+  Future<MobileAlertStatus> unregisterMobileAlertDevice(
+    String installationId,
+  ) async {
+    final response = await _dio.delete<Map<String, dynamic>>(
+      '/mobile-alerts/register/$installationId',
+    );
+    return MobileAlertStatus.fromJson(response.data ?? const {});
+  }
+
+  Future<MobileAlertTestResult> sendMobileAlertTest({
+    required String installationId,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/mobile-alerts/test',
+      data: {'installation_id': installationId},
+    );
+    return MobileAlertTestResult.fromJson(response.data ?? const {});
   }
 
   Future<ManagedService> getService(String serviceId) async {

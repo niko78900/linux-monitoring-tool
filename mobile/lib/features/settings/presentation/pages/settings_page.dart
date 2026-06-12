@@ -17,6 +17,10 @@ import '../../../../core/widgets/section_card.dart';
 import '../../../dashboard/data/monitoring_api_client.dart';
 import '../../../files/data/sftp_connection_service.dart';
 import '../../../network/data/control_api_client.dart';
+import '../../../mobile_alerts/data/mobile_alert_service.dart';
+import '../../../mobile_alerts/domain/models/mobile_alert_models.dart';
+import '../../../server_widget/data/server_widget_catalog.dart';
+import '../../../server_widget/data/server_widget_service.dart';
 import '../../../terminal/data/ssh_connection_service.dart';
 import '../../../terminal/presentation/widgets/terminal_connection_dialogs.dart';
 
@@ -43,10 +47,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _sftpPassphrase = TextEditingController();
   final _sftpRoot = TextEditingController();
   final _widgetMountpoint = TextEditingController();
+  final _widgetSecondaryMountpoint = TextEditingController();
   bool _loaded = false;
   bool _testingSsh = false;
   bool _testingSftp = false;
-  bool _requestingWidgetPin = false;
+  bool _mobileAlertBusy = false;
+  String? _requestingWidgetPinProvider;
+  MobileAlertStatus? _mobileAlertStatus;
+  MobileNotificationPermissionState? _notificationPermission;
+  String? _mobileAlertStatusText;
   String? _sshKeySummary;
   String? _sshTrustedFingerprint;
   String? _sftpKeySummary;
@@ -69,6 +78,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _sftpPassphrase.dispose();
     _sftpRoot.dispose();
     _widgetMountpoint.dispose();
+    _widgetSecondaryMountpoint.dispose();
     super.dispose();
   }
 
@@ -435,16 +445,38 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
         ),
         SectionCard(
-          title: 'Android Widget',
+          title: 'Widgets & Alerts',
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(
-                controller: _widgetMountpoint,
-                decoration: const InputDecoration(
-                  labelText: 'Widget storage mountpoint',
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Home-screen widgets',
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: _widgetMountpoint,
+                decoration: const InputDecoration(
+                  labelText: 'Primary storage mountpoint',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: _widgetSecondaryMountpoint,
+                decoration: const InputDecoration(
+                  labelText: 'Secondary storage mountpoint',
+                ),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: settings.widgetShowSecondaryStorage,
+                onChanged: (value) =>
+                    _save(settings.copyWith(widgetShowSecondaryStorage: value)),
+                title: const Text('Show secondary storage row'),
+              ),
               DropdownButtonFormField<int>(
                 initialValue: settings.widgetBackgroundRefreshMinutes,
                 decoration: const InputDecoration(
@@ -480,16 +512,118 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     onPressed: () => _save(
                       settings.copyWith(
                         widgetStorageMountpoint: _widgetMountpoint.text,
+                        widgetSecondaryStorageMountpoint:
+                            _widgetSecondaryMountpoint.text,
                       ),
                     ),
-                    child: const Text('Save widget'),
+                    child: const Text('Save widget settings'),
                   ),
                   OutlinedButton.icon(
-                    onPressed: _requestingWidgetPin ? null : _requestPinWidget,
-                    icon: const Icon(Icons.widgets),
-                    label: Text(
-                      _requestingWidgetPin ? 'Requesting...' : 'Add widget',
+                    onPressed: _refreshWidgetSnapshots,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Refresh widget data now'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth >= 900 ? 2 : 1;
+                  return GridView.count(
+                    crossAxisCount: columns,
+                    crossAxisSpacing: AppSpacing.md,
+                    mainAxisSpacing: AppSpacing.md,
+                    childAspectRatio: columns == 1 ? 4.2 : 3.2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      for (final widget in homeScreenWidgets)
+                        _WidgetCatalogCard(
+                          widget: widget,
+                          requesting:
+                              _requestingWidgetPinProvider ==
+                              widget.providerName,
+                          onAdd: () => _requestPinWidget(widget.providerName),
+                        ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              const Divider(),
+              const SizedBox(height: AppSpacing.md),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Push notifications',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: settings.mobilePushAlertsEnabled,
+                onChanged: _mobileAlertBusy
+                    ? null
+                    : (value) => value
+                          ? _enablePushAlerts(settings)
+                          : _disablePushAlerts(settings),
+                title: const Text('Enable push alerts'),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: settings.mobilePushIncludeRecovery,
+                onChanged: (value) =>
+                    _save(settings.copyWith(mobilePushIncludeRecovery: value)),
+                title: const Text('Include recovery notifications'),
+              ),
+              _InfoLine(
+                label: 'Permission',
+                value: _notificationPermission?.label ?? 'Not checked',
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              _InfoLine(label: 'Registration', value: _registrationLabel()),
+              const SizedBox(height: AppSpacing.sm),
+              _InfoLine(
+                label: 'Channel',
+                value: 'Configured after Firebase initializes',
+              ),
+              if (_mobileAlertStatusText != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                _InfoLine(label: 'Last action', value: _mobileAlertStatusText!),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _mobileAlertBusy
+                        ? null
+                        : () => _refreshMobileAlertStatus(settings),
+                    icon: const Icon(Icons.sync),
+                    label: const Text('Refresh push status'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _mobileAlertBusy
+                        ? null
+                        : () => _enablePushAlerts(settings),
+                    icon: const Icon(Icons.app_registration),
+                    label: const Text('Re-register this tablet'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _mobileAlertBusy
+                        ? null
+                        : () => _sendTestPush(settings),
+                    icon: const Icon(Icons.notifications_active),
+                    label: const Text('Send test notification'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => unawaited(
+                      MobileAlertService.instance
+                          .openAndroidNotificationSettings(),
                     ),
+                    icon: const Icon(Icons.settings),
+                    label: const Text('Android notification settings'),
                   ),
                 ],
               ),
@@ -581,6 +715,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _sftpUser.text = settings.sftpProfile.username;
     _sftpRoot.text = settings.sftpVirtualRoot;
     _widgetMountpoint.text = settings.widgetStorageMountpoint;
+    _widgetSecondaryMountpoint.text = settings.widgetSecondaryStorageMountpoint;
     final storage = ref.read(secureStorageServiceProvider);
     storage.readControlToken().then((value) {
       if (mounted && value != null && _controlToken.text.isEmpty) {
@@ -599,6 +734,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     });
     _refreshSshSecretState(settings);
     _refreshSftpSecretState(settings);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(_refreshMobileAlertStatus(settings));
+      }
+    });
   }
 
   void _save(AppSettings settings) {
@@ -758,7 +898,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  Future<void> _requestPinWidget() async {
+  Future<void> _requestPinWidget(String providerName) async {
     if (!Platform.isAndroid) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -768,7 +908,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       return;
     }
 
-    setState(() => _requestingWidgetPin = true);
+    setState(() => _requestingWidgetPinProvider = providerName);
     try {
       final supported = await HomeWidget.isRequestPinWidgetSupported();
       if (supported != true) {
@@ -779,7 +919,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         }
         return;
       }
-      await HomeWidget.requestPinWidget(name: 'ServerEssentialsWidgetProvider');
+      await HomeWidget.requestPinWidget(name: providerName);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Widget add request sent')),
@@ -793,9 +933,186 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       }
     } finally {
       if (mounted) {
-        setState(() => _requestingWidgetPin = false);
+        setState(() => _requestingWidgetPinProvider = null);
       }
     }
+  }
+
+  Future<void> _refreshWidgetSnapshots() async {
+    await ServerWidgetService.instance.runBackgroundRefreshTask();
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Widget refresh requested')));
+    }
+  }
+
+  Future<void> _refreshMobileAlertStatus(AppSettings settings) async {
+    setState(() => _mobileAlertBusy = true);
+    try {
+      final preferences = ref.read(sharedPreferencesProvider);
+      final token = await ref
+          .read(secureStorageServiceProvider)
+          .readControlToken();
+      final permission = await MobileAlertService.instance.permissionState();
+      MobileAlertStatus? status;
+      try {
+        status = await MobileAlertService.instance.status(
+          settings: settings,
+          preferences: preferences,
+          controlToken: token,
+        );
+      } catch (_) {
+        status = null;
+      }
+      if (mounted) {
+        setState(() {
+          _notificationPermission = permission;
+          _mobileAlertStatus = status;
+          _mobileAlertStatusText = status == null
+              ? 'Control-agent push status unavailable'
+              : 'Push status refreshed';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _mobileAlertBusy = false);
+      }
+    }
+  }
+
+  Future<void> _enablePushAlerts(AppSettings settings) async {
+    setState(() => _mobileAlertBusy = true);
+    try {
+      final preferences = ref.read(sharedPreferencesProvider);
+      final token = await ref
+          .read(secureStorageServiceProvider)
+          .readControlToken();
+      final permission = await MobileAlertService.instance.requestPermission();
+      final status = await MobileAlertService.instance.register(
+        settings: settings,
+        preferences: preferences,
+        controlToken: token,
+      );
+      final next = settings.copyWith(mobilePushAlertsEnabled: true);
+      ref.read(settingsControllerProvider.notifier).save(next);
+      if (mounted) {
+        setState(() {
+          _notificationPermission = permission;
+          _mobileAlertStatus = status;
+          _mobileAlertStatusText = 'Push alerts enabled';
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Push alerts registered')));
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _mobileAlertStatusText = _describeError(error));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_describeError(error))));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _mobileAlertBusy = false);
+      }
+    }
+  }
+
+  Future<void> _disablePushAlerts(AppSettings settings) async {
+    setState(() => _mobileAlertBusy = true);
+    try {
+      final preferences = ref.read(sharedPreferencesProvider);
+      final token = await ref
+          .read(secureStorageServiceProvider)
+          .readControlToken();
+      final status = await MobileAlertService.instance.disable(
+        settings: settings,
+        preferences: preferences,
+        controlToken: token,
+      );
+      final next = settings.copyWith(mobilePushAlertsEnabled: false);
+      ref.read(settingsControllerProvider.notifier).save(next);
+      if (mounted) {
+        setState(() {
+          _mobileAlertStatus = status;
+          _mobileAlertStatusText = 'Push alerts disabled';
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Push alerts disabled')));
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _mobileAlertStatusText = _describeError(error));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_describeError(error))));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _mobileAlertBusy = false);
+      }
+    }
+  }
+
+  Future<void> _sendTestPush(AppSettings settings) async {
+    setState(() => _mobileAlertBusy = true);
+    try {
+      final preferences = ref.read(sharedPreferencesProvider);
+      final token = await ref
+          .read(secureStorageServiceProvider)
+          .readControlToken();
+      final permission = await MobileAlertService.instance.requestPermission();
+      final result = await MobileAlertService.instance.sendRoundTripTest(
+        settings: settings,
+        preferences: preferences,
+        controlToken: token,
+      );
+      final status = await MobileAlertService.instance.status(
+        settings: settings,
+        preferences: preferences,
+        controlToken: token,
+      );
+      if (mounted) {
+        setState(() {
+          _notificationPermission = permission;
+          _mobileAlertStatus = status;
+          _mobileAlertStatusText =
+              'Test notification requested (${result.sentCount} sent)';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Round-trip test notification sent')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _mobileAlertStatusText = _describeError(error));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_describeError(error))));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _mobileAlertBusy = false);
+      }
+    }
+  }
+
+  String _registrationLabel() {
+    final status = _mobileAlertStatus;
+    if (status == null) {
+      return 'Not checked';
+    }
+    final registered = status.registered ? 'registered' : 'not registered';
+    final configured = status.pushConfigured
+        ? 'server configured'
+        : 'server Firebase missing';
+    final last = status.lastRegisteredAt == null
+        ? 'never'
+        : status.lastRegisteredAt!.toLocal().toString();
+    return '$registered, $configured, last registration $last';
   }
 
   Future<void> _testSsh(AppSettings settings) async {
@@ -1187,6 +1504,63 @@ class _PollingField extends StatelessWidget {
             onChanged(next);
           }
         },
+      ),
+    );
+  }
+}
+
+class _WidgetCatalogCard extends StatelessWidget {
+  const _WidgetCatalogCard({
+    required this.widget,
+    required this.requesting,
+    required this.onAdd,
+  });
+
+  final HomeScreenWidgetDescriptor widget;
+  final bool requesting;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).dividerColor),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Row(
+          children: [
+            const Icon(Icons.widgets),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    widget.displayName,
+                    style: Theme.of(context).textTheme.titleSmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    '${widget.recommendedSize} | ${widget.purpose}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            OutlinedButton.icon(
+              onPressed: requesting ? null : onAdd,
+              icon: const Icon(Icons.add),
+              label: Text(requesting ? 'Adding...' : 'Add'),
+            ),
+          ],
+        ),
       ),
     );
   }
