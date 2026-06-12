@@ -41,11 +41,12 @@ class GpuPage extends ConsumerWidget {
               runSpacing: AppSpacing.md,
               children: [
                 SizedBox(
-                  width: 260,
+                  width: 320,
                   child: MetricCard(
                     title: 'Model',
                     value: gpu.name ?? 'N/A',
                     icon: Icons.developer_board,
+                    maxValueLines: 2,
                   ),
                 ),
                 SizedBox(
@@ -115,23 +116,27 @@ class GpuPage extends ConsumerWidget {
                   samples: state.gpuUtilizationHistory,
                   maxY: 100,
                   color: AppColors.accent,
+                  valueType: MetricChartValueType.percent,
                 ),
                 MetricChart(
                   title: 'GPU Temperature',
                   samples: state.gpuTemperatureHistory,
                   maxY: 110,
                   color: AppColors.warning,
+                  valueType: MetricChartValueType.temperatureC,
                 ),
                 MetricChart(
                   title: 'VRAM Usage',
                   samples: state.gpuVramHistory,
                   maxY: 100,
                   color: AppColors.healthy,
+                  valueType: MetricChartValueType.percent,
                 ),
                 MetricChart(
                   title: 'Power Usage',
                   samples: state.gpuPowerHistory,
                   color: AppColors.critical,
+                  valueType: MetricChartValueType.watts,
                 ),
               ],
             ),

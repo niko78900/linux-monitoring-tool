@@ -13,6 +13,8 @@ class MetricCard extends StatelessWidget {
     this.tone = StatusTone.neutral,
     this.icon,
     this.progress,
+    this.maxValueLines = 1,
+    this.valueOverflow = TextOverflow.ellipsis,
   });
 
   final String title;
@@ -21,6 +23,8 @@ class MetricCard extends StatelessWidget {
   final StatusTone tone;
   final IconData? icon;
   final double? progress;
+  final int maxValueLines;
+  final TextOverflow valueOverflow;
 
   @override
   Widget build(BuildContext context) {
@@ -51,8 +55,8 @@ class MetricCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             Text(
               value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              maxLines: maxValueLines,
+              overflow: valueOverflow,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,

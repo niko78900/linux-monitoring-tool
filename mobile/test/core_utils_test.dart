@@ -12,6 +12,10 @@ void main() {
   test('formats bytes and temperatures safely', () {
     expect(formatBytes(null), 'N/A');
     expect(formatBytes(1024), '1.00 KB');
+    expect(formatBytesPerSecond(0), '0 B/s');
+    expect(formatBytesPerSecond(512), '512 B/s');
+    expect(formatBytesPerSecond(16 * 1024), '16 KB/s');
+    expect(formatBytesPerSecond(1.25 * 1024 * 1024), '1.3 MB/s');
     expect(formatTemperature(null), 'N/A');
     expect(formatTemperature(42), '42 C');
     expect(formatTemperature(200), 'N/A');
@@ -71,19 +75,22 @@ void main() {
     expect(normalizeVirtualPath('/warm', '/etc'), '/warm');
   });
 
-  test('soft delete target stays inside trash and preview rules are bounded', () {
-    final target = buildSoftDeletePath(
-      virtualRoot: '/warm',
-      sourcePath: '/warm/videos/movie.mkv',
-      now: DateTime.utc(2026, 6, 11, 20, 15, 30),
-    );
+  test(
+    'soft delete target stays inside trash and preview rules are bounded',
+    () {
+      final target = buildSoftDeletePath(
+        virtualRoot: '/warm',
+        sourcePath: '/warm/videos/movie.mkv',
+        now: DateTime.utc(2026, 6, 11, 20, 15, 30),
+      );
 
-    expect(target.startsWith('/warm/.tablet-trash/'), isTrue);
-    expect(isImagePreviewable('photo.jpg'), isTrue);
-    expect(isTextPreviewable('server.log'), isTrue);
-    expect(isVideoPreviewable('movie.mkv'), isTrue);
-    expect(isImagePreviewable('archive.zip'), isFalse);
-  });
+      expect(target.startsWith('/warm/.tablet-trash/'), isTrue);
+      expect(isImagePreviewable('photo.jpg'), isTrue);
+      expect(isTextPreviewable('server.log'), isTrue);
+      expect(isVideoPreviewable('movie.mkv'), isTrue);
+      expect(isImagePreviewable('archive.zip'), isFalse);
+    },
+  );
 
   test('sftp mutation flags default to disabled', () {
     final settings = AppSettings.defaults();

@@ -99,11 +99,13 @@ class NetworkPage extends ConsumerWidget {
                 title: 'Receive Throughput',
                 samples: state.networkReceiveHistory,
                 color: AppColors.healthy,
+                valueType: MetricChartValueType.bytesPerSecond,
               ),
               MetricChart(
                 title: 'Transmit Throughput',
                 samples: state.networkSendHistory,
                 color: AppColors.accent,
+                valueType: MetricChartValueType.bytesPerSecond,
               ),
             ],
           ),
