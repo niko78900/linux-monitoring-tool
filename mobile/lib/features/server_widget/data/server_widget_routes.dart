@@ -10,8 +10,13 @@ String? routeForWidgetUri(Uri? uri) {
   return switch (target.toLowerCase()) {
     'overview' => '/overview',
     'storage' => '/storage',
+    'gpu' => '/gpu',
+    'network' => '/network',
     'history' => '/history',
     'hosts' => '/hosts',
+    'terminal' => '/terminal',
+    'files' => '/files',
+    'actions' => '/actions',
     _ => null,
   };
 }

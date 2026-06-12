@@ -1,6 +1,6 @@
 # Android Widget
 
-Phase G adds a native Android 4 x 2 `Server Essentials` home-screen widget for the Flutter tablet app.
+The Android app includes a small widget set for home-screen status at a glance. See `docs/ANDROID_WIDGETS_AND_PUSH_ALERTS.md` for the full widget and FCM alert architecture.
 
 ## Added packages
 
@@ -22,6 +22,11 @@ Phase G adds a native Android 4 x 2 `Server Essentials` home-screen widget for t
 ## Native Android files
 
 - `mobile/android/app/src/main/kotlin/com/niko/homelab_tablet/ServerEssentialsWidgetProvider.kt`
+- `mobile/android/app/src/main/kotlin/com/niko/homelab_tablet/CompactStatusWidgetProvider.kt`
+- `mobile/android/app/src/main/kotlin/com/niko/homelab_tablet/PerformanceWidgetProvider.kt`
+- `mobile/android/app/src/main/kotlin/com/niko/homelab_tablet/StorageHealthWidgetProvider.kt`
+- `mobile/android/app/src/main/kotlin/com/niko/homelab_tablet/NetworkActivityWidgetProvider.kt`
+- `mobile/android/app/src/main/kotlin/com/niko/homelab_tablet/QuickAccessWidgetProvider.kt`
 - `mobile/android/app/src/main/res/layout/server_essentials_widget.xml`
 - `mobile/android/app/src/main/res/xml/server_essentials_widget_info.xml`
 - `mobile/android/app/src/main/res/drawable/widget_surface.xml`
@@ -63,5 +68,5 @@ Default widget storage mountpoint is `/mnt/storage`. If that mountpoint is not p
 ## Limitations
 
 - Android background execution timing is not real-time. Periodic work is best-effort and can run later than the requested interval.
-- The widget keeps the last good snapshot on refresh failure and marks it stale or offline instead of clearing it.
+- The widgets keep the last good snapshot on refresh failure and mark it stale or offline instead of clearing it.
 - Network throughput is calculated from consecutive widget snapshots. The first successful snapshot has no throughput baseline and displays `N/A`.

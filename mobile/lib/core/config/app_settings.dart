@@ -31,8 +31,12 @@ class AppSettings {
     required this.allowSftpMove,
     required this.allowSftpSoftDelete,
     required this.widgetStorageMountpoint,
+    required this.widgetSecondaryStorageMountpoint,
+    required this.widgetShowSecondaryStorage,
     required this.widgetBackgroundRefreshMinutes,
     required this.widgetShowNetworkThroughput,
+    required this.mobilePushAlertsEnabled,
+    required this.mobilePushIncludeRecovery,
     required this.showRawApiErrors,
     required this.showRequestTiming,
   });
@@ -58,8 +62,12 @@ class AppSettings {
       allowSftpMove: false,
       allowSftpSoftDelete: false,
       widgetStorageMountpoint: '/mnt/storage',
+      widgetSecondaryStorageMountpoint: '/mnt/warm',
+      widgetShowSecondaryStorage: false,
       widgetBackgroundRefreshMinutes: 15,
       widgetShowNetworkThroughput: false,
+      mobilePushAlertsEnabled: false,
+      mobilePushIncludeRecovery: true,
       showRawApiErrors: false,
       showRequestTiming: false,
     );
@@ -84,8 +92,12 @@ class AppSettings {
   final bool allowSftpMove;
   final bool allowSftpSoftDelete;
   final String widgetStorageMountpoint;
+  final String widgetSecondaryStorageMountpoint;
+  final bool widgetShowSecondaryStorage;
   final int widgetBackgroundRefreshMinutes;
   final bool widgetShowNetworkThroughput;
+  final bool mobilePushAlertsEnabled;
+  final bool mobilePushIncludeRecovery;
   final bool showRawApiErrors;
   final bool showRequestTiming;
 
@@ -109,8 +121,12 @@ class AppSettings {
     bool? allowSftpMove,
     bool? allowSftpSoftDelete,
     String? widgetStorageMountpoint,
+    String? widgetSecondaryStorageMountpoint,
+    bool? widgetShowSecondaryStorage,
     int? widgetBackgroundRefreshMinutes,
     bool? widgetShowNetworkThroughput,
+    bool? mobilePushAlertsEnabled,
+    bool? mobilePushIncludeRecovery,
     bool? showRawApiErrors,
     bool? showRequestTiming,
   }) {
@@ -138,10 +154,19 @@ class AppSettings {
       allowSftpSoftDelete: allowSftpSoftDelete ?? this.allowSftpSoftDelete,
       widgetStorageMountpoint:
           widgetStorageMountpoint ?? this.widgetStorageMountpoint,
+      widgetSecondaryStorageMountpoint:
+          widgetSecondaryStorageMountpoint ??
+          this.widgetSecondaryStorageMountpoint,
+      widgetShowSecondaryStorage:
+          widgetShowSecondaryStorage ?? this.widgetShowSecondaryStorage,
       widgetBackgroundRefreshMinutes:
           widgetBackgroundRefreshMinutes ?? this.widgetBackgroundRefreshMinutes,
       widgetShowNetworkThroughput:
           widgetShowNetworkThroughput ?? this.widgetShowNetworkThroughput,
+      mobilePushAlertsEnabled:
+          mobilePushAlertsEnabled ?? this.mobilePushAlertsEnabled,
+      mobilePushIncludeRecovery:
+          mobilePushIncludeRecovery ?? this.mobilePushIncludeRecovery,
       showRawApiErrors: showRawApiErrors ?? this.showRawApiErrors,
       showRequestTiming: showRequestTiming ?? this.showRequestTiming,
     );
@@ -242,6 +267,9 @@ class SettingsController extends Notifier<AppSettings> {
       widgetStorageMountpoint: _normalizeWidgetMountpoint(
         settings.widgetStorageMountpoint,
       ),
+      widgetSecondaryStorageMountpoint: _normalizeWidgetMountpoint(
+        settings.widgetSecondaryStorageMountpoint,
+      ),
       widgetBackgroundRefreshMinutes: normalizeWidgetRefreshMinutes(
         settings.widgetBackgroundRefreshMinutes,
       ),
@@ -284,6 +312,14 @@ class SettingsController extends Notifier<AppSettings> {
       _Keys.widgetStorageMountpoint,
       settings.widgetStorageMountpoint,
     );
+    _preferences.setString(
+      _Keys.widgetSecondaryStorageMountpoint,
+      settings.widgetSecondaryStorageMountpoint,
+    );
+    _preferences.setBool(
+      _Keys.widgetShowSecondaryStorage,
+      settings.widgetShowSecondaryStorage,
+    );
     _preferences.setInt(
       _Keys.widgetBackgroundRefreshMinutes,
       settings.widgetBackgroundRefreshMinutes,
@@ -291,6 +327,14 @@ class SettingsController extends Notifier<AppSettings> {
     _preferences.setBool(
       _Keys.widgetShowNetworkThroughput,
       settings.widgetShowNetworkThroughput,
+    );
+    _preferences.setBool(
+      _Keys.mobilePushAlertsEnabled,
+      settings.mobilePushAlertsEnabled,
+    );
+    _preferences.setBool(
+      _Keys.mobilePushIncludeRecovery,
+      settings.mobilePushIncludeRecovery,
     );
     _preferences.setBool(_Keys.showRawApiErrors, settings.showRawApiErrors);
     _preferences.setBool(_Keys.showRequestTiming, settings.showRequestTiming);
@@ -386,6 +430,12 @@ AppSettings loadAppSettings(SharedPreferences preferences) {
     widgetStorageMountpoint:
         preferences.getString(_Keys.widgetStorageMountpoint) ??
         defaults.widgetStorageMountpoint,
+    widgetSecondaryStorageMountpoint:
+        preferences.getString(_Keys.widgetSecondaryStorageMountpoint) ??
+        defaults.widgetSecondaryStorageMountpoint,
+    widgetShowSecondaryStorage:
+        preferences.getBool(_Keys.widgetShowSecondaryStorage) ??
+        defaults.widgetShowSecondaryStorage,
     widgetBackgroundRefreshMinutes: normalizeWidgetRefreshMinutes(
       preferences.getInt(_Keys.widgetBackgroundRefreshMinutes) ??
           defaults.widgetBackgroundRefreshMinutes,
@@ -393,6 +443,12 @@ AppSettings loadAppSettings(SharedPreferences preferences) {
     widgetShowNetworkThroughput:
         preferences.getBool(_Keys.widgetShowNetworkThroughput) ??
         defaults.widgetShowNetworkThroughput,
+    mobilePushAlertsEnabled:
+        preferences.getBool(_Keys.mobilePushAlertsEnabled) ??
+        defaults.mobilePushAlertsEnabled,
+    mobilePushIncludeRecovery:
+        preferences.getBool(_Keys.mobilePushIncludeRecovery) ??
+        defaults.mobilePushIncludeRecovery,
     showRawApiErrors:
         preferences.getBool(_Keys.showRawApiErrors) ??
         defaults.showRawApiErrors,
@@ -461,9 +517,14 @@ class _Keys {
   static const allowSftpMove = 'allowSftpMove';
   static const allowSftpSoftDelete = 'allowSftpSoftDelete';
   static const widgetStorageMountpoint = 'widgetStorageMountpoint';
+  static const widgetSecondaryStorageMountpoint =
+      'widgetSecondaryStorageMountpoint';
+  static const widgetShowSecondaryStorage = 'widgetShowSecondaryStorage';
   static const widgetBackgroundRefreshMinutes =
       'widgetBackgroundRefreshMinutes';
   static const widgetShowNetworkThroughput = 'widgetShowNetworkThroughput';
+  static const mobilePushAlertsEnabled = 'mobilePushAlertsEnabled';
+  static const mobilePushIncludeRecovery = 'mobilePushIncludeRecovery';
   static const showRawApiErrors = 'showRawApiErrors';
   static const showRequestTiming = 'showRequestTiming';
   static const profileName = 'displayName';

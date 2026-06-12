@@ -2,11 +2,18 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="Homelab Tablet"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="homelab_urgent_alerts_v1" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -42,6 +49,61 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/server_essentials_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".CompactStatusWidgetProvider"
+            android:exported="true"
+            android:label="Compact Status">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/compact_status_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".PerformanceWidgetProvider"
+            android:exported="true"
+            android:label="Performance">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/performance_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".StorageHealthWidgetProvider"
+            android:exported="true"
+            android:label="Storage Health">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/storage_health_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".NetworkActivityWidgetProvider"
+            android:exported="true"
+            android:label="Network Activity">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/network_activity_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".QuickAccessWidgetProvider"
+            android:exported="true"
+            android:label="Quick Access">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/quick_access_widget_info" />
         </receiver>
         <receiver
             android:name="es.antonborri.home_widget.HomeWidgetBackgroundReceiver"

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_margin="8dp"
+    android:background="@drawable/widget_surface"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:padding="8dp">
+
+    <TextView
+        android:id="@+id/widget_overview"
+        style="@style/QuickAccessWidgetChip"
+        android:text="Overview" />
+
+    <TextView
+        android:id="@+id/widget_storage"
+        style="@style/QuickAccessWidgetChip"
+        android:text="Storage" />
+
+    <TextView
+        android:id="@+id/widget_terminal"
+        style="@style/QuickAccessWidgetChip"
+        android:text="Terminal" />
+
+    <TextView
+        android:id="@+id/widget_files"
+        style="@style/QuickAccessWidgetChip"
+        android:text="Files" />
+
+    <TextView
+        android:id="@+id/widget_actions"
+        style="@style/QuickAccessWidgetChip"
+        android:text="Actions" />
+</LinearLayout>

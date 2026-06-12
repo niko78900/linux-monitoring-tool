@@ -12,13 +12,17 @@ import '../../../../core/networking/dio_factory.dart';
 import '../../dashboard/data/monitoring_api_client.dart';
 import '../../dashboard/domain/models/monitoring_models.dart';
 import '../domain/models/server_widget_snapshot.dart';
+import 'server_widget_catalog.dart';
 import 'server_widget_routes.dart';
 import 'server_widget_scheduler.dart';
 
-const serverWidgetProviderName = 'ServerEssentialsWidgetProvider';
 const serverWidgetSnapshotKey = 'server_widget_snapshot';
 const serverWidgetShowNetworkRowKey = 'server_widget_show_network_row';
 const serverWidgetStorageMountpointKey = 'server_widget_storage_mountpoint';
+const serverWidgetSecondaryStorageMountpointKey =
+    'server_widget_secondary_storage_mountpoint';
+const serverWidgetShowSecondaryStorageKey =
+    'server_widget_show_secondary_storage';
 
 @pragma('vm:entry-point')
 void serverWidgetWorkmanagerDispatcher() {
@@ -197,6 +201,14 @@ class ServerWidgetService {
       serverWidgetStorageMountpointKey,
       settings.widgetStorageMountpoint,
     );
+    await HomeWidget.saveWidgetData<String>(
+      serverWidgetSecondaryStorageMountpointKey,
+      settings.widgetSecondaryStorageMountpoint,
+    );
+    await HomeWidget.saveWidgetData<bool>(
+      serverWidgetShowSecondaryStorageKey,
+      settings.widgetShowSecondaryStorage,
+    );
   }
 
   Future<ServerWidgetSnapshot?> _readStoredSnapshot() async {
@@ -216,7 +228,9 @@ class ServerWidgetService {
     }
   }
 
-  Future<void> _updateWidget() {
-    return HomeWidget.updateWidget(name: serverWidgetProviderName);
+  Future<void> _updateWidget() async {
+    for (final providerName in homeScreenWidgetProviderNames) {
+      await HomeWidget.updateWidget(name: providerName);
+    }
   }
 }

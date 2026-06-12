@@ -15,10 +15,17 @@ class ServerWidgetSnapshot {
     required this.gpuTemperatureC,
     required this.primaryDiskPercent,
     required this.primaryDiskLabel,
+    required this.primaryDiskFreeBytes,
+    required this.secondaryDiskPercent,
+    required this.secondaryDiskLabel,
+    required this.secondaryDiskFreeBytes,
     required this.raidHealth,
     required this.diskHealth,
     required this.networkRecvBytesPerSecond,
     required this.networkSendBytesPerSecond,
+    required this.networkBytesRecvTotal,
+    required this.networkBytesSentTotal,
+    required this.topNetworkSpeedMbps,
     required this.sourceNetworkBytesRecvTotal,
     required this.sourceNetworkBytesSentTotal,
   });
@@ -37,6 +44,10 @@ class ServerWidgetSnapshot {
       gpuTemperatureC: _doubleOrNull(json['gpu_temperature_c']),
       primaryDiskPercent: _doubleOrNull(json['primary_disk_percent']),
       primaryDiskLabel: _stringOrNull(json['primary_disk_label']),
+      primaryDiskFreeBytes: _intOrNull(json['primary_disk_free_bytes']),
+      secondaryDiskPercent: _doubleOrNull(json['secondary_disk_percent']),
+      secondaryDiskLabel: _stringOrNull(json['secondary_disk_label']),
+      secondaryDiskFreeBytes: _intOrNull(json['secondary_disk_free_bytes']),
       raidHealth: _stringOrNull(json['raid_health']),
       diskHealth: _stringOrNull(json['disk_health']),
       networkRecvBytesPerSecond: _doubleOrNull(
@@ -45,6 +56,9 @@ class ServerWidgetSnapshot {
       networkSendBytesPerSecond: _doubleOrNull(
         json['network_send_bytes_per_second'],
       ),
+      networkBytesRecvTotal: _intOrNull(json['network_bytes_recv_total']),
+      networkBytesSentTotal: _intOrNull(json['network_bytes_sent_total']),
+      topNetworkSpeedMbps: _intOrNull(json['top_network_speed_mbps']),
       sourceNetworkBytesRecvTotal: _intOrNull(
         json['source_network_bytes_recv_total'],
       ),
@@ -66,6 +80,9 @@ class ServerWidgetSnapshot {
       system.disks,
       settings.widgetStorageMountpoint,
     );
+    final secondaryDisk = settings.widgetShowSecondaryStorage
+        ? _pickDisk(system.disks, settings.widgetSecondaryStorageMountpoint)
+        : null;
     final timestamp = updatedAt.toUtc();
     final receiveRate = _calculateThroughput(
       previousTotal: previous?.sourceNetworkBytesRecvTotal,
@@ -99,6 +116,10 @@ class ServerWidgetSnapshot {
           : null,
       primaryDiskPercent: selectedDisk?.percent ?? system.disk.percent,
       primaryDiskLabel: selectedDisk?.mountpoint ?? system.disk.mountpoint,
+      primaryDiskFreeBytes: selectedDisk?.free ?? system.disk.free,
+      secondaryDiskPercent: secondaryDisk?.percent,
+      secondaryDiskLabel: secondaryDisk?.mountpoint,
+      secondaryDiskFreeBytes: secondaryDisk?.free,
       raidHealth: _aggregateHealth(
         system.raidArrays.map((array) => array.health.status),
       ),
@@ -108,6 +129,9 @@ class ServerWidgetSnapshot {
       ]),
       networkRecvBytesPerSecond: receiveRate,
       networkSendBytesPerSecond: sendRate,
+      networkBytesRecvTotal: system.network.bytesRecv,
+      networkBytesSentTotal: system.network.bytesSent,
+      topNetworkSpeedMbps: system.network.topSpeedMbps,
       sourceNetworkBytesRecvTotal: system.network.bytesRecv,
       sourceNetworkBytesSentTotal: system.network.bytesSent,
     );
@@ -133,10 +157,17 @@ class ServerWidgetSnapshot {
       gpuTemperatureC: null,
       primaryDiskPercent: null,
       primaryDiskLabel: null,
+      primaryDiskFreeBytes: null,
+      secondaryDiskPercent: null,
+      secondaryDiskLabel: null,
+      secondaryDiskFreeBytes: null,
       raidHealth: null,
       diskHealth: null,
       networkRecvBytesPerSecond: null,
       networkSendBytesPerSecond: null,
+      networkBytesRecvTotal: null,
+      networkBytesSentTotal: null,
+      topNetworkSpeedMbps: null,
       sourceNetworkBytesRecvTotal: null,
       sourceNetworkBytesSentTotal: null,
     );
@@ -154,10 +185,17 @@ class ServerWidgetSnapshot {
   final double? gpuTemperatureC;
   final double? primaryDiskPercent;
   final String? primaryDiskLabel;
+  final int? primaryDiskFreeBytes;
+  final double? secondaryDiskPercent;
+  final String? secondaryDiskLabel;
+  final int? secondaryDiskFreeBytes;
   final String? raidHealth;
   final String? diskHealth;
   final double? networkRecvBytesPerSecond;
   final double? networkSendBytesPerSecond;
+  final int? networkBytesRecvTotal;
+  final int? networkBytesSentTotal;
+  final int? topNetworkSpeedMbps;
   final int? sourceNetworkBytesRecvTotal;
   final int? sourceNetworkBytesSentTotal;
 
@@ -174,10 +212,17 @@ class ServerWidgetSnapshot {
     double? gpuTemperatureC,
     double? primaryDiskPercent,
     String? primaryDiskLabel,
+    int? primaryDiskFreeBytes,
+    double? secondaryDiskPercent,
+    String? secondaryDiskLabel,
+    int? secondaryDiskFreeBytes,
     String? raidHealth,
     String? diskHealth,
     double? networkRecvBytesPerSecond,
     double? networkSendBytesPerSecond,
+    int? networkBytesRecvTotal,
+    int? networkBytesSentTotal,
+    int? topNetworkSpeedMbps,
     int? sourceNetworkBytesRecvTotal,
     int? sourceNetworkBytesSentTotal,
   }) {
@@ -195,12 +240,22 @@ class ServerWidgetSnapshot {
       gpuTemperatureC: gpuTemperatureC ?? this.gpuTemperatureC,
       primaryDiskPercent: primaryDiskPercent ?? this.primaryDiskPercent,
       primaryDiskLabel: primaryDiskLabel ?? this.primaryDiskLabel,
+      primaryDiskFreeBytes: primaryDiskFreeBytes ?? this.primaryDiskFreeBytes,
+      secondaryDiskPercent: secondaryDiskPercent ?? this.secondaryDiskPercent,
+      secondaryDiskLabel: secondaryDiskLabel ?? this.secondaryDiskLabel,
+      secondaryDiskFreeBytes:
+          secondaryDiskFreeBytes ?? this.secondaryDiskFreeBytes,
       raidHealth: raidHealth ?? this.raidHealth,
       diskHealth: diskHealth ?? this.diskHealth,
       networkRecvBytesPerSecond:
           networkRecvBytesPerSecond ?? this.networkRecvBytesPerSecond,
       networkSendBytesPerSecond:
           networkSendBytesPerSecond ?? this.networkSendBytesPerSecond,
+      networkBytesRecvTotal:
+          networkBytesRecvTotal ?? this.networkBytesRecvTotal,
+      networkBytesSentTotal:
+          networkBytesSentTotal ?? this.networkBytesSentTotal,
+      topNetworkSpeedMbps: topNetworkSpeedMbps ?? this.topNetworkSpeedMbps,
       sourceNetworkBytesRecvTotal:
           sourceNetworkBytesRecvTotal ?? this.sourceNetworkBytesRecvTotal,
       sourceNetworkBytesSentTotal:
@@ -223,10 +278,17 @@ class ServerWidgetSnapshot {
       'gpu_temperature_c': gpuTemperatureC,
       'primary_disk_percent': primaryDiskPercent,
       'primary_disk_label': primaryDiskLabel,
+      'primary_disk_free_bytes': primaryDiskFreeBytes,
+      'secondary_disk_percent': secondaryDiskPercent,
+      'secondary_disk_label': secondaryDiskLabel,
+      'secondary_disk_free_bytes': secondaryDiskFreeBytes,
       'raid_health': raidHealth,
       'disk_health': diskHealth,
       'network_recv_bytes_per_second': networkRecvBytesPerSecond,
       'network_send_bytes_per_second': networkSendBytesPerSecond,
+      'network_bytes_recv_total': networkBytesRecvTotal,
+      'network_bytes_sent_total': networkBytesSentTotal,
+      'top_network_speed_mbps': topNetworkSpeedMbps,
       'source_network_bytes_recv_total': sourceNetworkBytesRecvTotal,
       'source_network_bytes_sent_total': sourceNetworkBytesSentTotal,
     };

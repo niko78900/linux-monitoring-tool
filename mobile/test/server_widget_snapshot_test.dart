@@ -20,10 +20,17 @@ void main() {
       gpuTemperatureC: 49,
       primaryDiskPercent: 63,
       primaryDiskLabel: '/mnt/storage',
+      primaryDiskFreeBytes: 37,
+      secondaryDiskPercent: 40,
+      secondaryDiskLabel: '/mnt/warm',
+      secondaryDiskFreeBytes: 60,
       raidHealth: 'healthy',
       diskHealth: 'healthy',
       networkRecvBytesPerSecond: 1024,
       networkSendBytesPerSecond: 2048,
+      networkBytesRecvTotal: 3000,
+      networkBytesSentTotal: 4000,
+      topNetworkSpeedMbps: 1000,
       sourceNetworkBytesRecvTotal: 3000,
       sourceNetworkBytesSentTotal: 4000,
     );
@@ -35,7 +42,9 @@ void main() {
     expect(decoded.hostname, snapshot.hostname);
     expect(decoded.serverReachable, isTrue);
     expect(decoded.primaryDiskLabel, '/mnt/storage');
+    expect(decoded.secondaryDiskLabel, '/mnt/warm');
     expect(decoded.networkSendBytesPerSecond, 2048);
+    expect(decoded.topNetworkSpeedMbps, 1000);
   });
 
   test('snapshot builder handles missing gpu and first-sample throughput', () {
@@ -52,6 +61,24 @@ void main() {
     expect(snapshot.gpuTemperatureC, isNull);
     expect(snapshot.networkRecvBytesPerSecond, isNull);
     expect(snapshot.primaryDiskLabel, '/mnt/storage');
+    expect(snapshot.primaryDiskFreeBytes, 37);
+  });
+
+  test('snapshot builder includes optional secondary storage', () {
+    final settings = AppSettings.defaults().copyWith(
+      widgetShowSecondaryStorage: true,
+      widgetSecondaryStorageMountpoint: '/mnt/warm',
+    );
+    final snapshot = ServerWidgetSnapshot.fromMonitoringData(
+      summary: _summary(),
+      system: _system(),
+      settings: settings,
+      updatedAt: DateTime.utc(2026, 6, 11, 12),
+    );
+
+    expect(snapshot.secondaryDiskLabel, '/mnt/warm');
+    expect(snapshot.secondaryDiskPercent, 40);
+    expect(snapshot.secondaryDiskFreeBytes, 60);
   });
 
   test('snapshot builder calculates throughput from previous totals', () {
@@ -90,10 +117,17 @@ void main() {
         gpuTemperatureC: 49,
         primaryDiskPercent: 63,
         primaryDiskLabel: '/mnt/storage',
+        primaryDiskFreeBytes: 37,
+        secondaryDiskPercent: 40,
+        secondaryDiskLabel: '/mnt/warm',
+        secondaryDiskFreeBytes: 60,
         raidHealth: 'healthy',
         diskHealth: 'healthy',
         networkRecvBytesPerSecond: 1024,
         networkSendBytesPerSecond: 2048,
+        networkBytesRecvTotal: 3000,
+        networkBytesSentTotal: 4000,
+        topNetworkSpeedMbps: 1000,
         sourceNetworkBytesRecvTotal: 3000,
         sourceNetworkBytesSentTotal: 4000,
       ),
@@ -102,6 +136,31 @@ void main() {
     expect(previous.serverReachable, isFalse);
     expect(previous.isStale, isTrue);
     expect(previous.cpuPercent, 22);
+    expect(previous.secondaryDiskLabel, '/mnt/warm');
+  });
+
+  test('snapshot serialization excludes sensitive values', () {
+    const forbidden = [
+      'token',
+      'fcm_token',
+      'control_api_token',
+      'ssh_private_key',
+      'sftp_private_key',
+      'passphrase',
+      'shell_output',
+      'file_contents',
+    ];
+    final snapshot = ServerWidgetSnapshot.fromMonitoringData(
+      summary: _summary(),
+      system: _system(),
+      settings: AppSettings.defaults(),
+      updatedAt: DateTime.utc(2026, 6, 11, 12),
+    );
+    final encoded = jsonEncode(snapshot.toJson()).toLowerCase();
+
+    for (final value in forbidden) {
+      expect(encoded.contains(value), isFalse);
+    }
   });
 }
 
@@ -206,6 +265,20 @@ SystemResponse _system({int bytesRecv = 2000, int bytesSent = 3000}) {
         available: true,
         raidArray: 'md0',
         raidLevel: 'raid1',
+        health: HealthInfo(status: 'healthy', reason: 'ok'),
+      ),
+      DiskDeviceMetrics(
+        device: '/dev/sdb1',
+        mountpoint: '/mnt/warm',
+        fstype: 'ext4',
+        total: 100,
+        used: 40,
+        free: 60,
+        percent: 40,
+        readOnly: false,
+        available: true,
+        raidArray: null,
+        raidLevel: null,
         health: HealthInfo(status: 'healthy', reason: 'ok'),
       ),
     ],
