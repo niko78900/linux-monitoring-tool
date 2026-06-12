@@ -9,6 +9,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/temperature_format.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/section_card.dart';
+import '../../../dashboard/presentation/widgets/metric_chart.dart';
 import '../../domain/models/history_models.dart';
 import '../providers/history_providers.dart';
 import '../widgets/history_chart.dart';
@@ -161,7 +162,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                         value: point.cpuPercentAvg,
                       ),
                   ],
-                  maxY: 100,
+                  valueType: MetricChartValueType.percent,
                 ),
                 HistoryChart(
                   title: 'CPU Temperature',
@@ -172,7 +173,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                         value: point.cpuTemperatureCAvg,
                       ),
                   ],
-                  maxY: 110,
+                  valueType: MetricChartValueType.temperatureC,
                   color: AppColors.warning,
                 ),
                 HistoryChart(
@@ -184,7 +185,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                         value: point.memoryPercentAvg,
                       ),
                   ],
-                  maxY: 100,
+                  valueType: MetricChartValueType.percent,
                   color: AppColors.healthy,
                 ),
                 HistoryChart(
@@ -196,7 +197,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                         value: point.swapPercentAvg,
                       ),
                   ],
-                  maxY: 100,
+                  valueType: MetricChartValueType.percent,
                   color: AppColors.textMuted,
                 ),
                 HistoryChart(
@@ -208,7 +209,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                         value: point.gpuUtilizationPercentAvg,
                       ),
                   ],
-                  maxY: 100,
+                  valueType: MetricChartValueType.percent,
                 ),
                 HistoryChart(
                   title: 'GPU Temperature',
@@ -219,7 +220,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                         value: point.gpuTemperatureCAvg,
                       ),
                   ],
-                  maxY: 110,
+                  valueType: MetricChartValueType.temperatureC,
                   color: AppColors.warning,
                 ),
                 HistoryChart(
@@ -231,6 +232,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                         value: point.gpuMemoryUsedMbAvg,
                       ),
                   ],
+                  valueType: MetricChartValueType.megabytes,
                   color: AppColors.healthy,
                 ),
                 HistoryChart(
@@ -242,6 +244,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                         value: point.networkRecvBytesPerSecondAvg,
                       ),
                   ],
+                  valueType: MetricChartValueType.bytesPerSecond,
                   color: AppColors.healthy,
                 ),
                 HistoryChart(
@@ -253,6 +256,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                         value: point.networkSendBytesPerSecondAvg,
                       ),
                   ],
+                  valueType: MetricChartValueType.bytesPerSecond,
                 ),
               ],
             ),
@@ -303,7 +307,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                               value: point.percentAvg,
                             ),
                         ],
-                        maxY: 100,
+                        valueType: MetricChartValueType.percent,
                       ),
                       HistoryChart(
                         title: 'Used Space',
@@ -314,6 +318,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                               value: point.usedBytesAvg,
                             ),
                         ],
+                        valueType: MetricChartValueType.bytes,
                         color: AppColors.warning,
                       ),
                       HistoryChart(
@@ -325,6 +330,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                               value: point.freeBytesAvg,
                             ),
                         ],
+                        valueType: MetricChartValueType.bytes,
                         color: AppColors.healthy,
                       ),
                     ],
@@ -381,7 +387,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                                     value: point.temperatureCAvg,
                                   ),
                               ],
-                              maxY: 110,
+                              valueType: MetricChartValueType.temperatureC,
                               color: AppColors.warning,
                             ),
                           ],

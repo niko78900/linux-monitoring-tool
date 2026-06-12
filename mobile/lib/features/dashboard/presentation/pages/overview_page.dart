@@ -215,43 +215,45 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
               MetricChart(
                 title: 'CPU Usage',
                 samples: state.cpuHistory,
-                maxY: 100,
                 color: AppColors.accent,
+                valueType: MetricChartValueType.percent,
               ),
               MetricChart(
                 title: 'CPU Temperature',
                 samples: state.cpuTemperatureHistory,
-                maxY: 110,
                 color: AppColors.warning,
+                valueType: MetricChartValueType.temperatureC,
               ),
               MetricChart(
                 title: 'Memory Usage',
                 samples: state.memoryHistory,
-                maxY: 100,
                 color: AppColors.healthy,
+                valueType: MetricChartValueType.percent,
               ),
               if (gpu?.available == true)
                 MetricChart(
                   title: 'GPU Utilization',
                   samples: state.gpuUtilizationHistory,
-                  maxY: 100,
+                  valueType: MetricChartValueType.percent,
                 ),
               if (gpu?.available == true)
                 MetricChart(
                   title: 'GPU Temperature',
                   samples: state.gpuTemperatureHistory,
-                  maxY: 110,
                   color: AppColors.warning,
+                  valueType: MetricChartValueType.temperatureC,
                 ),
               MetricChart(
                 title: 'Network Receive',
                 samples: state.networkReceiveHistory,
                 color: AppColors.healthy,
+                valueType: MetricChartValueType.bytesPerSecond,
               ),
               MetricChart(
                 title: 'Network Send',
                 samples: state.networkSendHistory,
                 color: AppColors.accent,
+                valueType: MetricChartValueType.bytesPerSecond,
               ),
             ],
           ),

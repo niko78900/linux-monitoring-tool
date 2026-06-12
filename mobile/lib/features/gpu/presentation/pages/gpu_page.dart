@@ -114,21 +114,18 @@ class GpuPage extends ConsumerWidget {
                 MetricChart(
                   title: 'GPU Utilization',
                   samples: state.gpuUtilizationHistory,
-                  maxY: 100,
                   color: AppColors.accent,
                   valueType: MetricChartValueType.percent,
                 ),
                 MetricChart(
                   title: 'GPU Temperature',
                   samples: state.gpuTemperatureHistory,
-                  maxY: 110,
                   color: AppColors.warning,
                   valueType: MetricChartValueType.temperatureC,
                 ),
                 MetricChart(
                   title: 'VRAM Usage',
                   samples: state.gpuVramHistory,
-                  maxY: 100,
                   color: AppColors.healthy,
                   valueType: MetricChartValueType.percent,
                 ),
