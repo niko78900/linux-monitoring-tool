@@ -8,7 +8,7 @@ class ResourceState<T> {
     required this.lastAttemptedRefresh,
   });
 
-  factory ResourceState.initial() => const ResourceState(
+  factory ResourceState.initial() => ResourceState<T>(
     data: null,
     loading: true,
     refreshing: false,
@@ -38,7 +38,7 @@ class ResourceState<T> {
 
   ResourceState<T> success(T nextData) {
     final now = DateTime.now();
-    return ResourceState(
+    return ResourceState<T>(
       data: nextData,
       loading: false,
       refreshing: false,
@@ -66,7 +66,7 @@ class ResourceState<T> {
     DateTime? lastAttemptedRefresh,
     bool clearError = false,
   }) {
-    return ResourceState(
+    return ResourceState<T>(
       data: data ?? this.data,
       loading: loading ?? this.loading,
       refreshing: refreshing ?? this.refreshing,
