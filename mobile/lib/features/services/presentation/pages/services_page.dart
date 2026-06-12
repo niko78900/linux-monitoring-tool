@@ -35,14 +35,17 @@ class _ServicesPageState extends ConsumerState<ServicesPage> {
       data: (services) {
         final visible = widget.hostId == null
             ? services
-            : services.where((service) => service.hostId == widget.hostId).toList();
+            : services
+                  .where((service) => service.hostId == widget.hostId)
+                  .toList();
         if (visible.isEmpty) {
           return Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: EmptyState(
               icon: Icons.miscellaneous_services,
               title: 'No services configured',
-              message: 'Add allowlisted services in the control-agent registry.',
+              message:
+                  'Add allowlisted services in the control-agent registry.',
             ),
           );
         }
@@ -142,10 +145,9 @@ class _ServicesPageState extends ConsumerState<ServicesPage> {
     });
 
     try {
-      final result = await ref.read(serviceRepositoryProvider).sendAction(
-        serviceId: service.serviceId,
-        action: action,
-      );
+      final result = await ref
+          .read(serviceRepositoryProvider)
+          .sendAction(serviceId: service.serviceId, action: action);
       if (!mounted) {
         return;
       }
@@ -227,7 +229,10 @@ class _ServiceCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          _InfoLine(label: 'Last checked', value: _formatTime(service.lastChecked)),
+          _InfoLine(
+            label: 'Last checked',
+            value: _formatTime(service.lastChecked),
+          ),
           _InfoLine(
             label: 'Last action',
             value: service.lastAction == null
@@ -316,10 +321,7 @@ class _ServiceCard extends StatelessWidget {
 }
 
 class _InfoLine extends StatelessWidget {
-  const _InfoLine({
-    required this.label,
-    required this.value,
-  });
+  const _InfoLine({required this.label, required this.value});
 
   final String label;
   final String value;

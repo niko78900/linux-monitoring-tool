@@ -83,7 +83,8 @@ class _DeviceDetailPageState extends ConsumerState<DeviceDetailPage> {
                   label: 'Last Seen',
                   value: _formatTime(device.lastSeen),
                 ),
-                if (device.notes != null && device.notes!.trim().isNotEmpty) ...[
+                if (device.notes != null &&
+                    device.notes!.trim().isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.sm),
                   Text(device.notes!),
                 ],
@@ -133,9 +134,7 @@ class _DeviceDetailPageState extends ConsumerState<DeviceDetailPage> {
                     ),
                     title: Text(probe.label),
                     subtitle: Text(probe.summary),
-                    trailing: probe.port == null
-                        ? null
-                        : Text('${probe.port}'),
+                    trailing: probe.port == null ? null : Text('${probe.port}'),
                   ),
                   if (probe != device.probes.last)
                     const Divider(height: AppSpacing.lg),
@@ -217,7 +216,9 @@ class _DeviceDetailPageState extends ConsumerState<DeviceDetailPage> {
     for (var attempt = 0; attempt < 6; attempt += 1) {
       ref.invalidate(devicesDashboardProvider);
       try {
-        final device = await ref.read(knownDeviceProvider(widget.deviceId).future);
+        final device = await ref.read(
+          knownDeviceProvider(widget.deviceId).future,
+        );
         if (device.online) {
           if (mounted) {
             setState(() => _statusMessage = '${device.name} is online.');
@@ -231,7 +232,8 @@ class _DeviceDetailPageState extends ConsumerState<DeviceDetailPage> {
     }
     if (mounted) {
       setState(
-        () => _statusMessage = 'Wake sent. Device is still offline from this view.',
+        () => _statusMessage =
+            'Wake sent. Device is still offline from this view.',
       );
     }
   }
@@ -271,10 +273,7 @@ class _DeviceDetailPageState extends ConsumerState<DeviceDetailPage> {
 }
 
 class _InfoLine extends StatelessWidget {
-  const _InfoLine({
-    required this.label,
-    required this.value,
-  });
+  const _InfoLine({required this.label, required this.value});
 
   final String label;
   final String value;

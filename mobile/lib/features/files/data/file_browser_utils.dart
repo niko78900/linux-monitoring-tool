@@ -13,18 +13,37 @@ String buildSftpProfileId(ConnectionProfile profile) {
 }
 
 bool isImagePreviewable(String fileName) {
-  return _matchesExtension(fileName, const ['jpg', 'jpeg', 'png', 'webp', 'gif']);
+  return _matchesExtension(fileName, const [
+    'jpg',
+    'jpeg',
+    'png',
+    'webp',
+    'gif',
+  ]);
 }
 
 bool isTextPreviewable(String fileName) {
-  return _matchesExtension(
-    fileName,
-    const ['txt', 'log', 'md', 'json', 'yaml', 'yml', 'conf', 'ini', 'csv'],
-  );
+  return _matchesExtension(fileName, const [
+    'txt',
+    'log',
+    'md',
+    'json',
+    'yaml',
+    'yml',
+    'conf',
+    'ini',
+    'csv',
+  ]);
 }
 
 bool isVideoPreviewable(String fileName) {
-  return _matchesExtension(fileName, const ['mp4', 'mkv', 'webm', 'mov', 'avi']);
+  return _matchesExtension(fileName, const [
+    'mp4',
+    'mkv',
+    'webm',
+    'mov',
+    'avi',
+  ]);
 }
 
 String buildSoftDeletePath({
@@ -32,7 +51,10 @@ String buildSoftDeletePath({
   required String sourcePath,
   required DateTime now,
 }) {
-  final trashRoot = normalizeVirtualPath(virtualRoot, '$virtualRoot/.tablet-trash');
+  final trashRoot = normalizeVirtualPath(
+    virtualRoot,
+    '$virtualRoot/.tablet-trash',
+  );
   final fileName = sourcePath.split('/').last;
   final timestamp =
       '${now.year.toString().padLeft(4, '0')}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-'

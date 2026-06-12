@@ -48,7 +48,8 @@ class HistoryRepository {
     required int maxPoints,
   }) {
     return _fetchCached(
-      key: 'storage-${range.apiKey}-${Uri.encodeComponent(mountpoint)}-$maxPoints',
+      key:
+          'storage-${range.apiKey}-${Uri.encodeComponent(mountpoint)}-$maxPoints',
       request: () => _client.getHistoryStoragePayload(
         range: range.apiKey,
         mountpoint: mountpoint,
@@ -94,12 +95,8 @@ class HistoryRepository {
     final system = await _client.getSystem();
     return HistoryInventory(
       mountpoints: _preferredMountpoints(system),
-      diskDevices: [
-        for (final disk in system.physicalDisks) disk.device,
-      ],
-      raidArrays: [
-        for (final raid in system.raidArrays) raid.name,
-      ],
+      diskDevices: [for (final disk in system.physicalDisks) disk.device],
+      raidArrays: [for (final raid in system.raidArrays) raid.name],
     );
   }
 
@@ -131,9 +128,7 @@ class HistoryRepository {
 
   List<String> _preferredMountpoints(SystemResponse system) {
     final preferred = <String>{'/', '/mnt/warm', '/mnt/storage'};
-    final discovered = {
-      for (final disk in system.disks) disk.mountpoint,
-    };
+    final discovered = {for (final disk in system.disks) disk.mountpoint};
     final ordered = <String>[
       for (final mountpoint in preferred)
         if (discovered.contains(mountpoint)) mountpoint,

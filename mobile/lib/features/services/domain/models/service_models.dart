@@ -21,11 +21,14 @@ class ManagedService {
       healthProbeState: json['health_probe_state'] as String? ?? 'unknown',
       lastChecked: _parseDateTime(json['last_checked']),
       allowedActions: [
-        for (final item in (json['allowed_actions'] as List<dynamic>? ?? const []))
+        for (final item
+            in (json['allowed_actions'] as List<dynamic>? ?? const []))
           item.toString(),
       ],
       lastAction: json['last_action'] is Map<String, dynamic>
-          ? ServiceActionResult.fromJson(json['last_action'] as Map<String, dynamic>)
+          ? ServiceActionResult.fromJson(
+              json['last_action'] as Map<String, dynamic>,
+            )
           : null,
     );
   }

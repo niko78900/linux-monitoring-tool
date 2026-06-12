@@ -41,7 +41,9 @@ class FilePreviewService {
     required String fileName,
     required int? sizeBytes,
   }) async {
-    if (sizeBytes != null && sizeBytes > maxImagePreviewBytes && !isVideoPreviewable(fileName)) {
+    if (sizeBytes != null &&
+        sizeBytes > maxImagePreviewBytes &&
+        !isVideoPreviewable(fileName)) {
       throw const FilePreviewException('Preview exceeds the 25 MB limit.');
     }
     final cacheDir = await _ensureCacheDirectory();

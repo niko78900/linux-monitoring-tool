@@ -212,10 +212,7 @@ class SshConnectionService {
 }
 
 class SshShellConnection {
-  SshShellConnection({
-    required this.client,
-    required this.session,
-  });
+  SshShellConnection({required this.client, required this.session});
 
   final SSHClient client;
   final SSHSession session;

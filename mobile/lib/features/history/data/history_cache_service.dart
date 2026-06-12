@@ -5,15 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 final historyCacheServiceProvider = Provider<HistoryCacheService>(
-  (ref) => HistoryCacheService(
-    readRootDirectory: getApplicationDocumentsDirectory,
-  ),
+  (ref) =>
+      HistoryCacheService(readRootDirectory: getApplicationDocumentsDirectory),
 );
 
 class HistoryCacheService {
-  HistoryCacheService({
-    required Future<Directory> Function() readRootDirectory,
-  }) : _readRootDirectory = readRootDirectory;
+  HistoryCacheService({required Future<Directory> Function() readRootDirectory})
+    : _readRootDirectory = readRootDirectory;
 
   final Future<Directory> Function() _readRootDirectory;
 
@@ -44,24 +42,21 @@ class HistoryCacheService {
     }
     return CachedJsonPayload(
       cachedAt: DateTime.tryParse(decoded['cached_at'] as String? ?? ''),
-      payload: payload.map(
-        (key, value) => MapEntry(key.toString(), value),
-      ),
+      payload: payload.map((key, value) => MapEntry(key.toString(), value)),
     );
   }
 
   Future<File> _fileForKey(String key) async {
     final root = await _readRootDirectory();
     final safeKey = key.replaceAll(RegExp(r'[^a-zA-Z0-9._-]+'), '_');
-    return File('${root.path}${Platform.pathSeparator}history-cache${Platform.pathSeparator}$safeKey.json');
+    return File(
+      '${root.path}${Platform.pathSeparator}history-cache${Platform.pathSeparator}$safeKey.json',
+    );
   }
 }
 
 class CachedJsonPayload {
-  const CachedJsonPayload({
-    required this.cachedAt,
-    required this.payload,
-  });
+  const CachedJsonPayload({required this.cachedAt, required this.payload});
 
   final DateTime? cachedAt;
   final Map<String, dynamic> payload;

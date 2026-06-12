@@ -34,8 +34,7 @@ class TransferQueuePanel extends StatelessWidget {
                     onRetry: () => onRetry(item),
                     onOpen: () => onOpen(item),
                   ),
-                  if (item != items.last)
-                    const Divider(height: AppSpacing.lg),
+                  if (item != items.last) const Divider(height: AppSpacing.lg),
                 ],
               ],
             ),
@@ -61,7 +60,8 @@ class _TransferRow extends StatelessWidget {
     final progress = item.progress;
     final progressText = switch (item.totalBytes) {
       null => formatBytes(item.transferredBytes),
-      final total => '${formatBytes(item.transferredBytes)} / ${formatBytes(total)}',
+      final total =>
+        '${formatBytes(item.transferredBytes)} / ${formatBytes(total)}',
     };
 
     return Column(
@@ -105,21 +105,12 @@ class _TransferRow extends StatelessWidget {
           children: [
             if (item.state == TransferState.queued ||
                 item.state == TransferState.downloading)
-              OutlinedButton(
-                onPressed: onCancel,
-                child: const Text('Cancel'),
-              ),
+              OutlinedButton(onPressed: onCancel, child: const Text('Cancel')),
             if (item.state == TransferState.failed ||
                 item.state == TransferState.cancelled)
-              OutlinedButton(
-                onPressed: onRetry,
-                child: const Text('Retry'),
-              ),
+              OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
             if (item.state == TransferState.completed && item.localPath != null)
-              FilledButton(
-                onPressed: onOpen,
-                child: const Text('Open file'),
-              ),
+              FilledButton(onPressed: onOpen, child: const Text('Open file')),
           ],
         ),
       ],

@@ -21,8 +21,9 @@ abstract class ServiceRepository {
 }
 
 class ControlAgentServiceRepository implements ServiceRepository {
-  const ControlAgentServiceRepository({required ControlRepository controlRepository})
-    : _controlRepository = controlRepository;
+  const ControlAgentServiceRepository({
+    required ControlRepository controlRepository,
+  }) : _controlRepository = controlRepository;
 
   final ControlRepository _controlRepository;
 

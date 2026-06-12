@@ -106,7 +106,9 @@ class FileMetadataStore {
     );
   }
 
-  Future<List<RecentDownloadRecord>> listRecentDownloads(String hostProfileId) async {
+  Future<List<RecentDownloadRecord>> listRecentDownloads(
+    String hostProfileId,
+  ) async {
     final db = await open();
     final rows = await db.query(
       'recent_downloads',
@@ -124,7 +126,8 @@ class FileMetadataStore {
             localPath: row['local_path'] as String,
             sizeBytes: row['size_bytes'] as int?,
             remoteModifiedAt: _readEpoch(row['remote_modified_at']),
-            downloadedAt: _readEpoch(row['downloaded_at']) ?? DateTime.now().toUtc(),
+            downloadedAt:
+                _readEpoch(row['downloaded_at']) ?? DateTime.now().toUtc(),
           ),
         )
         .toList(growable: false);
@@ -143,7 +146,10 @@ class FileMetadataStore {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  Future<void> removeRecentDownload(String hostProfileId, String remotePath) async {
+  Future<void> removeRecentDownload(
+    String hostProfileId,
+    String remotePath,
+  ) async {
     final db = await open();
     await db.delete(
       'recent_downloads',
@@ -193,7 +199,10 @@ class FileMetadataStore {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  Future<void> clearTransferCheckpoint(String hostProfileId, String remotePath) async {
+  Future<void> clearTransferCheckpoint(
+    String hostProfileId,
+    String remotePath,
+  ) async {
     final db = await open();
     await db.delete(
       'transfer_jobs',

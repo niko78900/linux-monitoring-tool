@@ -66,7 +66,10 @@ class HistoryChart extends StatelessWidget {
                   ),
                   titlesData: const FlTitlesData(
                     leftTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: true, reservedSize: 36),
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 36,
+                      ),
                     ),
                     rightTitles: AxisTitles(
                       sideTitles: SideTitles(showTitles: false),

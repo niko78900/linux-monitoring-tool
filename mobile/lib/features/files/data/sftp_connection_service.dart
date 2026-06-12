@@ -180,10 +180,7 @@ class SftpConnectionService {
 }
 
 class SftpSessionConnection {
-  SftpSessionConnection({
-    required this.client,
-    required this.sftp,
-  });
+  SftpSessionConnection({required this.client, required this.sftp});
 
   final SSHClient client;
   final SftpClient sftp;

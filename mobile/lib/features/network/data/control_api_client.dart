@@ -51,7 +51,9 @@ class ControlApiClient {
     return NeighborsSnapshot(
       notice: payload['notice'] as String? ?? '',
       neighbors: neighbors
-          .map((item) => ObservedNeighbor.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) => ObservedNeighbor.fromJson(item as Map<String, dynamic>),
+          )
           .toList(growable: false),
     );
   }
@@ -81,7 +83,9 @@ class ControlApiClient {
   }
 
   Future<ManagedService> getService(String serviceId) async {
-    final response = await _dio.get<Map<String, dynamic>>('/services/$serviceId');
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/services/$serviceId',
+    );
     final payload = response.data ?? const <String, dynamic>{};
     return ManagedService.fromJson(payload);
   }
@@ -125,10 +129,7 @@ class WakeActionResult {
 }
 
 class NeighborsSnapshot {
-  const NeighborsSnapshot({
-    required this.notice,
-    required this.neighbors,
-  });
+  const NeighborsSnapshot({required this.notice, required this.neighbors});
 
   final String notice;
   final List<ObservedNeighbor> neighbors;

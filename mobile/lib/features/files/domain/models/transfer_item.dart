@@ -1,10 +1,4 @@
-enum TransferState {
-  queued,
-  downloading,
-  completed,
-  failed,
-  cancelled,
-}
+enum TransferState { queued, downloading, completed, failed, cancelled }
 
 class TransferItem {
   const TransferItem({

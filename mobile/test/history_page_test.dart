@@ -18,7 +18,9 @@ void main() {
         overrides: [
           historyRangesProvider.overrideWith((ref) async => _ranges()),
           historyInventoryProvider.overrideWith((ref) async => _inventory()),
-          overviewHistoryProvider.overrideWith((ref, range) async => _overviewCache()),
+          overviewHistoryProvider.overrideWith(
+            (ref, range) async => _overviewCache(),
+          ),
           storageHistoryProvider.overrideWith(
             (ref, params) async => _storageCache(params.mountpoint),
           ),
@@ -50,14 +52,17 @@ void main() {
   testWidgets('history page shows loading state while overview is pending', (
     tester,
   ) async {
-    final completer = Completer<CachedHistoryData<HistoryOverviewResponseModel>>();
+    final completer =
+        Completer<CachedHistoryData<HistoryOverviewResponseModel>>();
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           historyRangesProvider.overrideWith((ref) async => _ranges()),
           historyInventoryProvider.overrideWith((ref) async => _inventory()),
-          overviewHistoryProvider.overrideWith((ref, range) => completer.future),
+          overviewHistoryProvider.overrideWith(
+            (ref, range) => completer.future,
+          ),
           storageHistoryProvider.overrideWith(
             (ref, params) async => _storageCache(params.mountpoint),
           ),
@@ -84,7 +89,8 @@ void main() {
           historyRangesProvider.overrideWith((ref) async => _ranges()),
           historyInventoryProvider.overrideWith((ref) async => _inventory()),
           overviewHistoryProvider.overrideWith(
-            (ref, range) async => throw const AppException('Server unreachable'),
+            (ref, range) async =>
+                throw const AppException('Server unreachable'),
           ),
           storageHistoryProvider.overrideWith(
             (ref, params) async => _storageCache(params.mountpoint),
@@ -196,7 +202,9 @@ CachedHistoryData<HistoryOverviewResponseModel> _overviewCache() {
   );
 }
 
-CachedHistoryData<StorageHistoryResponseModel> _storageCache(String mountpoint) {
+CachedHistoryData<StorageHistoryResponseModel> _storageCache(
+  String mountpoint,
+) {
   return CachedHistoryData(
     fromCache: true,
     cachedAt: DateTime.utc(2026, 6, 11, 19, 55),

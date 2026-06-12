@@ -33,9 +33,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          serviceRepositoryProvider.overrideWithValue(repository),
-        ],
+        overrides: [serviceRepositoryProvider.overrideWithValue(repository)],
         child: const MaterialApp(home: Scaffold(body: ServicesPage())),
       ),
     );
@@ -55,9 +53,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          serviceRepositoryProvider.overrideWithValue(repository),
-        ],
+        overrides: [serviceRepositoryProvider.overrideWithValue(repository)],
         child: const MaterialApp(home: Scaffold(body: ServicesPage())),
       ),
     );

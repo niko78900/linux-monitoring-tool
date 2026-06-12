@@ -45,13 +45,17 @@ class HostDetailsPage extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (host.description != null && host.description!.trim().isNotEmpty) ...[
+                if (host.description != null &&
+                    host.description!.trim().isNotEmpty) ...[
                   Text(host.description!),
                   const SizedBox(height: AppSpacing.md),
                 ],
                 _InfoLine(label: 'Category', value: host.category),
                 _InfoLine(label: 'LAN IP', value: host.lanIp ?? 'N/A'),
-                _InfoLine(label: 'Tailscale IP', value: host.tailscaleIp ?? 'N/A'),
+                _InfoLine(
+                  label: 'Tailscale IP',
+                  value: host.tailscaleIp ?? 'N/A',
+                ),
                 _InfoLine(
                   label: 'Hostname',
                   value: host.tailscaleHostname ?? 'N/A',
@@ -166,10 +170,7 @@ class HostDetailsPage extends ConsumerWidget {
 }
 
 class _InfoLine extends StatelessWidget {
-  const _InfoLine({
-    required this.label,
-    required this.value,
-  });
+  const _InfoLine({required this.label, required this.value});
 
   final String label;
   final String value;

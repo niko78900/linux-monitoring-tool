@@ -69,7 +69,9 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       unawaited(
-        _disconnect(message: 'Session closed after the app moved to background.'),
+        _disconnect(
+          message: 'Session closed after the app moved to background.',
+        ),
       );
     }
   }
@@ -118,10 +120,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
             runSpacing: AppSpacing.sm,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              StatusBadge(
-                label: _status.label,
-                tone: _status.tone,
-              ),
+              StatusBadge(label: _status.label, tone: _status.tone),
               if (_message != null)
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 520),
@@ -133,7 +132,9 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
                     : _connect,
                 icon: const Icon(Icons.link),
                 label: Text(
-                  _status == _TerminalStatus.connected ? 'Reconnect' : 'Connect',
+                  _status == _TerminalStatus.connected
+                      ? 'Reconnect'
+                      : 'Connect',
                 ),
               ),
               OutlinedButton.icon(
@@ -217,7 +218,12 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
       _terminal.buffer.clear();
       _terminal.buffer.setCursor(0, 0);
       _terminal.onResize = (width, height, pixelWidth, pixelHeight) {
-        connection.session.resizeTerminal(width, height, pixelWidth, pixelHeight);
+        connection.session.resizeTerminal(
+          width,
+          height,
+          pixelWidth,
+          pixelHeight,
+        );
       };
       _terminal.onOutput = (data) {
         connection.session.write(Uint8List.fromList(utf8.encode(data)));
@@ -242,7 +248,8 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
 
       setState(() {
         _status = _TerminalStatus.connected;
-        _message = 'Connected to ${profile.displayName.isEmpty ? profile.host : profile.displayName}';
+        _message =
+            'Connected to ${profile.displayName.isEmpty ? profile.host : profile.displayName}';
       });
     } catch (error) {
       setState(() {
@@ -252,10 +259,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
     }
   }
 
-  Future<void> _disconnect({
-    String? message,
-    bool clearMessage = false,
-  }) async {
+  Future<void> _disconnect({String? message, bool clearMessage = false}) async {
     _terminal.onOutput = null;
     _terminal.onResize = null;
     await _stdoutSubscription?.cancel();
@@ -325,22 +329,46 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
 
     switch (key) {
       case 'Esc':
-        _terminal.keyInput(TerminalKey.escape, alt: _altEnabled, ctrl: _ctrlEnabled);
+        _terminal.keyInput(
+          TerminalKey.escape,
+          alt: _altEnabled,
+          ctrl: _ctrlEnabled,
+        );
         break;
       case 'Tab':
-        _terminal.keyInput(TerminalKey.tab, alt: _altEnabled, ctrl: _ctrlEnabled);
+        _terminal.keyInput(
+          TerminalKey.tab,
+          alt: _altEnabled,
+          ctrl: _ctrlEnabled,
+        );
         break;
       case 'Up':
-        _terminal.keyInput(TerminalKey.arrowUp, alt: _altEnabled, ctrl: _ctrlEnabled);
+        _terminal.keyInput(
+          TerminalKey.arrowUp,
+          alt: _altEnabled,
+          ctrl: _ctrlEnabled,
+        );
         break;
       case 'Down':
-        _terminal.keyInput(TerminalKey.arrowDown, alt: _altEnabled, ctrl: _ctrlEnabled);
+        _terminal.keyInput(
+          TerminalKey.arrowDown,
+          alt: _altEnabled,
+          ctrl: _ctrlEnabled,
+        );
         break;
       case 'Left':
-        _terminal.keyInput(TerminalKey.arrowLeft, alt: _altEnabled, ctrl: _ctrlEnabled);
+        _terminal.keyInput(
+          TerminalKey.arrowLeft,
+          alt: _altEnabled,
+          ctrl: _ctrlEnabled,
+        );
         break;
       case 'Right':
-        _terminal.keyInput(TerminalKey.arrowRight, alt: _altEnabled, ctrl: _ctrlEnabled);
+        _terminal.keyInput(
+          TerminalKey.arrowRight,
+          alt: _altEnabled,
+          ctrl: _ctrlEnabled,
+        );
         break;
       default:
         if (_ctrlEnabled || _altEnabled) {

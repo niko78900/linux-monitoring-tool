@@ -119,7 +119,9 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
   }
 
   Future<void> _loadToken() async {
-    final token = await ref.read(secureStorageServiceProvider).readControlToken();
+    final token = await ref
+        .read(secureStorageServiceProvider)
+        .readControlToken();
     if (!mounted) {
       return;
     }

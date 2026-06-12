@@ -43,10 +43,7 @@ class MonitoringApiClient {
   }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/history/overview',
-      queryParameters: {
-        'range': range,
-        'max_points': maxPoints,
-      },
+      queryParameters: {'range': range, 'max_points': maxPoints},
     );
     return response.data ?? const <String, dynamic>{};
   }

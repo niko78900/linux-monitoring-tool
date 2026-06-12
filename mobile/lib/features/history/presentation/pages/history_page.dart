@@ -69,7 +69,8 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     });
 
     final availableRanges = rangesState.maybeWhen(
-      data: (data) => data.ranges.map((item) => item.range).toList(growable: false),
+      data: (data) =>
+          data.ranges.map((item) => item.range).toList(growable: false),
       orElse: () => HistoryRangeValue.values,
     );
     final mountpoints = inventoryState.maybeWhen(
@@ -133,10 +134,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
           child: SegmentedButton<HistoryRangeValue>(
             segments: [
               for (final range in availableRanges)
-                ButtonSegment(
-                  value: range,
-                  label: Text(range.label),
-                ),
+                ButtonSegment(value: range, label: Text(range.label)),
             ],
             selected: {_selectedRange},
             onSelectionChanged: (selection) {
@@ -273,10 +271,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
               isExpanded: true,
               items: [
                 for (final mountpoint in mountpoints)
-                  DropdownMenuItem(
-                    value: mountpoint,
-                    child: Text(mountpoint),
-                  ),
+                  DropdownMenuItem(value: mountpoint, child: Text(mountpoint)),
               ],
               onChanged: (value) {
                 if (value != null) {
@@ -352,10 +347,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
               isExpanded: true,
               items: [
                 for (final device in diskDevices)
-                  DropdownMenuItem(
-                    value: device,
-                    child: Text(device),
-                  ),
+                  DropdownMenuItem(value: device, child: Text(device)),
               ],
               onChanged: (value) {
                 if (value != null) {
@@ -412,10 +404,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
               isExpanded: true,
               items: [
                 for (final array in raidArrays)
-                  DropdownMenuItem(
-                    value: array,
-                    child: Text(array),
-                  ),
+                  DropdownMenuItem(value: array, child: Text(array)),
               ],
               onChanged: (value) {
                 if (value != null) {
@@ -482,10 +471,7 @@ T? _firstOrNull<T>(Iterable<T> values) {
 }
 
 class _AsyncHistorySection<T> extends StatelessWidget {
-  const _AsyncHistorySection({
-    required this.state,
-    required this.builder,
-  });
+  const _AsyncHistorySection({required this.state, required this.builder});
 
   final AsyncValue<CachedHistoryData<T>> state;
   final Widget Function(T data) builder;
@@ -501,9 +487,9 @@ class _AsyncHistorySection<T> extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: AppSpacing.md),
               child: Text(
                 'Cached history | Last refreshed ${_formatCachedAt(payload.cachedAt)}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.warning,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.warning),
               ),
             ),
           builder(payload.data),

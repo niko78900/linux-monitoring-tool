@@ -15,10 +15,7 @@ void main() {
           'memory_percent_avg': 61,
           'network_recv_bytes_per_second_avg': 1024,
         },
-        {
-          'timestamp': '2026-06-11T18:05:00Z',
-          'cpu_percent_avg': null,
-        },
+        {'timestamp': '2026-06-11T18:05:00Z', 'cpu_percent_avg': null},
       ],
     });
 

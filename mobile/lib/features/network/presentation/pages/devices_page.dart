@@ -84,10 +84,7 @@ class _DevicesView extends ConsumerWidget {
           runSpacing: AppSpacing.md,
           children: [
             for (final device in snapshot.devices)
-              SizedBox(
-                width: 360,
-                child: _DeviceCard(device: device),
-              ),
+              SizedBox(width: 360, child: _DeviceCard(device: device)),
           ],
         ),
         const SizedBox(height: AppSpacing.xl),
@@ -223,10 +220,7 @@ class _NeighborRow extends StatelessWidget {
 }
 
 class _InfoLine extends StatelessWidget {
-  const _InfoLine({
-    required this.label,
-    required this.value,
-  });
+  const _InfoLine({required this.label, required this.value});
 
   final String label;
   final String value;

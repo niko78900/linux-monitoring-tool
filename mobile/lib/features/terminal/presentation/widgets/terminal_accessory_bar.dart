@@ -73,10 +73,7 @@ class TerminalAccessoryBar extends StatelessWidget {
 }
 
 class _KeyChip extends StatelessWidget {
-  const _KeyChip({
-    required this.label,
-    required this.onPressed,
-  });
+  const _KeyChip({required this.label, required this.onPressed});
 
   final String label;
   final VoidCallback onPressed;

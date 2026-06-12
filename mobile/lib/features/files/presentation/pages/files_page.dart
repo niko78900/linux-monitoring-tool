@@ -171,7 +171,9 @@ class _FilesPageState extends ConsumerState<FilesPage>
                 label: const Text('Disconnect'),
               ),
               OutlinedButton.icon(
-                onPressed: _connection == null ? null : () => _loadDirectory(root),
+                onPressed: _connection == null
+                    ? null
+                    : () => _loadDirectory(root),
                 icon: const Icon(Icons.home),
                 label: const Text('Root'),
               ),
@@ -212,7 +214,9 @@ class _FilesPageState extends ConsumerState<FilesPage>
                     ? null
                     : () => _promptRecursiveSearch(root),
                 icon: const Icon(Icons.manage_search),
-                label: Text(_searchingRemote ? 'Searching...' : 'Remote Search'),
+                label: Text(
+                  _searchingRemote ? 'Searching...' : 'Remote Search',
+                ),
               ),
               OutlinedButton.icon(
                 onPressed: _connection == null || !settings.allowSftpUpload
@@ -222,7 +226,8 @@ class _FilesPageState extends ConsumerState<FilesPage>
                 label: const Text('Upload'),
               ),
               OutlinedButton.icon(
-                onPressed: _connection == null || !settings.allowSftpCreateDirectory
+                onPressed:
+                    _connection == null || !settings.allowSftpCreateDirectory
                     ? null
                     : () => _createDirectory(root),
                 icon: const Icon(Icons.create_new_folder),
@@ -332,7 +337,9 @@ class _FilesPageState extends ConsumerState<FilesPage>
                           ? const Text('No recent downloads')
                           : Column(
                               children: [
-                                for (final item in _recentDownloads.take(5)) ...[
+                                for (final item in _recentDownloads.take(
+                                  5,
+                                )) ...[
                                   ListTile(
                                     contentPadding: EdgeInsets.zero,
                                     title: Text(item.fileName),
@@ -348,10 +355,11 @@ class _FilesPageState extends ConsumerState<FilesPage>
                                         ),
                                         IconButton(
                                           tooltip: 'Remove from recents',
-                                          onPressed: () => _removeRecentDownload(
-                                            hostProfileId,
-                                            item.remotePath,
-                                          ),
+                                          onPressed: () =>
+                                              _removeRecentDownload(
+                                                hostProfileId,
+                                                item.remotePath,
+                                              ),
                                           icon: const Icon(Icons.close),
                                         ),
                                       ],
@@ -406,14 +414,16 @@ class _FilesPageState extends ConsumerState<FilesPage>
     });
 
     try {
-      final connection = await ref.read(sftpConnectionServiceProvider).open(
-        profile: profile,
-        onTrustHost: (hostKey) => showHostTrustDialog(context, hostKey),
-        onPassphraseRequired: () => showPassphrasePromptDialog(
-          context,
-          title: 'Enter the SFTP key passphrase',
-        ),
-      );
+      final connection = await ref
+          .read(sftpConnectionServiceProvider)
+          .open(
+            profile: profile,
+            onTrustHost: (hostKey) => showHostTrustDialog(context, hostKey),
+            onPassphraseRequired: () => showPassphrasePromptDialog(
+              context,
+              title: 'Enter the SFTP key passphrase',
+            ),
+          );
       _connection = connection;
       setState(() {
         _status = _FilesStatus.connected;
@@ -429,10 +439,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
     }
   }
 
-  Future<void> _disconnect({
-    String? message,
-    bool clearMessage = false,
-  }) async {
+  Future<void> _disconnect({String? message, bool clearMessage = false}) async {
     _cancelOutstandingTransfers();
     final connection = _connection;
     _connection = null;
@@ -479,7 +486,9 @@ class _FilesPageState extends ConsumerState<FilesPage>
               sizeBytes: attrs.size,
               modifiedAt: attrs.modifyTime == null
                   ? null
-                  : DateTime.fromMillisecondsSinceEpoch(attrs.modifyTime! * 1000),
+                  : DateTime.fromMillisecondsSinceEpoch(
+                      attrs.modifyTime! * 1000,
+                    ),
             );
           })
           .toList(growable: false);
@@ -589,43 +598,48 @@ class _FilesPageState extends ConsumerState<FilesPage>
     _activeTransferId = next.id;
     _updateTransfer(
       next.id,
-      (item) => item.copyWith(state: TransferState.downloading, clearError: true),
+      (item) =>
+          item.copyWith(state: TransferState.downloading, clearError: true),
     );
 
     try {
-      final result = await ref.read(fileDownloadServiceProvider).download(
-        sftp: connection.sftp,
-        hostProfileId: hostProfileId,
-        remotePath: next.remotePath,
-        fileName: next.fileName,
-        remoteModifiedAt: entry?.modifiedAt?.toUtc(),
-        cancellationToken: token,
-        onProgress: (transferredBytes, totalBytes, localPath) {
-          if (!mounted) {
-            return;
-          }
-          _updateTransfer(
-            next.id,
-            (item) => item.copyWith(
-              transferredBytes: transferredBytes,
-              totalBytes: totalBytes,
-              localPath: localPath,
-              state: TransferState.downloading,
+      final result = await ref
+          .read(fileDownloadServiceProvider)
+          .download(
+            sftp: connection.sftp,
+            hostProfileId: hostProfileId,
+            remotePath: next.remotePath,
+            fileName: next.fileName,
+            remoteModifiedAt: entry?.modifiedAt?.toUtc(),
+            cancellationToken: token,
+            onProgress: (transferredBytes, totalBytes, localPath) {
+              if (!mounted) {
+                return;
+              }
+              _updateTransfer(
+                next.id,
+                (item) => item.copyWith(
+                  transferredBytes: transferredBytes,
+                  totalBytes: totalBytes,
+                  localPath: localPath,
+                  state: TransferState.downloading,
+                ),
+              );
+            },
+          );
+      await ref
+          .read(fileMetadataStoreProvider)
+          .upsertRecentDownload(
+            RecentDownloadRecord(
+              hostProfileId: hostProfileId,
+              fileName: result.fileName,
+              remotePath: next.remotePath,
+              localPath: result.localPath,
+              sizeBytes: result.totalBytes,
+              remoteModifiedAt: entry?.modifiedAt?.toUtc(),
+              downloadedAt: DateTime.now().toUtc(),
             ),
           );
-        },
-      );
-      await ref.read(fileMetadataStoreProvider).upsertRecentDownload(
-        RecentDownloadRecord(
-          hostProfileId: hostProfileId,
-          fileName: result.fileName,
-          remotePath: next.remotePath,
-          localPath: result.localPath,
-          sizeBytes: result.totalBytes,
-          remoteModifiedAt: entry?.modifiedAt?.toUtc(),
-          downloadedAt: DateTime.now().toUtc(),
-        ),
-      );
       await _refreshMetadata();
       _updateTransfer(
         next.id,
@@ -780,11 +794,13 @@ class _FilesPageState extends ConsumerState<FilesPage>
     await _refreshMetadata();
   }
 
-  Future<void> _removeRecentDownload(String hostProfileId, String remotePath) async {
-    await ref.read(fileMetadataStoreProvider).removeRecentDownload(
-      hostProfileId,
-      remotePath,
-    );
+  Future<void> _removeRecentDownload(
+    String hostProfileId,
+    String remotePath,
+  ) async {
+    await ref
+        .read(fileMetadataStoreProvider)
+        .removeRecentDownload(hostProfileId, remotePath);
     await _refreshMetadata();
   }
 
@@ -806,9 +822,8 @@ class _FilesPageState extends ConsumerState<FilesPage>
         }
         await showDialog<void>(
           context: context,
-          builder: (context) => Dialog(
-            child: InteractiveViewer(child: Image.file(File(path))),
-          ),
+          builder: (context) =>
+              Dialog(child: InteractiveViewer(child: Image.file(File(path)))),
         );
         return;
       }
@@ -894,13 +909,15 @@ class _FilesPageState extends ConsumerState<FilesPage>
       _searchStatus = 'Searching recursively from ${_currentPath ?? root}';
     });
     try {
-      final snapshot = await ref.read(fileSearchServiceProvider).search(
-        sftp: _connection!.sftp,
-        virtualRoot: root,
-        startPath: _currentPath ?? root,
-        query: trimmed,
-        cancellationToken: token,
-      );
+      final snapshot = await ref
+          .read(fileSearchServiceProvider)
+          .search(
+            sftp: _connection!.sftp,
+            virtualRoot: root,
+            startPath: _currentPath ?? root,
+            query: trimmed,
+            cancellationToken: token,
+          );
       if (!mounted) {
         return;
       }
@@ -975,7 +992,8 @@ class _FilesPageState extends ConsumerState<FilesPage>
     final finalRemote = '$currentPath/$fileName';
     final remoteFile = await connection.sftp.open(
       temporaryRemote,
-      mode: SftpFileOpenMode.create |
+      mode:
+          SftpFileOpenMode.create |
           SftpFileOpenMode.truncate |
           SftpFileOpenMode.write,
     );
@@ -1050,7 +1068,10 @@ class _FilesPageState extends ConsumerState<FilesPage>
           _showSnackBar('Rename is disabled in Settings.');
           return;
         }
-        final newName = await _promptForText('Rename ${entry.name}', entry.name);
+        final newName = await _promptForText(
+          'Rename ${entry.name}',
+          entry.name,
+        );
         if (newName == null || newName.trim().isEmpty) {
           return;
         }
@@ -1073,7 +1094,10 @@ class _FilesPageState extends ConsumerState<FilesPage>
         if (destination == null || destination.trim().isEmpty) {
           return;
         }
-        final target = normalizeVirtualPath(root, '${destination.trim()}/${entry.name}');
+        final target = normalizeVirtualPath(
+          root,
+          '${destination.trim()}/${entry.name}',
+        );
         await connection.sftp.rename(entry.path, target);
         await _loadDirectory(_currentPath ?? root);
       case _EntryAction.softDelete:
@@ -1103,10 +1127,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-        ),
+        content: TextField(controller: controller, autofocus: true),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -1161,8 +1182,13 @@ class _FilesPageState extends ConsumerState<FilesPage>
         _FilesSort.name => left.name.toLowerCase().compareTo(
           right.name.toLowerCase(),
         ),
-        _FilesSort.modified => _compareNullableDates(left.modifiedAt, right.modifiedAt),
-        _FilesSort.size => (left.sizeBytes ?? -1).compareTo(right.sizeBytes ?? -1),
+        _FilesSort.modified => _compareNullableDates(
+          left.modifiedAt,
+          right.modifiedAt,
+        ),
+        _FilesSort.size => (left.sizeBytes ?? -1).compareTo(
+          right.sizeBytes ?? -1,
+        ),
       };
       if (primary != 0) {
         return primary;
@@ -1329,16 +1355,6 @@ enum _FilesStatus {
   final StatusTone tone;
 }
 
-enum _FilesSort {
-  name,
-  modified,
-  size,
-}
+enum _FilesSort { name, modified, size }
 
-enum _EntryAction {
-  preview,
-  download,
-  rename,
-  move,
-  softDelete,
-}
+enum _EntryAction { preview, download, rename, move, softDelete }

@@ -9,7 +9,8 @@ import '../domain/models/file_browser_models.dart';
 import 'file_metadata_store.dart';
 
 final fileDownloadServiceProvider = Provider<FileDownloadService>(
-  (ref) => FileDownloadService(metadataStore: ref.watch(fileMetadataStoreProvider)),
+  (ref) =>
+      FileDownloadService(metadataStore: ref.watch(fileMetadataStoreProvider)),
 );
 
 class FileDownloadService {
@@ -25,7 +26,11 @@ class FileDownloadService {
     required String fileName,
     required DateTime? remoteModifiedAt,
     required DownloadCancellationToken cancellationToken,
-    required void Function(int transferredBytes, int? totalBytes, String localPath)
+    required void Function(
+      int transferredBytes,
+      int? totalBytes,
+      String localPath,
+    )
     onProgress,
   }) async {
     final downloadsDir = await _ensureDownloadsDirectory();
@@ -107,7 +112,9 @@ class FileDownloadService {
 
   Future<Directory> _ensureDownloadsDirectory() async {
     final root = await getApplicationDocumentsDirectory();
-    final downloads = Directory('${root.path}${Platform.pathSeparator}downloads');
+    final downloads = Directory(
+      '${root.path}${Platform.pathSeparator}downloads',
+    );
     if (!await downloads.exists()) {
       await downloads.create(recursive: true);
     }
