@@ -103,6 +103,10 @@ void main() {
     expect(metricChartTouchSpotThreshold, greaterThanOrEqualTo(24));
   });
 
+  test('sampled telemetry charts use straight line segments by default', () {
+    expect(metricChartUseCurvedTelemetryLines, isFalse);
+  });
+
   test('timestamp plot series preserves uneven gaps and one-point ranges', () {
     final start = DateTime.utc(2026, 6, 12, 2);
     final series = buildMetricChartPlotSeries<MetricSample>(
@@ -224,6 +228,80 @@ void main() {
     expect(find.text('Two Samples'), findsOneWidget);
   });
 
+  testWidgets('metric chart clips line and fill to all plot edges', (
+    tester,
+  ) async {
+    final timestamp = DateTime.utc(2026, 6, 12, 2);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MetricChart(
+            title: 'Receive Throughput',
+            samples: [
+              MetricSample(timestamp: timestamp, value: 0),
+              MetricSample(
+                timestamp: timestamp.add(const Duration(seconds: 1)),
+                value: 64 * 1024,
+              ),
+              MetricSample(
+                timestamp: timestamp.add(const Duration(seconds: 2)),
+                value: 1.2 * 1024 * 1024,
+              ),
+            ],
+            valueType: MetricChartValueType.bytesPerSecond,
+          ),
+        ),
+      ),
+    );
+
+    final data = _lineChartData(tester);
+    _expectAllSidesClipped(data.clipData);
+    final bar = data.lineBarsData.single;
+    expect(bar.isCurved, isFalse);
+    expect(bar.belowBarData.show, isTrue);
+    expect(data.minY, 0);
+    expect(bar.spots.first.x, data.minX);
+    expect(bar.spots.first.y, data.minY);
+    expect(bar.spots.last.x, data.maxX);
+    expect(
+      bar.spots.map((spot) => spot.y).reduce((a, b) => a > b ? a : b),
+      lessThanOrEqualTo(data.maxY),
+    );
+  });
+
+  testWidgets('metric chart keeps sparse and repeated timestamp data clipped', (
+    tester,
+  ) async {
+    final timestamp = DateTime.utc(2026, 6, 12, 2);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MetricChart(
+            title: 'GPU Power',
+            samples: [
+              MetricSample(timestamp: timestamp, value: 10),
+              MetricSample(timestamp: timestamp, value: 40),
+              MetricSample(
+                timestamp: timestamp.add(const Duration(milliseconds: 1)),
+                value: 0,
+              ),
+            ],
+            valueType: MetricChartValueType.watts,
+          ),
+        ),
+      ),
+    );
+
+    final data = _lineChartData(tester);
+    _expectAllSidesClipped(data.clipData);
+    expect(data.lineBarsData.single.isCurved, isFalse);
+    expect(
+      data.lineBarsData.single.spots[1].x,
+      greaterThan(data.lineBarsData.single.spots[0].x),
+    );
+    expect(data.lineBarsData.single.spots.last.y, data.minY);
+  });
+
   testWidgets('metric chart keeps nearest-X selection during vertical drag', (
     tester,
   ) async {
@@ -295,6 +373,44 @@ void main() {
     );
 
     expect(find.text('History Network'), findsOneWidget);
+    final data = _lineChartData(tester);
+    _expectAllSidesClipped(data.clipData);
+    expect(data.lineBarsData.single.isCurved, isFalse);
+    expect(data.lineBarsData.single.belowBarData.show, isTrue);
+  });
+
+  testWidgets('history chart clips newest spikes at the right edge', (
+    tester,
+  ) async {
+    final timestamp = DateTime.utc(2026, 6, 12, 2);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HistoryChart(
+            title: 'History Network Send',
+            valueType: MetricChartValueType.bytesPerSecond,
+            points: [
+              HistoryChartPoint(timestamp: timestamp, value: 0),
+              HistoryChartPoint(
+                timestamp: timestamp.add(const Duration(seconds: 1)),
+                value: 512,
+              ),
+              HistoryChartPoint(
+                timestamp: timestamp.add(const Duration(seconds: 2)),
+                value: 5 * 1024 * 1024,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final data = _lineChartData(tester);
+    _expectAllSidesClipped(data.clipData);
+    final bar = data.lineBarsData.single;
+    expect(bar.isCurved, isFalse);
+    expect(bar.spots.last.x, data.maxX);
+    expect(bar.spots.last.y, lessThanOrEqualTo(data.maxY));
   });
 
   testWidgets('history chart keeps nearest-X selection during vertical drag', (
@@ -342,4 +458,16 @@ void main() {
 
     await gesture.up();
   });
+}
+
+LineChartData _lineChartData(WidgetTester tester) {
+  return tester.widget<LineChart>(find.byType(LineChart)).data;
+}
+
+void _expectAllSidesClipped(FlClipData clipData) {
+  expect(clipData, const FlClipData.all());
+  expect(clipData.top, isTrue);
+  expect(clipData.bottom, isTrue);
+  expect(clipData.left, isTrue);
+  expect(clipData.right, isTrue);
 }

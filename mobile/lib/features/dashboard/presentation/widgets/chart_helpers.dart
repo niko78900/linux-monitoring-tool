@@ -19,6 +19,7 @@ enum MetricChartValueType {
 
 const double metricChartTouchSpotThreshold = 28;
 const bool metricChartIncludeMaxTitle = false;
+const bool metricChartUseCurvedTelemetryLines = false;
 const double _repeatedTimestampStepSeconds = 0.001;
 
 class MetricChartPlotPoint {

@@ -122,7 +122,7 @@ class _MetricChartState extends State<MetricChart> {
     final spots = series.spots;
     final barData = LineChartBarData(
       spots: spots,
-      isCurved: true,
+      isCurved: metricChartUseCurvedTelemetryLines,
       color: widget.color,
       barWidth: 2.4,
       dotData: const FlDotData(show: false),
@@ -147,6 +147,7 @@ class _MetricChartState extends State<MetricChart> {
               height: 160,
               child: LineChart(
                 LineChartData(
+                  clipData: const FlClipData.all(),
                   minY: 0,
                   minX: series.minX,
                   maxX: series.maxX,

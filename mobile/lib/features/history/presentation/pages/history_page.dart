@@ -224,7 +224,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                   color: AppColors.warning,
                 ),
                 HistoryChart(
-                  title: 'GPU VRAM Used (MB)',
+                  title: 'GPU VRAM Used',
                   points: [
                     for (final point in history.points)
                       HistoryChartPoint(

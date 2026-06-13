@@ -134,7 +134,8 @@ REPO_DIR="$(
 REPO_DIR="${REPO_DIR:-/mnt/warm/homelab/linux-monitoring}"
 sudo test -f "$REPO_DIR/control_agent/app/services/managed_hosts.py"
 
-nc -vz 127.0.0.1 22
+nc -vz 192.168.100.34 22
+nc -vz 100.64.10.22 22
 
 CONTROL_API_TOKEN="$(
   sudo awk '/^CONTROL_API_TOKEN=/ {sub(/^CONTROL_API_TOKEN=/, ""); print; exit}' "$ENV_FILE"
@@ -143,8 +144,7 @@ test -n "${CONTROL_API_TOKEN:-}"
 curl -fsS \
   -H "Authorization: Bearer ${CONTROL_API_TOKEN}" \
   http://100.64.10.22:4042/api/hosts \
-  | python3 -m json.tool \
-  | grep -A20 '"id": "homelab-server"'
+  | python3 -c 'import json,sys; hosts=json.load(sys.stdin)["hosts"]; host=next(item for item in hosts if item["id"]=="homelab-server"); print("homelab-server status={status} online={online} probe_summary={summary}".format(status=host["status"], online=host["online"], summary=host.get("probe_summary", "")))'
 unset CONTROL_API_TOKEN
 
 sudo python3 - "$REPO_DIR" <<'PY'

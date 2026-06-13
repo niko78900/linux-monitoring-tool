@@ -46,6 +46,8 @@ void main() {
     expect(find.text('30d'), findsOneWidget);
     expect(find.text('CPU Usage'), findsOneWidget);
     expect(find.text('GPU Temperature'), findsOneWidget);
+    expect(find.text('GPU VRAM Used'), findsOneWidget);
+    expect(find.text('GPU VRAM Used (MB)'), findsNothing);
     expect(find.text('Network Receive'), findsOneWidget);
   });
 
