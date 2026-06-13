@@ -1493,6 +1493,8 @@ class _PollingField extends StatelessWidget {
         initialValue: value,
         decoration: InputDecoration(labelText: label),
         items: const [
+          DropdownMenuItem(value: 1000, child: Text('1 second')),
+          DropdownMenuItem(value: 3000, child: Text('3 seconds')),
           DropdownMenuItem(value: 5000, child: Text('5 seconds')),
           DropdownMenuItem(value: 10000, child: Text('10 seconds')),
           DropdownMenuItem(value: 15000, child: Text('15 seconds')),

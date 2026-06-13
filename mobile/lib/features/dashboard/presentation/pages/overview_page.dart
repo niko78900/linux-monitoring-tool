@@ -315,6 +315,8 @@ class _Header extends StatelessWidget {
         DropdownButton<int>(
           value: pollingMs,
           items: const [
+            DropdownMenuItem(value: 1000, child: Text('1 sec')),
+            DropdownMenuItem(value: 3000, child: Text('3 sec')),
             DropdownMenuItem(value: 5000, child: Text('5 sec')),
             DropdownMenuItem(value: 10000, child: Text('10 sec')),
             DropdownMenuItem(value: 30000, child: Text('30 sec')),

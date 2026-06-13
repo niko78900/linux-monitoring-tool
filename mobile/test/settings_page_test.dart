@@ -32,4 +32,28 @@ void main() {
     expect(find.text('Push notifications'), findsOneWidget);
     expect(find.text('Send test notification'), findsOneWidget);
   });
+
+  testWidgets('settings supports one and three second polling intervals', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'onboardingComplete': true,
+      'summaryPollingMs': 1000,
+      'detailsPollingMs': 3000,
+      'healthPollingMs': 1000,
+      'dockerPollingMs': 3000,
+    });
+    final preferences = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+        child: const MaterialApp(home: Scaffold(body: SettingsPage())),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('1 second'), findsWidgets);
+    expect(find.text('3 seconds'), findsWidgets);
+  });
 }
