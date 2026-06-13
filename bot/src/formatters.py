@@ -207,6 +207,32 @@ def format_recovery_embed(recovery: RecoveryNotice) -> discord.Embed:
     return embed
 
 
+def format_alert_event_embed(event: dict[str, Any]) -> discord.Embed:
+    event_type = str(event.get("event_type") or "active")
+    severity = str(event.get("severity") or "warning")
+    title = str(event.get("title") or "Homelab alert")
+    message = str(event.get("message") or "")
+    color = discord.Color.green()
+    prefix = "Recovered"
+    if event_type != "recovery":
+        color = discord.Color.red() if severity == "critical" else discord.Color.orange()
+        prefix = "Alert"
+
+    embed = discord.Embed(
+        title=f"{prefix}: {title}",
+        description=message,
+        color=color,
+        timestamp=discord.utils.utcnow(),
+    )
+    embed.add_field(name="Severity", value=severity, inline=True)
+    embed.add_field(name="Key", value=str(event.get("alert_key") or "unknown"), inline=True)
+    embed.add_field(name="Event ID", value=str(event.get("event_id") or "unknown"), inline=True)
+    recovered_after = event.get("recovered_after_seconds")
+    if event_type == "recovery" and recovered_after is not None:
+        embed.add_field(name="Active For", value=f"{recovered_after}s", inline=True)
+    return embed
+
+
 def _count_non_healthy(items: Any) -> int:
     if not isinstance(items, list):
         return 0

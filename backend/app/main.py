@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.services.alerts import AlertMonitor, create_alert_monitor
 from app.services.history_collector import HistoryCollector, create_history_collector
 
 settings = get_settings()
@@ -23,6 +24,7 @@ async def lifespan(app: FastAPI):
     logger.info("API prefix: %s", settings.api_prefix)
 
     collector: HistoryCollector | None = None
+    alert_monitor: AlertMonitor | None = None
     if settings.history_enabled:
         collector = create_history_collector(settings)
         app.state.history_collector = collector
@@ -30,9 +32,15 @@ async def lifespan(app: FastAPI):
     else:
         app.state.history_collector = None
 
+    alert_monitor = create_alert_monitor(settings)
+    app.state.alert_monitor = alert_monitor
+    await alert_monitor.start()
+
     try:
         yield
     finally:
+        if alert_monitor is not None:
+            await alert_monitor.stop()
         if collector is not None:
             await collector.stop()
         logger.info("Shutting down %s", settings.app_name)
@@ -52,7 +60,7 @@ app.add_middleware(
     allow_origins=settings.cors_origins,
     allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=False,
-    allow_methods=["GET", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

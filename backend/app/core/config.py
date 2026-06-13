@@ -38,6 +38,16 @@ def _parse_int(raw_value: str | None, default: int, *, minimum: int = 0) -> int:
     return max(minimum, parsed)
 
 
+def _parse_float(raw_value: str | None, default: float, *, minimum: float = 0.0) -> float:
+    if raw_value is None:
+        return default
+    try:
+        parsed = float(raw_value.strip())
+    except ValueError:
+        return default
+    return max(minimum, parsed)
+
+
 def _parse_optional_string(raw_value: str | None) -> str | None:
     if raw_value is None:
         return None
@@ -64,6 +74,22 @@ class Settings:
     history_retention_days: int
     history_retention_cleanup_interval_seconds: int
     history_max_response_points: int
+    alerts_enabled: bool
+    alert_poll_interval_seconds: int
+    alert_grace_seconds: int
+    alert_db_path: Path
+    cpu_alert_threshold: float
+    memory_alert_threshold: float
+    disk_alert_threshold: float
+    gpu_usage_alert_threshold: float
+    gpu_temp_alert_threshold: float
+    mobile_push_enabled: bool
+    mobile_push_include_recovery: bool
+    mobile_push_retry_initial_seconds: int
+    mobile_push_retry_max_seconds: int
+    firebase_service_account_file: Path
+    mobile_alert_api_token: str | None
+    alert_consumer_api_token: str | None
 
 
 @lru_cache(maxsize=1)
@@ -109,5 +135,72 @@ def get_settings() -> Settings:
             os.getenv("HISTORY_MAX_RESPONSE_POINTS"),
             720,
             minimum=60,
+        ),
+        alerts_enabled=_parse_bool(os.getenv("ALERTS_ENABLED"), default=True),
+        alert_poll_interval_seconds=_parse_int(
+            os.getenv("ALERT_POLL_INTERVAL_SECONDS"),
+            30,
+            minimum=5,
+        ),
+        alert_grace_seconds=_parse_int(
+            os.getenv("ALERT_GRACE_SECONDS"),
+            300,
+            minimum=0,
+        ),
+        alert_db_path=Path(
+            os.getenv(
+                "ALERT_DB_PATH",
+                "/var/lib/linux-monitoring/alerts.sqlite3",
+            )
+        ),
+        cpu_alert_threshold=_parse_float(
+            os.getenv("CPU_ALERT_THRESHOLD"),
+            85.0,
+            minimum=0.0,
+        ),
+        memory_alert_threshold=_parse_float(
+            os.getenv("MEMORY_ALERT_THRESHOLD"),
+            90.0,
+            minimum=0.0,
+        ),
+        disk_alert_threshold=_parse_float(
+            os.getenv("DISK_ALERT_THRESHOLD"),
+            90.0,
+            minimum=0.0,
+        ),
+        gpu_usage_alert_threshold=_parse_float(
+            os.getenv("GPU_USAGE_ALERT_THRESHOLD"),
+            85.0,
+            minimum=0.0,
+        ),
+        gpu_temp_alert_threshold=_parse_float(
+            os.getenv("GPU_TEMP_ALERT_THRESHOLD"),
+            80.0,
+            minimum=1.0,
+        ),
+        mobile_push_enabled=_parse_bool(os.getenv("MOBILE_PUSH_ENABLED"), default=False),
+        mobile_push_include_recovery=_parse_bool(
+            os.getenv("MOBILE_PUSH_INCLUDE_RECOVERY"),
+            default=True,
+        ),
+        mobile_push_retry_initial_seconds=_parse_int(
+            os.getenv("MOBILE_PUSH_RETRY_INITIAL_SECONDS"),
+            30,
+            minimum=1,
+        ),
+        mobile_push_retry_max_seconds=_parse_int(
+            os.getenv("MOBILE_PUSH_RETRY_MAX_SECONDS"),
+            900,
+            minimum=1,
+        ),
+        firebase_service_account_file=Path(
+            os.getenv(
+                "FIREBASE_SERVICE_ACCOUNT_FILE",
+                "/etc/linux-monitor-mobile-alerts/firebase-service-account.json",
+            )
+        ),
+        mobile_alert_api_token=_parse_optional_string(os.getenv("MOBILE_ALERT_API_TOKEN")),
+        alert_consumer_api_token=_parse_optional_string(
+            os.getenv("ALERT_CONSUMER_API_TOKEN")
         ),
     )

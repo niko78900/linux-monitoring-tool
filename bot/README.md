@@ -1,33 +1,32 @@
 # linux-monitor Discord Bot
 
-Separate Python service that consumes the existing FastAPI monitoring API and posts to Discord.
+Separate Python service that consumes the monitoring backend and posts to Discord.
 
-## What it does
+## What It Does
 
 - Slash commands:
-  - `/status` -> uses `GET /api/system` (+ `GET /api/gpu` fallback-aware)
-  - `/health` -> uses `GET /api/health`
-  - `/docker` -> uses `GET /api/docker`
-  - `/gpu` -> uses `GET /api/gpu`
-  - `/system` -> uses `GET /api/system`
-  - `/status_schedule <interval_minutes>` -> schedule periodic status posts in current channel
-  - `/status_schedule_custom <windows_spec>` -> schedule by multiple time windows
-  - `/status_schedule_off` -> disable scheduled status posts
-  - `/status_schedule_show` -> view current schedule settings
-- Background polling with alerting:
-  - CPU / memory threshold alerts
-  - Disk threshold + disk health alerts (`/api/system`)
-  - RAID alerts (`/api/system`, configurable)
-  - Physical disk health alerts (`/api/system`)
-  - GPU temperature alerts (`/api/gpu`)
-  - Docker availability alerts (`/api/docker`, configurable)
-  - Backend/endpoint availability alerts
-- Alert deduplication and recovery notifications.
+  - `/status` -> `GET /api/system` plus GPU fallback
+  - `/health` -> `GET /api/health`
+  - `/docker` -> `GET /api/docker`
+  - `/gpu` -> `GET /api/gpu`
+  - `/system` -> `GET /api/system`
+  - `/status_schedule <interval_minutes>`
+  - `/status_schedule_custom <windows_spec>`
+  - `/status_schedule_off`
+  - `/status_schedule_show`
+- Background alert presentation:
+  - polls `GET /api/alerts/events`
+  - posts backend-generated alert/recovery events in order
+  - advances `DISCORD_ALERT_CURSOR_FILE` only after Discord send succeeds
+  - keeps a Discord-only backend-unreachable warning because a dead backend cannot report itself
+
+The bot does not own CPU/RAM/GPU/disk threshold evaluation, Firebase credentials, mobile FCM registration, mobile retry state, or mobile push delivery.
 
 ## Requirements
 
 - Python 3.11+
-- Existing backend reachable at `MONITOR_API_BASE_URL`
+- Monitoring backend reachable at `MONITORING_API_BASE_URL`
+- `ALERT_CONSUMER_API_TOKEN` matching the backend
 - Discord bot token and target channel
 
 ## Setup
@@ -50,24 +49,19 @@ python -m venv .venv
 Copy-Item .env.example .env
 ```
 
-## Environment variables
+## Environment Variables
 
 - `DISCORD_BOT_TOKEN` (required)
-- `DISCORD_GUILD_ID` (optional but recommended for fast slash-command sync in one server)
-- `DISCORD_CHANNEL_ID` (required; channel for alert messages)
-- `MONITOR_API_BASE_URL` (required; example `http://127.0.0.1:4040`)
+- `DISCORD_GUILD_ID` (optional, faster slash-command sync for one server)
+- `DISCORD_CHANNEL_ID` (required)
+- `MONITORING_API_BASE_URL` (required, example `http://127.0.0.1:4040/api`)
+- `ALERT_CONSUMER_API_TOKEN` (required)
 - `POLL_INTERVAL_SECONDS` (default `30`)
-- `ALERT_GRACE_SECONDS` (default `300`; every alert is sent only after this continuous failure duration)
-- `CPU_ALERT_THRESHOLD` (default `85`)
-- `MEMORY_ALERT_THRESHOLD` (default `90`)
-- `DISK_ALERT_THRESHOLD` (default `90`)
-- `GPU_TEMP_ALERT_THRESHOLD` (default `80`)
-- `ENABLE_DOCKER_ALERTS` (`true`/`false`, default `true`)
-- `ENABLE_RAID_ALERTS` (`true`/`false`, default `true`)
+- `DISCORD_ALERT_CURSOR_FILE` (default `discord_alert_cursor.json` in `bot/`, production example `/var/lib/linux-monitoring/discord_alert_cursor.json`)
+- `DISCORD_ALERT_REPLAY_ON_FIRST_START` (default `false`)
 - `STATUS_SCHEDULE_STATE_FILE` (optional, default `status_schedule_state.json` in `bot/`)
-- `ALERT_STATE_FILE` (optional, default `alert_state.json` in `bot/`)
 
-`ENDPOINT_ALERT_GRACE_SECONDS` is still accepted as a legacy fallback if `ALERT_GRACE_SECONDS` is not set.
+`MONITOR_API_BASE_URL` is still accepted as a legacy alias; if it does not end in `/api`, the bot appends `/api`.
 
 ## Run
 
@@ -76,7 +70,7 @@ cd bot
 python src/bot.py
 ```
 
-## Custom schedule format
+## Custom Schedule Format
 
 Use `/status_schedule_custom` with:
 
@@ -92,7 +86,7 @@ Rules:
 - Uses 24h time.
 - Windows must not overlap.
 - Windows may wrap midnight (`21:00-06:00`).
-- Bot posts only inside configured windows. If there is a gap, posting pauses until the next window starts.
+- Bot posts only inside configured windows.
 
 ## Tests
 
@@ -102,10 +96,9 @@ python -m unittest discover tests -v
 
 ## Notes
 
-- This bot does not duplicate monitoring logic. It only consumes the backend API contract.
-- If `DISCORD_GUILD_ID` is set, commands are synced to that guild only.
-- If `DISCORD_GUILD_ID` is empty, commands are synced globally (can take longer to appear).
+- The monitoring backend is the alert source of truth.
+- The backend sends mobile FCM notifications directly.
+- The bot does not import Firebase Admin SDK.
+- The bot does not read backend SQLite files or mobile registry JSON files.
 - Scheduled status settings are persisted to disk and restored after bot restart.
-- Scheduled status supports both fixed interval mode and custom multi-window mode.
-- Active alert dedupe state is persisted to disk and restored after bot restart.
 - Changing scheduled status settings requires Discord `Manage Server` permission.

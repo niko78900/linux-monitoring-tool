@@ -1,12 +1,14 @@
 # Linux Monitoring
 
-Read-only Linux homelab monitoring monorepo with a FastAPI backend, Angular dashboard, and Discord bot.
+Linux homelab monitoring monorepo with a FastAPI monitoring backend, Angular dashboard, Discord bot, restricted control agent, and Flutter tablet app.
 
-Read-only homelab monitoring stack built as a monorepo:
+Homelab monitoring stack built as a monorepo:
 
-- `backend/`: FastAPI monitoring API
+- `backend/`: FastAPI monitoring API, history collector, alert engine, FCM mobile delivery
 - `frontend/`: Angular dashboard UI
-- `bot/`: Discord bot for slash commands, alerts, and scheduled status posts
+- `bot/`: Discord bot for slash commands, backend alert-event presentation, and scheduled status posts
+- `control_agent/`: restricted privileged homelab actions
+- `mobile/`: Flutter Android tablet app and widgets
 
 ## Why This Project
 
@@ -16,9 +18,11 @@ This project gives you one monitoring pipeline for local servers:
 - **Storage health context**: mounted disks, RAID arrays, physical disk inventory and health summaries
 - **GPU telemetry**: NVIDIA metrics through NVML (when available)
 - **Docker telemetry**: container inventory and runtime status (when available)
-- **Discord integration**: proactive alerting and chat-accessible status
+- **Backend-owned alerts**: sustained threshold evaluation, immutable alert events, FCM delivery, and retry outbox
+- **Discord integration**: chat-accessible status and backend alert-event presentation
+- **Tablet control**: direct monitoring API use plus separate privileged-control API use where needed
 
-The API is intentionally **read-only** (`GET` endpoints only).
+Most telemetry endpoints are read-only. Mobile-alert registration/test routes are scoped to the monitoring backend with a dedicated mobile-alert token. Privileged actions are isolated in the control agent.
 
 ## Architecture
 
@@ -26,22 +30,36 @@ The API is intentionally **read-only** (`GET` endpoints only).
 +---------------------+          +-----------------------+
 | Angular Frontend    |  GET     | FastAPI Backend       |
 | :4041               +--------->+ :4040/api/*           |
-| (polling dashboard) |          | system/gpu/docker/... |
+| (polling dashboard) |          | telemetry/history     |
 +----------+----------+          +-----+-----------------+
            |                           |
            |                           |
+           |                           +--> alert engine + alerts.sqlite3
+           |                           +--> Firebase Admin FCM sender
            |                           +--> psutil (CPU/RAM/disk/net)
            |                           +--> Linux sysfs (/sys, /proc)
            |                           +--> smartctl (optional disk temps)
            |                           +--> Docker SDK (optional)
            |                           +--> NVML (optional NVIDIA)
            |
-           | slash commands + alerts (independent process)
+           | alert event feed + slash commands
            v
 +---------------------+      GET      +-----------------------+
 | Discord Bot         +-------------->+ FastAPI Backend       |
-| (discord.py)        |               | :4040/api/*           |
+| (discord.py)        |               | :4040/api/alerts/*    |
 +---------------------+               +-----------------------+
+
++---------------------+      POST     +-----------------------+
+| Flutter Tablet      +-------------->+ FastAPI Backend       |
+| mobile alerts       |               | :4040/api/mobile-*    |
++----------+----------+               +-----------------------+
+           |
+           | privileged actions only
+           v
++---------------------+
+| Control Agent       |
+| :4042/api/*         |
++---------------------+
 ```
 
 ## Repository Layout
@@ -57,6 +75,10 @@ linux-monitoring/
       services/
     tests/
     run.py
+  control_agent/
+    app/
+    config/
+    tests/
   frontend/
     src/app/
       core/
@@ -66,6 +88,10 @@ linux-monitoring/
   bot/
     src/
     tests/
+  mobile/
+    lib/
+    android/
+    test/
 ```
 
 ## API Endpoints
@@ -77,6 +103,14 @@ Backend exposes these endpoints under `/api`:
 - `GET /api/gpu` - live NVIDIA GPU metrics (or unavailable reason)
 - `GET /api/docker` - Docker container inventory (or unavailable reason)
 - `GET /api/summary` - compact dashboard KPIs
+- `GET /api/history/*` - historical metrics
+- `GET /api/alerts/events` - scoped alert event feed for consumers
+- `GET /api/alerts/active` - scoped active backend alerts
+- `GET /api/alerts/status` - scoped alert engine status
+- `GET /api/mobile-alerts/status` - scoped tablet registration status
+- `POST /api/mobile-alerts/register` - scoped tablet FCM registration
+- `DELETE /api/mobile-alerts/register/{installation_id}` - scoped tablet disable/unregister
+- `POST /api/mobile-alerts/test` - scoped backend-to-FCM round-trip test
 
 Interactive docs:
 
@@ -146,6 +180,14 @@ Key variables:
 - `CORS_ORIGIN_REGEX` (optional)
 - `DISK_MOUNTPOINT` (default `/`)
 - `DOCKER_TIMEOUT_SECONDS` (default `3`)
+- `HISTORY_DB_PATH` (default `/var/lib/linux-monitoring/history.sqlite3`)
+- `ALERTS_ENABLED` (default `true`)
+- `ALERT_DB_PATH` (default `/var/lib/linux-monitoring/alerts.sqlite3`)
+- `ALERT_GRACE_SECONDS` (default `300`)
+- `MOBILE_PUSH_ENABLED` (default `false`)
+- `FIREBASE_SERVICE_ACCOUNT_FILE` (default `/etc/linux-monitor-mobile-alerts/firebase-service-account.json`)
+- `MOBILE_ALERT_API_TOKEN` (dedicated tablet registration/test token)
+- `ALERT_CONSUMER_API_TOKEN` (dedicated Discord/event-consumer token)
 
 ### Frontend (`frontend/src/environments/environment.shared.ts`)
 
@@ -159,13 +201,11 @@ Key variables:
 
 - `DISCORD_BOT_TOKEN` (required)
 - `DISCORD_CHANNEL_ID` (required)
-- `MONITOR_API_BASE_URL` (required, example `http://127.0.0.1:4040`)
+- `MONITORING_API_BASE_URL` (required, example `http://127.0.0.1:4040/api`)
+- `ALERT_CONSUMER_API_TOKEN` (required, matches backend)
+- `DISCORD_ALERT_CURSOR_FILE` (default `/var/lib/linux-monitoring/discord_alert_cursor.json`)
+- `DISCORD_ALERT_REPLAY_ON_FIRST_START` (default `false`)
 - `POLL_INTERVAL_SECONDS` (default `30`)
-- `ALERT_GRACE_SECONDS` (default `300` for all alerts)
-- Thresholds: CPU/memory/disk/GPU temp
-- Feature flags: `ENABLE_DOCKER_ALERTS`, `ENABLE_RAID_ALERTS`
-
-Legacy fallback: `ENDPOINT_ALERT_GRACE_SECONDS` is still recognized when `ALERT_GRACE_SECONDS` is unset.
 
 ## Production Shape
 
@@ -175,7 +215,8 @@ Recommended deployment pattern:
 2. Serve frontend static assets + reverse proxy `/api` to backend (`127.0.0.1:4040`)
 3. Keep backend non-public if proxying from same host
 4. Restrict CORS to known origins if cross-origin access is needed
-5. Run Discord bot as a separate process/service
+5. Run Discord bot as a separate event-consumer process/service
+6. Run control agent separately on `:4042` for privileged actions only
 
 ## Testing
 
@@ -208,3 +249,5 @@ For deeper implementation and architecture details, see:
 - [`backend/README.md`](backend/README.md)
 - [`frontend/README.md`](frontend/README.md)
 - [`bot/README.md`](bot/README.md)
+- [`control_agent/README.md`](control_agent/README.md)
+- [`docs/BACKEND_OWNED_MOBILE_ALERTS.md`](docs/BACKEND_OWNED_MOBILE_ALERTS.md)

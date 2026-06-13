@@ -3,7 +3,7 @@
 This app uses two Android background paths:
 
 - Home-screen widgets use `home_widget` plus WorkManager for best-effort snapshot refresh.
-- Urgent resource alerts use Firebase Cloud Messaging (FCM) server push and a high-importance Android notification channel.
+- Urgent resource alerts use Firebase Cloud Messaging from the monitoring backend and a high-importance Android notification channel.
 
 WorkManager is intentionally not used for urgent alerts. Android can delay periodic work, and its minimum cadence is not suitable for prompt sustained-resource notifications.
 
@@ -29,7 +29,9 @@ Widget storage contains flattened non-sensitive telemetry only. It must not cont
 
 Do not fabricate `google-services.json`; it must come from Firebase.
 
-## Server-Side Firebase Setup
+## Backend FCM Setup
+
+The monitoring backend owns mobile registration and FCM delivery. The control agent and Discord bot do not need Firebase credentials.
 
 1. Create a Firebase Admin service account key.
 2. Copy the JSON credential to `/etc/linux-monitor-mobile-alerts/firebase-service-account.json`.
@@ -41,173 +43,44 @@ sudo chown root:linux-monitoring /etc/linux-monitor-mobile-alerts/firebase-servi
 sudo chmod 0640 /etc/linux-monitor-mobile-alerts/firebase-service-account.json
 ```
 
-Never copy the service-account JSON into the APK or commit it.
-
-## Debian Configuration
-
-Create a shared state path for the control agent and bot. The directory is
-group-writable and setgid so either service user can atomically replace shared
-files while preserving group access.
-
-```bash
-sudo install -d -m 2770 -o linux-monitor-control-agent -g linux-monitoring /var/lib/linux-monitoring
-sudo touch /var/lib/linux-monitoring/mobile_push_tokens.json
-sudo chown linux-monitor-control-agent:linux-monitoring /var/lib/linux-monitoring/mobile_push_tokens.json
-sudo chmod 0640 /var/lib/linux-monitoring/mobile_push_tokens.json
-sudo touch /var/lib/linux-monitoring/mobile_push_tokens.lock
-sudo chown linux-monitor-control-agent:linux-monitoring /var/lib/linux-monitoring/mobile_push_tokens.lock
-sudo chmod 0660 /var/lib/linux-monitoring/mobile_push_tokens.lock
-sudo touch /var/lib/linux-monitoring/mobile_push_delivery_state.json
-sudo chown linux-monitor-discord-bot:linux-monitoring /var/lib/linux-monitoring/mobile_push_delivery_state.json
-sudo chmod 0640 /var/lib/linux-monitoring/mobile_push_delivery_state.json
-```
-
-Configure both services:
+Backend env:
 
 ```text
-MOBILE_PUSH_TOKEN_REGISTRY_FILE=/var/lib/linux-monitoring/mobile_push_tokens.json
-FIREBASE_SERVICE_ACCOUNT_FILE=/etc/linux-monitor-mobile-alerts/firebase-service-account.json
-```
-
-Configure the bot:
-
-```text
+ALERTS_ENABLED=true
+ALERT_DB_PATH=/var/lib/linux-monitoring/alerts.sqlite3
 MOBILE_PUSH_ENABLED=false
 MOBILE_PUSH_INCLUDE_RECOVERY=true
-MOBILE_PUSH_OUTBOX_FILE=/var/lib/linux-monitoring/mobile_push_delivery_state.json
-MOBILE_PUSH_RETRY_INITIAL_SECONDS=30
-MOBILE_PUSH_RETRY_MAX_SECONDS=900
-GPU_USAGE_ALERT_THRESHOLD=85
+FIREBASE_SERVICE_ACCOUNT_FILE=/etc/linux-monitor-mobile-alerts/firebase-service-account.json
+MOBILE_ALERT_API_TOKEN=<long-random-token>
+ALERT_CONSUMER_API_TOKEN=<long-random-token>
 ```
 
-Set `MOBILE_PUSH_ENABLED=true` only after Firebase and tablet registration are verified.
-
-## Alert Semantics
-
-The Discord bot remains the alert engine. Mobile push is a delivery sink after the existing alert-state transition:
-
-- First threshold breach starts the grace timer.
-- Brief spikes do not notify.
-- Sustained active alerts notify once.
-- Active alerts persist across bot restarts.
-- Recovery notices are sent when enabled.
-
-Mobile push sends only `cpu-usage`, `gpu-usage`, `memory-usage`, and `disk-usage:*`. Docker, RAID, endpoint, service-control, and generic health alerts remain Discord-only.
+Set `MOBILE_PUSH_ENABLED=true` only after tablet registration and the round-trip test succeed.
 
 ## Android Setup
 
 1. Install the rebuilt APK.
 2. Open Settings.
-3. Grant notification permission.
-4. Enable push alerts.
-5. Send the round-trip test notification.
-6. Open Android notification settings and confirm the `Homelab urgent alerts` channel allows pop-up, sound, and vibration.
-7. Add each widget from Settings or the Android launcher.
+3. Confirm the Monitoring API URL points at `http://100.64.10.22:4040/api`.
+4. Confirm the Control API URL points at `http://100.64.10.22:4042/api`.
+5. Enter the scoped Mobile-alert backend token.
+6. Grant notification permission.
+7. Enable push alerts.
+8. Send the round-trip test notification.
+9. Open Android notification settings and confirm the `Homelab urgent alerts` channel allows pop-up, sound, and vibration.
+10. Add each widget from Settings or the Android launcher.
 
-## Read-Only Debian Verification
+## Alert Semantics
 
-This block avoids printing tokens or service-account JSON and does not modify
-files or restart services:
+The monitoring backend is the alert source of truth:
 
-```bash
-systemctl is-active linux-monitor-control-agent.service
-systemctl is-active linux-monitor-discord-bot.service
+- First threshold breach starts the grace timer.
+- Brief spikes do not notify.
+- Sustained active alerts create one event.
+- Active alert state persists across backend restarts.
+- Recovery creates one event.
+- Backend FCM delivery uses SQLite outbox retries.
 
-CONTROL_ENV_FILE="$(
-  systemctl show linux-monitor-control-agent.service --property=EnvironmentFiles |
-    sed 's/^EnvironmentFiles=//' |
-    tr ' ' '\n' |
-    sed 's/^-//' |
-    cut -d: -f1 |
-    awk 'NF {print; exit}'
-)"
-CONTROL_ENV_FILE="${CONTROL_ENV_FILE:-/etc/linux-monitor-control-agent.env}"
-sudo test -r "$CONTROL_ENV_FILE"
+Mobile push sends only `cpu-usage`, `gpu-usage`, `memory-usage`, and `disk-usage:*`. Docker, RAID, endpoint, service-control, and generic health alerts remain Discord-only.
 
-sudo test -f /etc/linux-monitor-mobile-alerts/firebase-service-account.json && \
-  sudo stat -c '%U:%G %a %n' /etc/linux-monitor-mobile-alerts/firebase-service-account.json
-
-sudo stat -c '%U:%G %a %n' /var/lib/linux-monitoring
-sudo test -f /var/lib/linux-monitoring/mobile_push_tokens.json && \
-  sudo stat -c '%U:%G %a %n' /var/lib/linux-monitoring/mobile_push_tokens.json
-sudo test -f /var/lib/linux-monitoring/mobile_push_tokens.lock && \
-  sudo stat -c '%U:%G %a %n' /var/lib/linux-monitoring/mobile_push_tokens.lock
-sudo test -f /var/lib/linux-monitoring/mobile_push_delivery_state.json && \
-  sudo stat -c '%U:%G %a %n' /var/lib/linux-monitoring/mobile_push_delivery_state.json
-
-systemctl show linux-monitor-control-agent.service --property=Environment | \
-  tr ' ' '\n' | grep -E 'MOBILE_PUSH_TOKEN_REGISTRY_FILE|FIREBASE_SERVICE_ACCOUNT_FILE' | sed 's/=.*/=set/'
-
-systemctl show linux-monitor-discord-bot.service --property=Environment | \
-  tr ' ' '\n' | grep -E 'MOBILE_PUSH_ENABLED|MOBILE_PUSH_INCLUDE_RECOVERY|MOBILE_PUSH_TOKEN_REGISTRY_FILE|MOBILE_PUSH_OUTBOX_FILE|MOBILE_PUSH_RETRY_INITIAL_SECONDS|MOBILE_PUSH_RETRY_MAX_SECONDS|FIREBASE_SERVICE_ACCOUNT_FILE|GPU_USAGE_ALERT_THRESHOLD' | sed 's/=.*/=set/'
-
-CONTROL_API_TOKEN="$(
-  sudo awk '/^CONTROL_API_TOKEN=/ {sub(/^CONTROL_API_TOKEN=/, ""); print; exit}' "$CONTROL_ENV_FILE"
-)"
-test -n "${CONTROL_API_TOKEN:-}"
-curl -fsS -H "Authorization: Bearer ${CONTROL_API_TOKEN}" \
-  'http://100.64.10.22:4042/api/mobile-alerts/status' | python3 -m json.tool
-unset CONTROL_API_TOKEN
-
-sudo python3 - <<'PY'
-import json
-from pathlib import Path
-path = Path('/var/lib/linux-monitoring/mobile_push_tokens.json')
-payload = json.loads(path.read_text()) if path.exists() and path.stat().st_size else {'installations': []}
-enabled = [item for item in payload.get('installations', []) if item.get('enabled')]
-print(f'enabled_installations={len(enabled)}')
-PY
-
-sudo python3 - <<'PY'
-import json
-from pathlib import Path
-path = Path('/var/lib/linux-monitoring/mobile_push_delivery_state.json')
-payload = json.loads(path.read_text()) if path.exists() and path.stat().st_size else {'deliveries': []}
-pending = [item for item in payload.get('deliveries', []) if not item.get('delivered_at')]
-print(f'pending_mobile_push_deliveries={len(pending)}')
-PY
-
-getent hosts fcm.googleapis.com >/dev/null && echo 'firebase_dns=ok'
-python3 - <<'PY'
-import urllib.request
-urllib.request.urlopen('https://fcm.googleapis.com', timeout=5)
-print('firebase_https=ok')
-PY
-
-journalctl -u linux-monitor-control-agent.service -n 80 --no-pager | grep -Ei 'mobile-alert|error|warning' || true
-journalctl -u linux-monitor-discord-bot.service -n 80 --no-pager | grep -Ei 'mobile push|firebase|error|warning' || true
-```
-
-## Manual Deployment Steps
-
-1. Add `google-services.json` locally and rebuild the APK.
-2. Copy/install the APK on the tablet.
-3. Install Python dependencies for the control agent and bot.
-4. Install the Firebase Admin service-account JSON on Debian with restrictive permissions.
-5. Configure registry, outbox, retry, and Firebase env vars for both services.
-6. Restart the control agent.
-7. Register the tablet from Settings.
-8. Enable `MOBILE_PUSH_ENABLED=true` for the bot.
-9. Restart the Discord bot.
-10. Send a round-trip test notification from Settings.
-
-## Real-Device Test Matrix
-
-1. App foreground: send test, expect visible heads-up notification.
-2. App background: send test, expect notification without reopening app.
-3. App swiped away: send test, expect notification without opening app.
-4. Screen off: send test, expect lock-screen/system notification.
-5. Tablet rebooted and app not opened: send test, expect FCM notification if registration remains valid.
-6. Notification permission denied: Settings reports denied and test explains that visible delivery is blocked.
-7. Channel muted: Settings offers Android notification settings.
-8. Reinstall/token rotation: registration refreshes safely.
-9. Tailscale disconnected: already-registered FCM notifications may still arrive; registration/test API calls fail until Tailscale returns.
-10. Add all widgets and verify tap routing.
-
-## Rollback
-
-1. Set `MOBILE_PUSH_ENABLED=false` and restart the Discord bot.
-2. Disable push alerts from tablet Settings or mark the installation disabled in the registry during a maintenance window.
-3. Remove widgets from the launcher if desired.
-4. Restore the previous APK if needed.
-5. Remove Firebase credentials from Debian if future re-enable is not planned.
+See [`BACKEND_OWNED_MOBILE_ALERTS.md`](BACKEND_OWNED_MOBILE_ALERTS.md) for deployment verification, rollback, and the real-device matrix.

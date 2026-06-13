@@ -35,6 +35,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _monitoringUrl = TextEditingController();
   final _controlUrl = TextEditingController();
   final _controlToken = TextEditingController();
+  final _mobileAlertToken = TextEditingController();
   final _sshName = TextEditingController();
   final _sshHost = TextEditingController();
   final _sshPort = TextEditingController();
@@ -69,6 +70,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _monitoringUrl.dispose();
     _controlUrl.dispose();
     _controlToken.dispose();
+    _mobileAlertToken.dispose();
     _sshName.dispose();
     _sshHost.dispose();
     _sshPort.dispose();
@@ -580,6 +582,30 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: _mobileAlertToken,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Mobile-alert backend token',
+                  helperText:
+                      'Limited token for backend alert registration and tests.',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  OutlinedButton(
+                    onPressed: _saveMobileAlertToken,
+                    child: const Text('Save alert token'),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  TextButton(
+                    onPressed: _clearMobileAlertToken,
+                    child: const Text('Clear alert token'),
+                  ),
+                ],
+              ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: settings.mobilePushAlertsEnabled,
@@ -747,6 +773,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _controlToken.text = value;
       }
     });
+    storage.readMobileAlertToken().then((value) {
+      if (mounted && value != null && _mobileAlertToken.text.isEmpty) {
+        _mobileAlertToken.text = value;
+      }
+    });
     storage.readSshPassphrase().then((value) {
       if (mounted && value != null && _sshPassphrase.text.isEmpty) {
         _sshPassphrase.text = value;
@@ -880,6 +911,27 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
+  Future<void> _saveMobileAlertToken() async {
+    await ref
+        .read(secureStorageServiceProvider)
+        .writeMobileAlertToken(_mobileAlertToken.text);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mobile-alert backend token saved')),
+      );
+    }
+  }
+
+  Future<void> _clearMobileAlertToken() async {
+    await ref.read(secureStorageServiceProvider).clearMobileAlertToken();
+    _mobileAlertToken.clear();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mobile-alert backend token cleared')),
+      );
+    }
+  }
+
   Future<void> _testMonitoring() async {
     try {
       final client = MonitoringApiClient(
@@ -978,14 +1030,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       final preferences = ref.read(sharedPreferencesProvider);
       final token = await ref
           .read(secureStorageServiceProvider)
-          .readControlToken();
+          .readMobileAlertToken();
       final permission = await MobileAlertService.instance.permissionState();
       MobileAlertStatus? status;
       try {
         status = await MobileAlertService.instance.status(
           settings: settings,
           preferences: preferences,
-          controlToken: token,
+          mobileAlertToken: token,
         );
       } catch (_) {
         status = null;
@@ -1000,7 +1052,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           _mobileAlertStatus = status;
           _mobileAlertReadiness = readiness;
           _mobileAlertStatusText = status == null
-              ? 'Control-agent push status unavailable'
+              ? 'Backend mobile-alert status unavailable'
               : readiness.readinessMessage;
         });
       }
@@ -1017,12 +1069,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       final preferences = ref.read(sharedPreferencesProvider);
       final token = await ref
           .read(secureStorageServiceProvider)
-          .readControlToken();
+          .readMobileAlertToken();
       final permission = await MobileAlertService.instance.requestPermission();
       final status = await MobileAlertService.instance.register(
         settings: settings,
         preferences: preferences,
-        controlToken: token,
+        mobileAlertToken: token,
       );
       final next = settings.copyWith(mobilePushAlertsEnabled: true);
       final readiness = await MobileAlertService.instance.readiness(
@@ -1061,11 +1113,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       final preferences = ref.read(sharedPreferencesProvider);
       final token = await ref
           .read(secureStorageServiceProvider)
-          .readControlToken();
+          .readMobileAlertToken();
       final status = await MobileAlertService.instance.disable(
         settings: settings,
         preferences: preferences,
-        controlToken: token,
+        mobileAlertToken: token,
       );
       final next = settings.copyWith(mobilePushAlertsEnabled: false);
       ref.read(settingsControllerProvider.notifier).save(next);
@@ -1098,17 +1150,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       final preferences = ref.read(sharedPreferencesProvider);
       final token = await ref
           .read(secureStorageServiceProvider)
-          .readControlToken();
+          .readMobileAlertToken();
       final permission = await MobileAlertService.instance.requestPermission();
       final result = await MobileAlertService.instance.sendRoundTripTest(
         settings: settings,
         preferences: preferences,
-        controlToken: token,
+        mobileAlertToken: token,
       );
       final status = await MobileAlertService.instance.status(
         settings: settings,
         preferences: preferences,
-        controlToken: token,
+        mobileAlertToken: token,
       );
       final readiness = await MobileAlertService.instance.readiness(
         serverStatus: status,

@@ -32,6 +32,7 @@ void main() {
     expect(find.text('Primary widget label'), findsOneWidget);
     expect(find.text('Secondary widget label'), findsOneWidget);
     expect(find.text('Push notifications'), findsOneWidget);
+    expect(find.text('Mobile-alert backend token'), findsOneWidget);
     expect(find.text('Send test notification'), findsOneWidget);
   });
 

@@ -71,14 +71,6 @@ hosts:
         encoding="utf-8",
     )
     monkeypatch.setenv("MANAGED_HOSTS_CONFIG_PATH", str(managed_hosts_path))
-    monkeypatch.setenv(
-        "MOBILE_PUSH_TOKEN_REGISTRY_FILE",
-        str(tmp_path / "mobile_push_tokens.json"),
-    )
-    monkeypatch.setenv(
-        "FIREBASE_SERVICE_ACCOUNT_FILE",
-        str(tmp_path / "firebase-service-account.json"),
-    )
     services_path = tmp_path / "services.yaml"
     services_path.write_text(
         """

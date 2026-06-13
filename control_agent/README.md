@@ -1,6 +1,8 @@
 # Homelab Control Agent
 
-Restricted FastAPI control service for private homelab actions. Current implementation exposes:
+Restricted FastAPI control service for private homelab actions.
+
+## Scope
 
 ```text
 GET  /api/health
@@ -12,13 +14,11 @@ GET  /api/services/{service_id}
 POST /api/services/{service_id}/actions/{action}
 POST /api/actions/wake-main-pc
 GET  /api/neighbors
-GET  /api/mobile-alerts/status
-POST /api/mobile-alerts/register
-DELETE /api/mobile-alerts/register/{installation_id}
-POST /api/mobile-alerts/test
 ```
 
-The service does not accept client-supplied MAC addresses and does not expose generic shell execution.
+The service does not expose mobile-alert registration, Firebase credentials, client-supplied MAC addresses, generic shell execution, or arbitrary scripts.
+
+Mobile-alert registration, test push, FCM delivery, alert history, and alert event feeds are owned by the monitoring backend on `:4040/api`.
 
 ## Configuration
 
@@ -35,13 +35,7 @@ MANAGED_HOSTS_CONFIG_PATH
 SERVICES_CONFIG_PATH
 SERVICE_CONTROL_HELPER_PATH
 SERVICE_COMMAND_TIMEOUT_SECONDS
-MOBILE_PUSH_TOKEN_REGISTRY_FILE
-FIREBASE_SERVICE_ACCOUNT_FILE
 ```
-
-`MOBILE_PUSH_TOKEN_REGISTRY_FILE` is shared with the Discord bot. The live
-directory should be owned by group `linux-monitoring` with setgid enabled so the
-control agent and bot can both use the locked registry safely.
 
 Prefer binding the service to `127.0.0.1` and exposing it only through a private reverse proxy or Tailscale Serve inside the tailnet.
 

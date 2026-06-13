@@ -20,7 +20,6 @@ from bot_constants import (
 from commands import register_slash_commands
 from config import BotConfig
 from formatters import format_api_error_embed, format_status_embed
-from mobile_push import MobilePushDispatcher
 from monitoring_client import MonitoringAPIError, MonitoringClient
 from schedule_policy import ScheduleMode, TimeWindowRule, compute_next_event
 from services import (
@@ -32,10 +31,9 @@ from services import (
     safe_send_embed,
 )
 from state import (
+    AlertCursorStore,
     clear_status_schedule_state,
-    load_alert_state,
     load_status_schedule_state,
-    save_alert_state,
     save_status_schedule_state,
 )
 
@@ -49,13 +47,11 @@ class MonitoringDiscordBot(commands.Bot):
         self.monitoring_client = MonitoringClient(
             base_url=config.monitor_api_base_url,
             timeout_seconds=config.request_timeout_seconds,
+            alert_consumer_api_token=config.alert_consumer_api_token,
         )
-        self.alert_state = AlertState(
-            default_notify_after_seconds=config.alert_grace_seconds,
-        )
-        self.alert_state_path = Path(config.alert_state_file)
-        self._load_alert_state()
-        self.mobile_push_dispatcher = MobilePushDispatcher.from_config(config)
+        self.backend_unreachable_state = AlertState()
+        self.alert_cursor = AlertCursorStore(Path(config.discord_alert_cursor_file))
+        self.alert_cursor.load()
         self.guild_object = discord.Object(id=config.discord_guild_id) if config.discord_guild_id else None
         self.alert_polling.change_interval(seconds=float(config.poll_interval_seconds))
         self.status_autopost_mode: ScheduleMode = STATUS_SCHEDULE_MODE_FIXED
@@ -259,9 +255,3 @@ class MonitoringDiscordBot(commands.Bot):
         if not self.status_autopost_next_should_send:
             prefix = "window switch in"
         return f"{prefix} ~{(remaining + 59) // 60} minute(s)"
-
-    def _load_alert_state(self) -> None:
-        load_alert_state(self.alert_state_path, self.alert_state)
-
-    def _save_alert_state(self) -> None:
-        save_alert_state(self.alert_state_path, self.alert_state)

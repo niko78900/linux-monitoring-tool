@@ -11,8 +11,8 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/config/app_settings.dart';
 import '../../../core/errors/app_exception.dart';
-import '../../network/data/control_api_client.dart';
 import '../domain/models/mobile_alert_models.dart';
+import 'mobile_alert_api_client.dart';
 import 'mobile_alert_routes.dart';
 
 const homelabUrgentAlertChannelId = 'homelab_urgent_alerts_v1';
@@ -156,7 +156,7 @@ class MobileAlertService {
   StreamSubscription<String>? _tokenRefreshSubscription;
   AppSettings? _settings;
   SharedPreferences? _preferences;
-  Future<String?> Function()? _readControlToken;
+  Future<String?> Function()? _readMobileAlertToken;
 
   Stream<String> get notificationRoutes => _routes.stream;
 
@@ -181,14 +181,14 @@ class MobileAlertService {
   Future<void> bootstrap({
     required AppSettings settings,
     required SharedPreferences preferences,
-    required Future<String?> Function() readControlToken,
+    required Future<String?> Function() readMobileAlertToken,
   }) async {
     if (!Platform.isAndroid) {
       return;
     }
     _settings = settings;
     _preferences = preferences;
-    _readControlToken = readControlToken;
+    _readMobileAlertToken = readMobileAlertToken;
     try {
       await initializeFirebaseAndRegisterBackgroundHandler();
     } catch (_) {
@@ -214,12 +214,12 @@ class MobileAlertService {
   Future<void> configure({
     required AppSettings settings,
     required SharedPreferences preferences,
-    required Future<String?> Function() readControlToken,
+    required Future<String?> Function() readMobileAlertToken,
   }) async {
     final previous = _settings;
     _settings = settings;
     _preferences = preferences;
-    _readControlToken = readControlToken;
+    _readMobileAlertToken = readMobileAlertToken;
     if (previous != null &&
         previous.mobilePushIncludeRecovery !=
             settings.mobilePushIncludeRecovery &&
@@ -229,7 +229,7 @@ class MobileAlertService {
         await _registerWithCurrentToken(
           settings: settings,
           preferences: preferences,
-          controlToken: await readControlToken(),
+          mobileAlertToken: await readMobileAlertToken(),
         );
       } catch (_) {
         // Explicit re-registration remains available from Settings.
@@ -394,7 +394,7 @@ class MobileAlertService {
   Future<MobileAlertStatus> register({
     required AppSettings settings,
     required SharedPreferences preferences,
-    required String? controlToken,
+    required String? mobileAlertToken,
   }) async {
     final token = await fcmToken();
     if (token == null || token.isEmpty) {
@@ -405,7 +405,7 @@ class MobileAlertService {
     return _registerWithCurrentToken(
       settings: settings,
       preferences: preferences,
-      controlToken: controlToken,
+      mobileAlertToken: mobileAlertToken,
       fcmToken: token,
     );
   }
@@ -413,7 +413,7 @@ class MobileAlertService {
   Future<MobileAlertStatus> _registerWithCurrentToken({
     required AppSettings settings,
     required SharedPreferences preferences,
-    required String? controlToken,
+    required String? mobileAlertToken,
     String? fcmToken,
   }) async {
     final token = fcmToken ?? await this.fcmToken();
@@ -423,11 +423,11 @@ class MobileAlertService {
       );
     }
     final installationId = await ensureInstallationId(preferences);
-    final client = ControlApiClient(
-      baseUrl: settings.controlApiUrl,
-      token: controlToken,
+    final client = MobileAlertApiClient(
+      baseUrl: settings.monitoringApiUrl,
+      token: _requireMobileAlertToken(mobileAlertToken),
     );
-    return client.registerMobileAlertDevice(
+    return client.registerDevice(
       MobileAlertRegistrationRequest(
         installationId: installationId,
         deviceName: 'Homelab Tablet',
@@ -441,45 +441,45 @@ class MobileAlertService {
   Future<MobileAlertStatus> status({
     required AppSettings settings,
     required SharedPreferences preferences,
-    required String? controlToken,
+    required String? mobileAlertToken,
   }) async {
     final installationId = await ensureInstallationId(preferences);
-    final client = ControlApiClient(
-      baseUrl: settings.controlApiUrl,
-      token: controlToken,
+    final client = MobileAlertApiClient(
+      baseUrl: settings.monitoringApiUrl,
+      token: _requireMobileAlertToken(mobileAlertToken),
     );
-    return client.getMobileAlertStatus(installationId: installationId);
+    return client.getStatus(installationId: installationId);
   }
 
   Future<MobileAlertStatus> disable({
     required AppSettings settings,
     required SharedPreferences preferences,
-    required String? controlToken,
+    required String? mobileAlertToken,
   }) async {
     final installationId = await ensureInstallationId(preferences);
-    final client = ControlApiClient(
-      baseUrl: settings.controlApiUrl,
-      token: controlToken,
+    final client = MobileAlertApiClient(
+      baseUrl: settings.monitoringApiUrl,
+      token: _requireMobileAlertToken(mobileAlertToken),
     );
-    return client.unregisterMobileAlertDevice(installationId);
+    return client.unregisterDevice(installationId);
   }
 
   Future<MobileAlertTestResult> sendRoundTripTest({
     required AppSettings settings,
     required SharedPreferences preferences,
-    required String? controlToken,
+    required String? mobileAlertToken,
   }) async {
     await register(
       settings: settings,
       preferences: preferences,
-      controlToken: controlToken,
+      mobileAlertToken: mobileAlertToken,
     );
     final installationId = await ensureInstallationId(preferences);
-    final client = ControlApiClient(
-      baseUrl: settings.controlApiUrl,
-      token: controlToken,
+    final client = MobileAlertApiClient(
+      baseUrl: settings.monitoringApiUrl,
+      token: _requireMobileAlertToken(mobileAlertToken),
     );
-    return client.sendMobileAlertTest(installationId: installationId);
+    return client.sendTest(installationId: installationId);
   }
 
   Future<void> openAndroidNotificationSettings() async {
@@ -499,20 +499,21 @@ class MobileAlertService {
   Future<void> _handleTokenRefresh(String token) async {
     final settings = _settings;
     final preferences = _preferences;
-    final readControlToken = _readControlToken;
+    final readMobileAlertToken = _readMobileAlertToken;
     if (settings == null ||
         preferences == null ||
-        readControlToken == null ||
+        readMobileAlertToken == null ||
         !settings.mobilePushAlertsEnabled) {
       return;
     }
     try {
       final installationId = await ensureInstallationId(preferences);
-      final client = ControlApiClient(
-        baseUrl: settings.controlApiUrl,
-        token: await readControlToken(),
+      final mobileAlertToken = await readMobileAlertToken();
+      final client = MobileAlertApiClient(
+        baseUrl: settings.monitoringApiUrl,
+        token: _requireMobileAlertToken(mobileAlertToken),
       );
-      await client.registerMobileAlertDevice(
+      await client.registerDevice(
         MobileAlertRegistrationRequest(
           installationId: installationId,
           deviceName: 'Homelab Tablet',
@@ -525,6 +526,16 @@ class MobileAlertService {
       // Token refresh will be retried by explicit registration or the next refresh.
     }
   }
+}
+
+String _requireMobileAlertToken(String? token) {
+  final trimmed = token?.trim() ?? '';
+  if (trimmed.isEmpty) {
+    throw const AppException(
+      'Enter the mobile-alert backend token in Settings.',
+    );
+  }
+  return trimmed;
 }
 
 MobileNotificationPermissionState _mapAuthorizationStatus(

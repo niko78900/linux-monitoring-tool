@@ -10,34 +10,61 @@ class MonitoringAPIError(RuntimeError):
 
 
 class MonitoringClient:
-    def __init__(self, base_url: str, timeout_seconds: float = 8.0) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        timeout_seconds: float = 8.0,
+        alert_consumer_api_token: str | None = None,
+    ) -> None:
+        headers = {"Accept": "application/json"}
+        if alert_consumer_api_token:
+            headers["Authorization"] = f"Bearer {alert_consumer_api_token}"
         self._client = httpx.AsyncClient(
             base_url=base_url.rstrip("/"),
             timeout=timeout_seconds,
-            headers={"Accept": "application/json"},
+            headers=headers,
         )
 
     async def aclose(self) -> None:
         await self._client.aclose()
 
     async def fetch_health(self) -> dict[str, Any]:
-        return await self._get_json("/api/health")
+        return await self._get_json("/health")
 
     async def fetch_summary(self) -> dict[str, Any]:
-        return await self._get_json("/api/summary")
+        return await self._get_json("/summary")
 
     async def fetch_system(self) -> dict[str, Any]:
-        return await self._get_json("/api/system")
+        return await self._get_json("/system")
 
     async def fetch_gpu(self) -> dict[str, Any]:
-        return await self._get_json("/api/gpu")
+        return await self._get_json("/gpu")
 
     async def fetch_docker(self) -> dict[str, Any]:
-        return await self._get_json("/api/docker")
+        return await self._get_json("/docker")
 
-    async def _get_json(self, path: str) -> dict[str, Any]:
+    async def fetch_alert_status(self) -> dict[str, Any]:
+        return await self._get_json("/alerts/status")
+
+    async def fetch_alert_events(
+        self,
+        *,
+        after_id: int,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        return await self._get_json(
+            "/alerts/events",
+            params={"after_id": max(0, int(after_id)), "limit": max(1, int(limit))},
+        )
+
+    async def _get_json(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         try:
-            response = await self._client.get(path)
+            response = await self._client.get(path, params=params)
         except httpx.RequestError as exc:
             raise MonitoringAPIError(f"{path}: request failed: {exc}") from exc
 

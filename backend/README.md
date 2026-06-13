@@ -1,6 +1,6 @@
 # linux-monitor backend (FastAPI)
 
-Read-only monitoring API for local-network dashboards.
+Monitoring API for local-network dashboards, historical metrics, backend-owned alert evaluation, and mobile FCM delivery.
 
 ## Project layout
 
@@ -57,6 +57,15 @@ Adjust `.env` values if needed:
 - `HISTORY_RETENTION_DAYS`: retention window for history rows
 - `HISTORY_RETENTION_CLEANUP_INTERVAL_SECONDS`: cleanup cadence for old history rows
 - `HISTORY_MAX_RESPONSE_POINTS`: upper bound for history response bucketing
+- `ALERTS_ENABLED`: enable or disable the backend alert monitor
+- `ALERT_DB_PATH`: SQLite alert database path
+- `ALERT_GRACE_SECONDS`: sustained breach window before an active alert event
+- `CPU_ALERT_THRESHOLD`, `MEMORY_ALERT_THRESHOLD`, `DISK_ALERT_THRESHOLD`
+- `GPU_USAGE_ALERT_THRESHOLD`, `GPU_TEMP_ALERT_THRESHOLD`
+- `MOBILE_PUSH_ENABLED`: enable backend FCM outbox delivery
+- `FIREBASE_SERVICE_ACCOUNT_FILE`: backend-readable Firebase Admin credential
+- `MOBILE_ALERT_API_TOKEN`: scoped token for tablet registration/status/test
+- `ALERT_CONSUMER_API_TOKEN`: scoped token for alert event consumers such as the Discord bot
 
 ## 3) Run the API
 
@@ -88,6 +97,8 @@ curl http://localhost:4040/api/docker
 curl http://localhost:4040/api/summary
 curl http://localhost:4040/api/history/ranges
 curl "http://localhost:4040/api/history/overview?range=24h"
+curl -H "Authorization: Bearer <consumer-token>" http://localhost:4040/api/alerts/status
+curl -H "Authorization: Bearer <mobile-token>" http://localhost:4040/api/mobile-alerts/status
 ```
 
 `/api/system` now includes:
@@ -127,4 +138,6 @@ Disk list intentionally excludes pseudo/system mounts and EFI boot mountpoints s
   - NVML library available on host
   - process permission to access NVIDIA device files
 - If Docker/NVIDIA access is missing, endpoints return `available: false` style responses instead of crashing.
-- History collection runs in a background task and should not break live read-only endpoints if persistence fails.
+- History and alert collection run in background tasks and should not break live telemetry endpoints if persistence, Firebase, Docker, or GPU collection fails.
+- Mobile registration and alert-consumer endpoints use scoped bearer tokens separate from the control-agent token.
+- FCM tokens are stored only in the backend-owned alert SQLite database and are never returned by status endpoints.

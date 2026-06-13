@@ -11,6 +11,9 @@ GET  /api/health
 GET  /api/devices
 GET  /api/hosts
 GET  /api/hosts/{host_id}
+GET  /api/services
+GET  /api/services/{service_id}
+POST /api/services/{service_id}/actions/{action}
 POST /api/actions/wake-main-pc
 GET  /api/neighbors
 ```
@@ -22,6 +25,8 @@ shell execution
 arbitrary scripts
 client-supplied MAC addresses
 generic device scans
+mobile-alert registration
+Firebase credential handling
 ```
 
 ## Recommended exposure model
@@ -50,9 +55,9 @@ MANAGED_HOSTS_CONFIG_PATH
 SERVICES_CONFIG_PATH
 SERVICE_CONTROL_HELPER_PATH
 SERVICE_COMMAND_TIMEOUT_SECONDS
-MOBILE_PUSH_TOKEN_REGISTRY_FILE
-FIREBASE_SERVICE_ACCOUNT_FILE
 ```
+
+Mobile-alert registration, Firebase delivery, and alert event feeds are owned by the monitoring backend. The control-agent environment should not contain `MOBILE_PUSH_*` or `FIREBASE_SERVICE_ACCOUNT_FILE`.
 
 ## Managed host reachability
 
@@ -97,6 +102,7 @@ Confirm:
 [ ] Wake requests are rate-limited
 [ ] The configured MAC is used even if the client sends a different value
 [ ] The service is reachable only inside the tailnet or local reverse-proxy boundary
+[ ] /api/mobile-alerts/* returns 404 from the control agent
 ```
 
 ## Read-only Debian verification

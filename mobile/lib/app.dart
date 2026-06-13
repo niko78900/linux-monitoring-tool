@@ -92,7 +92,9 @@ class _HomelabTabletAppState extends ConsumerState<HomelabTabletApp> {
     await MobileAlertService.instance.bootstrap(
       settings: settings,
       preferences: ref.read(sharedPreferencesProvider),
-      readControlToken: ref.read(secureStorageServiceProvider).readControlToken,
+      readMobileAlertToken: ref
+          .read(secureStorageServiceProvider)
+          .readMobileAlertToken,
     );
   }
 
@@ -100,7 +102,9 @@ class _HomelabTabletAppState extends ConsumerState<HomelabTabletApp> {
     return MobileAlertService.instance.configure(
       settings: settings,
       preferences: ref.read(sharedPreferencesProvider),
-      readControlToken: ref.read(secureStorageServiceProvider).readControlToken,
+      readMobileAlertToken: ref
+          .read(secureStorageServiceProvider)
+          .readMobileAlertToken,
     );
   }
 }

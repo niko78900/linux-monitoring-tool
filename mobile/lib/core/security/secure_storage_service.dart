@@ -11,6 +11,7 @@ class SecureStorageService {
   final FlutterSecureStorage _storage;
 
   static const _controlTokenKey = 'control_api_token';
+  static const _mobileAlertTokenKey = 'mobile_alert_api_token';
   static const _sshPrivateKeyKey = 'ssh_private_key';
   static const _sshPassphraseKey = 'ssh_key_passphrase';
   static const _sftpPrivateKeyKey = 'sftp_private_key';
@@ -28,6 +29,21 @@ class SecureStorageService {
   }
 
   Future<void> clearControlToken() => _storage.delete(key: _controlTokenKey);
+
+  Future<String?> readMobileAlertToken() =>
+      _storage.read(key: _mobileAlertTokenKey);
+
+  Future<void> writeMobileAlertToken(String token) async {
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) {
+      await clearMobileAlertToken();
+      return;
+    }
+    await _storage.write(key: _mobileAlertTokenKey, value: trimmed);
+  }
+
+  Future<void> clearMobileAlertToken() =>
+      _storage.delete(key: _mobileAlertTokenKey);
 
   Future<String?> read(String key) => _storage.read(key: key);
 

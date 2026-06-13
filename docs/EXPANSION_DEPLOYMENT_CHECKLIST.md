@@ -62,6 +62,20 @@ python mobile\tool\release_audit.py mobile\build\app\outputs\flutter-apk\app-rel
 [ ] No arbitrary command execution path was introduced
 ```
 
+## Backend-Owned Alerts
+
+```text
+[ ] ALERT_DB_PATH target directory exists and is writable only by the backend service user
+[ ] MOBILE_ALERT_API_TOKEN is configured only for backend mobile-alert routes
+[ ] ALERT_CONSUMER_API_TOKEN is configured for backend alert feed consumers
+[ ] Firebase service-account JSON is readable by the backend service user and not by the control agent or bot
+[ ] /api/mobile-alerts/status works on :4040 with the mobile-alert token
+[ ] /api/alerts/status works on :4040 with the consumer token
+[ ] /api/mobile-alerts/* returns 404 on the control agent :4042
+[ ] Discord bot cursor file is present and advances after event delivery
+[ ] Old mobile_push_tokens.json and mobile_push_delivery_state.json are archived only after successful verification
+```
+
 ## Files
 
 ```text
@@ -92,6 +106,9 @@ python mobile\tool\release_audit.py mobile\build\app\outputs\flutter-apk\app-rel
 [ ] control-agent service-control helper installation and sudoers review are complete
 [ ] Jellyfin runtime target and HFS systemd unit were verified on the real server
 [ ] `/etc/linux-monitor-control-agent/managed_hosts.yaml` contains the Homelab Server SSH probe
+[ ] Backend `/var/lib/linux-monitoring/alerts.sqlite3` ownership and permissions were reviewed
+[ ] Bot env has `ALERT_CONSUMER_API_TOKEN` and no mobile-push/Firebase ownership settings
+[ ] Control-agent env has no `MOBILE_PUSH_*` or `FIREBASE_SERVICE_ACCOUNT_FILE`
 [ ] Restricted SFTP account write permissions were reviewed before enabling write toggles
 [ ] Release APK is signed with a real release keystore before distribution
 ```

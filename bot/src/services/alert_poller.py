@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from alert_rules import evaluate_alerts
-from formatters import format_alert_embed, format_recovery_embed
+from alert_rules import Alert
+from formatters import (
+    format_alert_embed,
+    format_alert_event_embed,
+    format_recovery_embed,
+)
 from monitoring_client import MonitoringAPIError
 
 if TYPE_CHECKING:
@@ -16,71 +19,100 @@ logger = logging.getLogger("linux_monitoring.bot")
 
 async def run_alert_polling(bot: MonitoringDiscordBot) -> None:
     channel = await bot._resolve_alert_channel()
-
-    health_payload: dict[str, Any] | None = None
-    summary_payload: dict[str, Any] | None = None
-    system_payload: dict[str, Any] | None = None
-    gpu_payload: dict[str, Any] | None = None
-    docker_payload: dict[str, Any] | None = None
-    backend_error: str | None = None
-    endpoint_errors: dict[str, str] = {}
+    if channel is None:
+        logger.warning("Alert channel is unavailable; backend alert cursor will not advance.")
+        return
 
     try:
-        health_payload = await bot.monitoring_client.fetch_health()
+        await bot.monitoring_client.fetch_health()
+        await _send_backend_recovery_if_needed(bot, channel)
+        last_event_id = await _ensure_cursor(bot)
+        events_payload = await bot.monitoring_client.fetch_alert_events(
+            after_id=last_event_id,
+            limit=100,
+        )
     except MonitoringAPIError as exc:
-        logger.warning("Health polling failed: %s", exc)
-        backend_error = "health endpoint is unavailable."
+        logger.warning("Backend alert feed polling failed: %s", exc)
+        await _send_backend_unreachable_if_needed(bot, channel, exc)
+        return
 
-    if backend_error is None:
-        endpoints = {
-            "summary": bot.monitoring_client.fetch_summary(),
-            "system": bot.monitoring_client.fetch_system(),
-            "gpu": bot.monitoring_client.fetch_gpu(),
-            "docker": bot.monitoring_client.fetch_docker(),
-        }
-        results = await asyncio.gather(*endpoints.values(), return_exceptions=True)
-        for endpoint_name, result in zip(endpoints.keys(), results):
-            if isinstance(result, Exception):
-                logger.warning("Polling failed for endpoint %s: %s", endpoint_name, result)
-                endpoint_errors[endpoint_name] = f"{endpoint_name} endpoint is unavailable."
-                continue
+    raw_events = events_payload.get("events")
+    events: list[dict[str, Any]] = [
+        item for item in raw_events if isinstance(item, dict)
+    ] if isinstance(raw_events, list) else []
 
-            if endpoint_name == "summary":
-                summary_payload = result
-            elif endpoint_name == "system":
-                system_payload = result
-            elif endpoint_name == "gpu":
-                gpu_payload = result
-            elif endpoint_name == "docker":
-                docker_payload = result
+    for event in events:
+        event_id = _event_id(event)
+        if event_id is None:
+            continue
+        sent = await bot._safe_send_embed(
+            channel=channel,
+            embed=format_alert_event_embed(event),
+            context=f"backend-alert-event:{event_id}",
+        )
+        if not sent:
+            return
+        bot.alert_cursor.save(event_id)
 
-    active_alerts = evaluate_alerts(
-        config=bot.config,
-        health=health_payload,
-        summary=summary_payload,
-        system=system_payload,
-        gpu=gpu_payload,
-        docker=docker_payload,
-        backend_error=backend_error,
-        endpoint_errors=endpoint_errors,
+
+async def _ensure_cursor(bot: MonitoringDiscordBot) -> int:
+    if bot.alert_cursor.last_event_id is not None:
+        return bot.alert_cursor.last_event_id
+
+    if bot.config.discord_alert_replay_on_first_start:
+        bot.alert_cursor.save(0)
+        return 0
+
+    status_payload = await bot.monitoring_client.fetch_alert_status()
+    latest = _int(status_payload.get("latest_event_id"))
+    bot.alert_cursor.save(latest)
+    return latest
+
+
+async def _send_backend_unreachable_if_needed(
+    bot: MonitoringDiscordBot,
+    channel: Any,
+    exc: Exception,
+) -> None:
+    alert = Alert(
+        key="backend-unavailable",
+        title="Monitoring API unavailable",
+        message=f"Backend alert event feed is unavailable: {exc}",
+        severity="critical",
     )
+    alerts, _ = bot.backend_unreachable_state.transition([alert])
+    for item in alerts:
+        await bot._safe_send_embed(
+            channel=channel,
+            embed=format_alert_embed(item),
+            context=f"alert:{item.key}",
+        )
 
-    new_alerts, recoveries = bot.alert_state.transition(active_alerts)
-    if new_alerts or recoveries:
-        bot._save_alert_state()
 
-    if channel is not None and (new_alerts or recoveries):
-        for alert in new_alerts:
-            await bot._safe_send_embed(
-                channel=channel,
-                embed=format_alert_embed(alert),
-                context=f"alert:{alert.key}",
-            )
-        for recovery in recoveries:
-            await bot._safe_send_embed(
-                channel=channel,
-                embed=format_recovery_embed(recovery),
-                context=f"recovery:{recovery.key}",
-            )
+async def _send_backend_recovery_if_needed(
+    bot: MonitoringDiscordBot,
+    channel: Any,
+) -> None:
+    _, recoveries = bot.backend_unreachable_state.transition([])
+    for recovery in recoveries:
+        await bot._safe_send_embed(
+            channel=channel,
+            embed=format_recovery_embed(recovery),
+            context=f"recovery:{recovery.key}",
+        )
 
-    await bot.mobile_push_dispatcher.dispatch(alerts=new_alerts, recoveries=recoveries)
+
+def _event_id(event: dict[str, Any]) -> int | None:
+    value = event.get("event_id")
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
+def _int(value: object) -> int:
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0

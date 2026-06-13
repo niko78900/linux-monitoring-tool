@@ -29,6 +29,31 @@ void main() {
     expect(payload.containsKey('firebase_service_account'), isFalse);
   });
 
+  test('mobile alert service uses monitoring backend client', () {
+    final service = File(
+      'lib/features/mobile_alerts/data/mobile_alert_service.dart',
+    ).readAsStringSync();
+    final controlClient = File(
+      'lib/features/network/data/control_api_client.dart',
+    ).readAsStringSync();
+
+    expect(service, contains('MobileAlertApiClient'));
+    expect(service, contains('baseUrl: settings.monitoringApiUrl'));
+    expect(service, isNot(contains('baseUrl: settings.controlApiUrl')));
+    expect(controlClient, isNot(contains('/mobile-alerts')));
+  });
+
+  test('mobile alert token is separate from control token', () {
+    final storage = File(
+      'lib/core/security/secure_storage_service.dart',
+    ).readAsStringSync();
+
+    expect(storage, contains('control_api_token'));
+    expect(storage, contains('mobile_alert_api_token'));
+    expect(storage, contains('readMobileAlertToken'));
+    expect(storage, contains('writeMobileAlertToken'));
+  });
+
   test('permission labels are clear', () {
     expect(MobileNotificationPermissionState.denied.label, 'Denied');
     expect(MobileNotificationPermissionState.granted.label, 'Granted');

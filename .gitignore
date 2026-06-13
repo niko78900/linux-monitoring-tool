@@ -9,6 +9,7 @@ bot/__pycache__/
 bot/**/*.pyc
 bot/status_schedule_state.json
 bot/alert_state.json
+bot/discord_alert_cursor.json
 control_agent/.venv/
 control_agent/.env
 control_agent/__pycache__/
@@ -33,3 +34,5 @@ hosting-deploy-notes.txt
 mobile/android/app/google-services.json
 firebase-service-account.json
 **/firebase-service-account.json
+*.sqlite3
+*.sqlite3-*
