@@ -66,13 +66,10 @@ async def run_alert_polling(bot: MonitoringDiscordBot) -> None:
     )
 
     new_alerts, recoveries = bot.alert_state.transition(active_alerts)
-    if not new_alerts and not recoveries:
-        return
-    bot._save_alert_state()
+    if new_alerts or recoveries:
+        bot._save_alert_state()
 
-    await bot.mobile_push_dispatcher.dispatch(alerts=new_alerts, recoveries=recoveries)
-
-    if channel is not None:
+    if channel is not None and (new_alerts or recoveries):
         for alert in new_alerts:
             await bot._safe_send_embed(
                 channel=channel,
@@ -85,3 +82,5 @@ async def run_alert_polling(bot: MonitoringDiscordBot) -> None:
                 embed=format_recovery_embed(recovery),
                 context=f"recovery:{recovery.key}",
             )
+
+    await bot.mobile_push_dispatcher.dispatch(alerts=new_alerts, recoveries=recoveries)

@@ -47,7 +47,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _sftpPassphrase = TextEditingController();
   final _sftpRoot = TextEditingController();
   final _widgetMountpoint = TextEditingController();
+  final _widgetLabel = TextEditingController();
   final _widgetSecondaryMountpoint = TextEditingController();
+  final _widgetSecondaryLabel = TextEditingController();
   bool _loaded = false;
   bool _testingSsh = false;
   bool _testingSftp = false;
@@ -55,6 +57,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   String? _requestingWidgetPinProvider;
   MobileAlertStatus? _mobileAlertStatus;
   MobileNotificationPermissionState? _notificationPermission;
+  MobileAlertReadiness? _mobileAlertReadiness;
   String? _mobileAlertStatusText;
   String? _sshKeySummary;
   String? _sshTrustedFingerprint;
@@ -78,7 +81,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _sftpPassphrase.dispose();
     _sftpRoot.dispose();
     _widgetMountpoint.dispose();
+    _widgetLabel.dispose();
     _widgetSecondaryMountpoint.dispose();
+    _widgetSecondaryLabel.dispose();
     super.dispose();
   }
 
@@ -465,9 +470,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
               const SizedBox(height: AppSpacing.md),
               TextField(
+                controller: _widgetLabel,
+                decoration: const InputDecoration(
+                  labelText: 'Primary widget label',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
                 controller: _widgetSecondaryMountpoint,
                 decoration: const InputDecoration(
                   labelText: 'Secondary storage mountpoint',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: _widgetSecondaryLabel,
+                decoration: const InputDecoration(
+                  labelText: 'Secondary widget label',
                 ),
               ),
               SwitchListTile(
@@ -512,8 +531,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     onPressed: () => _save(
                       settings.copyWith(
                         widgetStorageMountpoint: _widgetMountpoint.text,
+                        widgetStorageLabel: _widgetLabel.text,
                         widgetSecondaryStorageMountpoint:
                             _widgetSecondaryMountpoint.text,
+                        widgetSecondaryStorageLabel: _widgetSecondaryLabel.text,
                       ),
                     ),
                     child: const Text('Save widget settings'),
@@ -583,9 +604,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               const SizedBox(height: AppSpacing.sm),
               _InfoLine(label: 'Registration', value: _registrationLabel()),
               const SizedBox(height: AppSpacing.sm),
+              _InfoLine(label: 'Channel', value: _channelReadinessLabel()),
+              const SizedBox(height: AppSpacing.sm),
               _InfoLine(
-                label: 'Channel',
-                value: 'Configured after Firebase initializes',
+                label: 'Readiness',
+                value: _mobileAlertReadiness?.readinessMessage ?? 'Not checked',
               ),
               if (_mobileAlertStatusText != null) ...[
                 const SizedBox(height: AppSpacing.sm),
@@ -715,7 +738,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _sftpUser.text = settings.sftpProfile.username;
     _sftpRoot.text = settings.sftpVirtualRoot;
     _widgetMountpoint.text = settings.widgetStorageMountpoint;
+    _widgetLabel.text = settings.widgetStorageLabel;
     _widgetSecondaryMountpoint.text = settings.widgetSecondaryStorageMountpoint;
+    _widgetSecondaryLabel.text = settings.widgetSecondaryStorageLabel;
     final storage = ref.read(secureStorageServiceProvider);
     storage.readControlToken().then((value) {
       if (mounted && value != null && _controlToken.text.isEmpty) {
@@ -965,13 +990,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       } catch (_) {
         status = null;
       }
+      final readiness = await MobileAlertService.instance.readiness(
+        serverStatus: status,
+        permission: permission,
+      );
       if (mounted) {
         setState(() {
           _notificationPermission = permission;
           _mobileAlertStatus = status;
+          _mobileAlertReadiness = readiness;
           _mobileAlertStatusText = status == null
               ? 'Control-agent push status unavailable'
-              : 'Push status refreshed';
+              : readiness.readinessMessage;
         });
       }
     } finally {
@@ -995,12 +1025,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         controlToken: token,
       );
       final next = settings.copyWith(mobilePushAlertsEnabled: true);
+      final readiness = await MobileAlertService.instance.readiness(
+        serverStatus: status,
+        permission: permission,
+      );
       ref.read(settingsControllerProvider.notifier).save(next);
       if (mounted) {
         setState(() {
           _notificationPermission = permission;
           _mobileAlertStatus = status;
-          _mobileAlertStatusText = 'Push alerts enabled';
+          _mobileAlertReadiness = readiness;
+          _mobileAlertStatusText = readiness.readinessMessage;
         });
         ScaffoldMessenger.of(
           context,
@@ -1075,12 +1110,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         preferences: preferences,
         controlToken: token,
       );
+      final readiness = await MobileAlertService.instance.readiness(
+        serverStatus: status,
+        permission: permission,
+      );
       if (mounted) {
         setState(() {
           _notificationPermission = permission;
           _mobileAlertStatus = status;
-          _mobileAlertStatusText =
-              'Test notification requested (${result.sentCount} sent)';
+          _mobileAlertReadiness = readiness;
+          _mobileAlertStatusText = readiness.fullyReady
+              ? 'Test notification requested (${result.sentCount} sent)'
+              : readiness.readinessMessage;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Round-trip test notification sent')),
@@ -1113,6 +1154,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ? 'never'
         : status.lastRegisteredAt!.toLocal().toString();
     return '$registered, $configured, last registration $last';
+  }
+
+  String _channelReadinessLabel() {
+    final readiness = _mobileAlertReadiness;
+    if (readiness == null) {
+      return 'Not checked';
+    }
+    if (!readiness.channelExists) {
+      return 'Urgent channel missing';
+    }
+    final sound = readiness.channelSoundEnabled ? 'sound on' : 'sound off';
+    final vibration = readiness.channelVibrationEnabled
+        ? 'vibration on'
+        : 'vibration off';
+    return 'importance ${readiness.channelImportance}, $sound, $vibration';
   }
 
   Future<void> _testSsh(AppSettings settings) async {

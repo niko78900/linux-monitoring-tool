@@ -31,7 +31,9 @@ class AppSettings {
     required this.allowSftpMove,
     required this.allowSftpSoftDelete,
     required this.widgetStorageMountpoint,
+    required this.widgetStorageLabel,
     required this.widgetSecondaryStorageMountpoint,
+    required this.widgetSecondaryStorageLabel,
     required this.widgetShowSecondaryStorage,
     required this.widgetBackgroundRefreshMinutes,
     required this.widgetShowNetworkThroughput,
@@ -62,7 +64,9 @@ class AppSettings {
       allowSftpMove: false,
       allowSftpSoftDelete: false,
       widgetStorageMountpoint: '/mnt/storage',
+      widgetStorageLabel: 'Cold Storage',
       widgetSecondaryStorageMountpoint: '/mnt/warm',
+      widgetSecondaryStorageLabel: 'Warm Storage',
       widgetShowSecondaryStorage: false,
       widgetBackgroundRefreshMinutes: 15,
       widgetShowNetworkThroughput: false,
@@ -92,7 +96,9 @@ class AppSettings {
   final bool allowSftpMove;
   final bool allowSftpSoftDelete;
   final String widgetStorageMountpoint;
+  final String widgetStorageLabel;
   final String widgetSecondaryStorageMountpoint;
+  final String widgetSecondaryStorageLabel;
   final bool widgetShowSecondaryStorage;
   final int widgetBackgroundRefreshMinutes;
   final bool widgetShowNetworkThroughput;
@@ -121,7 +127,9 @@ class AppSettings {
     bool? allowSftpMove,
     bool? allowSftpSoftDelete,
     String? widgetStorageMountpoint,
+    String? widgetStorageLabel,
     String? widgetSecondaryStorageMountpoint,
+    String? widgetSecondaryStorageLabel,
     bool? widgetShowSecondaryStorage,
     int? widgetBackgroundRefreshMinutes,
     bool? widgetShowNetworkThroughput,
@@ -154,9 +162,12 @@ class AppSettings {
       allowSftpSoftDelete: allowSftpSoftDelete ?? this.allowSftpSoftDelete,
       widgetStorageMountpoint:
           widgetStorageMountpoint ?? this.widgetStorageMountpoint,
+      widgetStorageLabel: widgetStorageLabel ?? this.widgetStorageLabel,
       widgetSecondaryStorageMountpoint:
           widgetSecondaryStorageMountpoint ??
           this.widgetSecondaryStorageMountpoint,
+      widgetSecondaryStorageLabel:
+          widgetSecondaryStorageLabel ?? this.widgetSecondaryStorageLabel,
       widgetShowSecondaryStorage:
           widgetShowSecondaryStorage ?? this.widgetShowSecondaryStorage,
       widgetBackgroundRefreshMinutes:
@@ -267,8 +278,16 @@ class SettingsController extends Notifier<AppSettings> {
       widgetStorageMountpoint: _normalizeWidgetMountpoint(
         settings.widgetStorageMountpoint,
       ),
+      widgetStorageLabel: _normalizeWidgetLabel(
+        settings.widgetStorageLabel,
+        fallback: 'Primary Storage',
+      ),
       widgetSecondaryStorageMountpoint: _normalizeWidgetMountpoint(
         settings.widgetSecondaryStorageMountpoint,
+      ),
+      widgetSecondaryStorageLabel: _normalizeWidgetLabel(
+        settings.widgetSecondaryStorageLabel,
+        fallback: 'Secondary Storage',
       ),
       widgetBackgroundRefreshMinutes: normalizeWidgetRefreshMinutes(
         settings.widgetBackgroundRefreshMinutes,
@@ -313,8 +332,16 @@ class SettingsController extends Notifier<AppSettings> {
       settings.widgetStorageMountpoint,
     );
     _preferences.setString(
+      _Keys.widgetStorageLabel,
+      settings.widgetStorageLabel,
+    );
+    _preferences.setString(
       _Keys.widgetSecondaryStorageMountpoint,
       settings.widgetSecondaryStorageMountpoint,
+    );
+    _preferences.setString(
+      _Keys.widgetSecondaryStorageLabel,
+      settings.widgetSecondaryStorageLabel,
     );
     _preferences.setBool(
       _Keys.widgetShowSecondaryStorage,
@@ -430,9 +457,15 @@ AppSettings loadAppSettings(SharedPreferences preferences) {
     widgetStorageMountpoint:
         preferences.getString(_Keys.widgetStorageMountpoint) ??
         defaults.widgetStorageMountpoint,
+    widgetStorageLabel:
+        preferences.getString(_Keys.widgetStorageLabel) ??
+        defaults.widgetStorageLabel,
     widgetSecondaryStorageMountpoint:
         preferences.getString(_Keys.widgetSecondaryStorageMountpoint) ??
         defaults.widgetSecondaryStorageMountpoint,
+    widgetSecondaryStorageLabel:
+        preferences.getString(_Keys.widgetSecondaryStorageLabel) ??
+        defaults.widgetSecondaryStorageLabel,
     widgetShowSecondaryStorage:
         preferences.getBool(_Keys.widgetShowSecondaryStorage) ??
         defaults.widgetShowSecondaryStorage,
@@ -499,6 +532,11 @@ String _normalizeWidgetMountpoint(String value) {
   return trimmed.startsWith('/') ? trimmed : '/$trimmed';
 }
 
+String _normalizeWidgetLabel(String value, {required String fallback}) {
+  final trimmed = value.trim();
+  return trimmed.isEmpty ? fallback : trimmed;
+}
+
 class _Keys {
   static const onboardingComplete = 'onboardingComplete';
   static const monitoringApiUrl = 'monitoringApiUrl';
@@ -517,8 +555,10 @@ class _Keys {
   static const allowSftpMove = 'allowSftpMove';
   static const allowSftpSoftDelete = 'allowSftpSoftDelete';
   static const widgetStorageMountpoint = 'widgetStorageMountpoint';
+  static const widgetStorageLabel = 'widgetStorageLabel';
   static const widgetSecondaryStorageMountpoint =
       'widgetSecondaryStorageMountpoint';
+  static const widgetSecondaryStorageLabel = 'widgetSecondaryStorageLabel';
   static const widgetShowSecondaryStorage = 'widgetShowSecondaryStorage';
   static const widgetBackgroundRefreshMinutes =
       'widgetBackgroundRefreshMinutes';

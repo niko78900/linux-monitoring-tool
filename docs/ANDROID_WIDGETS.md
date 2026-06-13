@@ -58,12 +58,12 @@ No SSH keys, SFTP keys, tokens, shell content, or private file paths are written
 
 The tablet `Settings` page now includes:
 
-- widget storage mountpoint
+- friendly widget storage labels
 - widget background refresh interval
 - show or hide the network throughput row
 - Android launcher pin request
 
-Default widget storage mountpoint is `/mnt/storage`. If that mountpoint is not present in backend storage data, the widget falls back to the backend primary disk.
+Default widget matching still uses `/mnt/storage` in app settings, but the widget snapshot stores the friendly label `Cold Storage`. If that mountpoint is not present in backend storage data, the widget falls back to the backend primary disk and a generic friendly label.
 
 ## Limitations
 

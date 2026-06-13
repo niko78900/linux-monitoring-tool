@@ -42,6 +42,7 @@ class _MetricChartState extends State<MetricChart> {
   final MetricChartScaleHysteresis _scaleHysteresis =
       MetricChartScaleHysteresis();
   int? _selectedPointIndex;
+  String? _lastTelemetrySignature;
 
   @override
   void didUpdateWidget(covariant MetricChart oldWidget) {
@@ -51,6 +52,7 @@ class _MetricChartState extends State<MetricChart> {
         oldWidget.minimumY != widget.minimumY ||
         oldWidget.maxY != widget.maxY) {
       _scaleHysteresis.reset();
+      _lastTelemetrySignature = null;
       _selectedPointIndex = null;
     }
   }
@@ -59,6 +61,7 @@ class _MetricChartState extends State<MetricChart> {
   Widget build(BuildContext context) {
     if (widget.samples.isEmpty) {
       _scaleHysteresis.reset();
+      _lastTelemetrySignature = null;
       _selectedPointIndex = null;
       return Card(
         child: Padding(
@@ -77,6 +80,7 @@ class _MetricChartState extends State<MetricChart> {
     );
     if (series.points.isEmpty) {
       _scaleHysteresis.reset();
+      _lastTelemetrySignature = null;
       _selectedPointIndex = null;
       return Card(
         child: Padding(
@@ -100,8 +104,9 @@ class _MetricChartState extends State<MetricChart> {
       minimumY: widget.minimumY,
       maxY: widget.maxY,
     );
+    final telemetrySignature = _telemetrySignature(series, targetMaxY);
     final effectiveMaxY = widget.maxY == null
-        ? _scaleHysteresis.update(targetMaxY)
+        ? _effectiveMaxYForTelemetry(telemetrySignature, targetMaxY)
         : targetMaxY;
     final horizontalInterval = metricChartInterval(effectiveMaxY);
     final axisFormatter =
@@ -273,6 +278,21 @@ class _MetricChartState extends State<MetricChart> {
       _selectedPointIndex = index;
     });
     widget.onSelectedSampleChanged?.call(index);
+  }
+
+  double _effectiveMaxYForTelemetry(String signature, double targetMaxY) {
+    if (_lastTelemetrySignature != signature) {
+      _lastTelemetrySignature = signature;
+      return _scaleHysteresis.update(targetMaxY);
+    }
+    return _scaleHysteresis.currentMaxY ?? targetMaxY;
+  }
+
+  String _telemetrySignature(MetricChartPlotSeries series, double targetMaxY) {
+    final last = series.points.last;
+    return '${series.points.length}:'
+        '${last.timestamp?.microsecondsSinceEpoch ?? last.spot.x}:'
+        '$targetMaxY';
   }
 
   String _tooltipText(

@@ -59,7 +59,8 @@ class FirebaseMobilePushSender:
                 notification=messaging.AndroidNotification(
                     channel_id="homelab_urgent_alerts_v1",
                     priority="high",
-                    visibility="public",
+                    visibility="private",
+                    icon="ic_homelab_notification",
                     default_sound=True,
                     default_vibrate_timings=True,
                 ),
@@ -67,6 +68,8 @@ class FirebaseMobilePushSender:
             data={
                 "alert_key": alert_key,
                 "route": route,
+                "title": title,
+                "body": body,
             },
         )
         messaging.send(message)

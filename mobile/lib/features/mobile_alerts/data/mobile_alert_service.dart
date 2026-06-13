@@ -22,6 +22,7 @@ const homelabUrgentAlertChannelDescription =
 
 const _installationIdKey = 'mobilePushInstallationId';
 const _channel = MethodChannel('com.niko.homelab_tablet/notifications');
+bool _backgroundHandlerRegistered = false;
 
 @pragma('vm:entry-point')
 Future<void> homelabFirebaseMessagingBackgroundHandler(
@@ -29,6 +30,9 @@ Future<void> homelabFirebaseMessagingBackgroundHandler(
 ) async {
   try {
     await Firebase.initializeApp();
+    if (message.notification != null) {
+      return;
+    }
     await MobileAlertService.instance.ensureLocalNotificationsInitialized();
     await MobileAlertService.instance.showVisibleNotificationFromMessage(
       message,
@@ -56,13 +60,83 @@ Map<String, dynamic> buildMobileAlertRegistrationPayload({
   required String deviceName,
   required String fcmToken,
   bool enabled = true,
+  bool includeRecovery = true,
 }) {
   return MobileAlertRegistrationRequest(
     installationId: installationId,
     deviceName: deviceName,
     fcmToken: fcmToken,
     enabled: enabled,
+    includeRecovery: includeRecovery,
   ).toJson();
+}
+
+class MobileAlertReadiness {
+  const MobileAlertReadiness({
+    required this.firebaseReady,
+    required this.tokenAvailable,
+    required this.permissionGranted,
+    required this.serverRegistered,
+    required this.channelExists,
+    required this.channelImportance,
+    required this.channelSoundEnabled,
+    required this.channelVibrationEnabled,
+  });
+
+  factory MobileAlertReadiness.unavailable({
+    bool firebaseReady = false,
+    bool tokenAvailable = false,
+    bool permissionGranted = false,
+    bool serverRegistered = false,
+  }) {
+    return MobileAlertReadiness(
+      firebaseReady: firebaseReady,
+      tokenAvailable: tokenAvailable,
+      permissionGranted: permissionGranted,
+      serverRegistered: serverRegistered,
+      channelExists: false,
+      channelImportance: 0,
+      channelSoundEnabled: false,
+      channelVibrationEnabled: false,
+    );
+  }
+
+  final bool firebaseReady;
+  final bool tokenAvailable;
+  final bool permissionGranted;
+  final bool serverRegistered;
+  final bool channelExists;
+  final int channelImportance;
+  final bool channelSoundEnabled;
+  final bool channelVibrationEnabled;
+
+  bool get headsUpReady =>
+      permissionGranted && channelExists && channelImportance >= 4;
+
+  bool get fullyReady =>
+      firebaseReady && tokenAvailable && serverRegistered && headsUpReady;
+
+  String get readinessMessage {
+    if (!firebaseReady) {
+      return 'Firebase unavailable';
+    }
+    if (!serverRegistered) {
+      return 'Server registration unavailable';
+    }
+    if (!permissionGranted) {
+      return 'Registered, but Android permission is denied';
+    }
+    if (!channelExists) {
+      return 'Registered, but urgent channel is missing';
+    }
+    if (channelImportance < 4) {
+      return 'Registered, but urgent channel is muted';
+    }
+    if (!channelSoundEnabled || !channelVibrationEnabled) {
+      return 'Ready, but sound or vibration is disabled';
+    }
+    return 'Ready for heads-up alerts';
+  }
 }
 
 class MobileAlertService {
@@ -88,6 +162,22 @@ class MobileAlertService {
 
   bool get firebaseReady => _firebaseReady;
 
+  static Future<void> initializeFirebaseAndRegisterBackgroundHandler() async {
+    if (!Platform.isAndroid || _backgroundHandlerRegistered) {
+      return;
+    }
+    try {
+      await Firebase.initializeApp();
+      FirebaseMessaging.onBackgroundMessage(
+        homelabFirebaseMessagingBackgroundHandler,
+      );
+      _backgroundHandlerRegistered = true;
+      instance._firebaseReady = true;
+    } catch (_) {
+      instance._firebaseReady = false;
+    }
+  }
+
   Future<void> bootstrap({
     required AppSettings settings,
     required SharedPreferences preferences,
@@ -100,13 +190,12 @@ class MobileAlertService {
     _preferences = preferences;
     _readControlToken = readControlToken;
     try {
-      await Firebase.initializeApp();
-      FirebaseMessaging.onBackgroundMessage(
-        homelabFirebaseMessagingBackgroundHandler,
-      );
-      _firebaseReady = true;
+      await initializeFirebaseAndRegisterBackgroundHandler();
     } catch (_) {
       _firebaseReady = false;
+      return;
+    }
+    if (!_firebaseReady) {
       return;
     }
 
@@ -127,9 +216,25 @@ class MobileAlertService {
     required SharedPreferences preferences,
     required Future<String?> Function() readControlToken,
   }) async {
+    final previous = _settings;
     _settings = settings;
     _preferences = preferences;
     _readControlToken = readControlToken;
+    if (previous != null &&
+        previous.mobilePushIncludeRecovery !=
+            settings.mobilePushIncludeRecovery &&
+        settings.mobilePushAlertsEnabled &&
+        _firebaseReady) {
+      try {
+        await _registerWithCurrentToken(
+          settings: settings,
+          preferences: preferences,
+          controlToken: await readControlToken(),
+        );
+      } catch (_) {
+        // Explicit re-registration remains available from Settings.
+      }
+    }
   }
 
   FirebaseMessaging get messaging => _messaging ?? FirebaseMessaging.instance;
@@ -139,7 +244,7 @@ class MobileAlertService {
       return;
     }
     const androidInitialization = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
+      'ic_homelab_notification',
     );
     const initialization = InitializationSettings(
       android: androidInitialization,
@@ -194,7 +299,8 @@ class MobileAlertService {
           channelDescription: homelabUrgentAlertChannelDescription,
           importance: Importance.high,
           priority: Priority.high,
-          visibility: NotificationVisibility.public,
+          visibility: NotificationVisibility.private,
+          icon: 'ic_homelab_notification',
         ),
       ),
       payload: route,
@@ -249,12 +355,68 @@ class MobileAlertService {
     return messaging.getToken();
   }
 
+  Future<MobileAlertReadiness> readiness({
+    MobileAlertStatus? serverStatus,
+    MobileNotificationPermissionState? permission,
+  }) async {
+    if (!Platform.isAndroid) {
+      return MobileAlertReadiness.unavailable();
+    }
+    final token = await fcmToken();
+    final resolvedPermission = permission ?? await permissionState();
+    Map<dynamic, dynamic> native = const {};
+    try {
+      native =
+          await _channel.invokeMethod<Map<dynamic, dynamic>>(
+            'notificationReadiness',
+          ) ??
+          const {};
+    } catch (_) {
+      native = const {};
+    }
+    return MobileAlertReadiness(
+      firebaseReady: _firebaseReady,
+      tokenAvailable: token != null && token.isNotEmpty,
+      permissionGranted:
+          (native['notificationsEnabled'] as bool? ?? true) &&
+          (resolvedPermission == MobileNotificationPermissionState.granted ||
+              resolvedPermission ==
+                  MobileNotificationPermissionState.provisional),
+      serverRegistered: serverStatus?.registered == true,
+      channelExists: native['channelExists'] as bool? ?? false,
+      channelImportance: native['channelImportance'] as int? ?? 0,
+      channelSoundEnabled: native['channelSoundEnabled'] as bool? ?? false,
+      channelVibrationEnabled:
+          native['channelVibrationEnabled'] as bool? ?? false,
+    );
+  }
+
   Future<MobileAlertStatus> register({
     required AppSettings settings,
     required SharedPreferences preferences,
     required String? controlToken,
   }) async {
     final token = await fcmToken();
+    if (token == null || token.isEmpty) {
+      throw const AppException(
+        'Firebase is not configured. Add google-services.json and rebuild the APK.',
+      );
+    }
+    return _registerWithCurrentToken(
+      settings: settings,
+      preferences: preferences,
+      controlToken: controlToken,
+      fcmToken: token,
+    );
+  }
+
+  Future<MobileAlertStatus> _registerWithCurrentToken({
+    required AppSettings settings,
+    required SharedPreferences preferences,
+    required String? controlToken,
+    String? fcmToken,
+  }) async {
+    final token = fcmToken ?? await this.fcmToken();
     if (token == null || token.isEmpty) {
       throw const AppException(
         'Firebase is not configured. Add google-services.json and rebuild the APK.',
@@ -271,6 +433,7 @@ class MobileAlertService {
         deviceName: 'Homelab Tablet',
         fcmToken: token,
         enabled: true,
+        includeRecovery: settings.mobilePushIncludeRecovery,
       ),
     );
   }
@@ -355,6 +518,7 @@ class MobileAlertService {
           deviceName: 'Homelab Tablet',
           fcmToken: token,
           enabled: true,
+          includeRecovery: settings.mobilePushIncludeRecovery,
         ),
       );
     } catch (_) {

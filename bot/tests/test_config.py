@@ -29,6 +29,9 @@ class BotConfigTests(unittest.TestCase):
             "MOBILE_PUSH_ENABLED": "true",
             "MOBILE_PUSH_INCLUDE_RECOVERY": "false",
             "MOBILE_PUSH_TOKEN_REGISTRY_FILE": "/tmp/mobile_push_tokens.json",
+            "MOBILE_PUSH_OUTBOX_FILE": "/tmp/mobile_push_delivery_state.json",
+            "MOBILE_PUSH_RETRY_INITIAL_SECONDS": "12",
+            "MOBILE_PUSH_RETRY_MAX_SECONDS": "120",
             "FIREBASE_SERVICE_ACCOUNT_FILE": "/tmp/firebase.json",
         }
 
@@ -53,6 +56,12 @@ class BotConfigTests(unittest.TestCase):
             Path(config.mobile_push_token_registry_file),
             Path("/tmp/mobile_push_tokens.json").expanduser(),
         )
+        self.assertEqual(
+            Path(config.mobile_push_outbox_file),
+            Path("/tmp/mobile_push_delivery_state.json").expanduser(),
+        )
+        self.assertEqual(config.mobile_push_retry_initial_seconds, 12)
+        self.assertEqual(config.mobile_push_retry_max_seconds, 120)
         self.assertEqual(
             Path(config.firebase_service_account_file),
             Path("/tmp/firebase.json").expanduser(),

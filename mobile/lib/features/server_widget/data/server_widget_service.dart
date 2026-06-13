@@ -18,9 +18,6 @@ import 'server_widget_scheduler.dart';
 
 const serverWidgetSnapshotKey = 'server_widget_snapshot';
 const serverWidgetShowNetworkRowKey = 'server_widget_show_network_row';
-const serverWidgetStorageMountpointKey = 'server_widget_storage_mountpoint';
-const serverWidgetSecondaryStorageMountpointKey =
-    'server_widget_secondary_storage_mountpoint';
 const serverWidgetShowSecondaryStorageKey =
     'server_widget_show_secondary_storage';
 
@@ -47,6 +44,9 @@ class ServerWidgetService {
 
   final ServerWidgetScheduler _scheduler;
   bool _bootstrapped = false;
+  bool _snapshotWriteActive = false;
+  Future<void> Function()? _pendingSnapshotWrite;
+  Completer<void>? _pendingSnapshotWriteCompleter;
 
   Future<void> bootstrap() async {
     if (!Platform.isAndroid || _bootstrapped) {
@@ -104,16 +104,18 @@ class ServerWidgetService {
       return;
     }
 
-    final previous = await _readStoredSnapshot();
-    final snapshot = ServerWidgetSnapshot.fromMonitoringData(
-      summary: summary,
-      system: system,
-      settings: settings,
-      updatedAt: updatedAt,
-      gpu: gpu,
-      previous: previous,
-    );
-    await _persistSnapshot(snapshot, settings: settings);
+    await _enqueueSnapshotWrite(() async {
+      final previous = await _readStoredSnapshot();
+      final snapshot = ServerWidgetSnapshot.fromMonitoringData(
+        summary: summary,
+        system: system,
+        settings: settings,
+        updatedAt: updatedAt,
+        gpu: gpu,
+        previous: previous,
+      );
+      await _persistSnapshotNow(snapshot, settings: settings);
+    });
   }
 
   Future<bool> runBackgroundRefreshTask() async {
@@ -130,7 +132,9 @@ class ServerWidgetService {
       final snapshot = ServerWidgetSnapshot.offlineFromPrevious(
         previous: previous,
       );
-      await _persistSnapshot(snapshot, settings: settings);
+      await _enqueueSnapshotWrite(
+        () => _persistSnapshotNow(snapshot, settings: settings),
+      );
       return true;
     }
 
@@ -158,13 +162,17 @@ class ServerWidgetService {
         gpu: gpu,
         previous: previous,
       );
-      await _persistSnapshot(snapshot, settings: settings);
+      await _enqueueSnapshotWrite(
+        () => _persistSnapshotNow(snapshot, settings: settings),
+      );
     } catch (_) {
       final snapshot = ServerWidgetSnapshot.offlineFromPrevious(
         previous: previous,
         fallbackHostname: previous?.hostname ?? 'Homelab Server',
       );
-      await _persistSnapshot(snapshot, settings: settings);
+      await _enqueueSnapshotWrite(
+        () => _persistSnapshotNow(snapshot, settings: settings),
+      );
     }
 
     // Keep the task successful to avoid aggressive retry loops.
@@ -180,7 +188,39 @@ class ServerWidgetService {
     }
   }
 
-  Future<void> _persistSnapshot(
+  Future<void> _enqueueSnapshotWrite(Future<void> Function() write) {
+    _pendingSnapshotWrite = write;
+    final completer = _pendingSnapshotWriteCompleter ??= Completer<void>();
+    if (!_snapshotWriteActive) {
+      unawaited(_drainSnapshotWrites());
+    }
+    return completer.future;
+  }
+
+  Future<void> _drainSnapshotWrites() async {
+    if (_snapshotWriteActive) {
+      return;
+    }
+    _snapshotWriteActive = true;
+    try {
+      while (_pendingSnapshotWrite != null) {
+        final write = _pendingSnapshotWrite!;
+        _pendingSnapshotWrite = null;
+        await write();
+      }
+      _pendingSnapshotWriteCompleter?.complete();
+    } catch (error, stackTrace) {
+      _pendingSnapshotWriteCompleter?.completeError(error, stackTrace);
+    } finally {
+      _pendingSnapshotWriteCompleter = null;
+      _snapshotWriteActive = false;
+      if (_pendingSnapshotWrite != null) {
+        unawaited(_drainSnapshotWrites());
+      }
+    }
+  }
+
+  Future<void> _persistSnapshotNow(
     ServerWidgetSnapshot snapshot, {
     required AppSettings settings,
   }) async {
@@ -196,14 +236,6 @@ class ServerWidgetService {
     await HomeWidget.saveWidgetData<bool>(
       serverWidgetShowNetworkRowKey,
       settings.widgetShowNetworkThroughput,
-    );
-    await HomeWidget.saveWidgetData<String>(
-      serverWidgetStorageMountpointKey,
-      settings.widgetStorageMountpoint,
-    );
-    await HomeWidget.saveWidgetData<String>(
-      serverWidgetSecondaryStorageMountpointKey,
-      settings.widgetSecondaryStorageMountpoint,
     );
     await HomeWidget.saveWidgetData<bool>(
       serverWidgetShowSecondaryStorageKey,

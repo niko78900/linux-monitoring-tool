@@ -174,6 +174,17 @@ void main() {
     expect(MetricChartScaleHysteresis().update(floor), 10);
   });
 
+  test('scale hysteresis does not contract without new telemetry updates', () {
+    final hysteresis = MetricChartScaleHysteresis(contractionSamples: 3);
+
+    expect(hysteresis.update(200), 200);
+    expect(hysteresis.update(50), 200);
+    expect(hysteresis.currentMaxY, 200);
+    expect(hysteresis.currentMaxY, 200);
+    expect(hysteresis.update(50), 200);
+    expect(hysteresis.update(50), 50);
+  });
+
   testWidgets('metric chart handles zero, one, and all-zero samples', (
     tester,
   ) async {

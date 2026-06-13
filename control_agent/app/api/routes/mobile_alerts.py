@@ -10,7 +10,10 @@ from ...models.mobile_alerts import (
     MobileAlertTestRequest,
     MobileAlertTestResponse,
 )
-from ...services.mobile_push_registry import MobilePushTokenRegistry
+from ...services.mobile_push_registry import (
+    MobilePushRegistryFormatError,
+    MobilePushTokenRegistry,
+)
 from ...services.mobile_push_sender import (
     FirebaseMobilePushSender,
     MobilePushNotConfiguredError,
@@ -30,10 +33,13 @@ def get_mobile_alert_status(
 ) -> MobileAlertStatusResponse:
     registry = MobilePushTokenRegistry(settings.mobile_push_token_registry_file)
     sender = FirebaseMobilePushSender(settings.firebase_service_account_file)
-    return registry.status(
-        installation_id=installation_id,
-        push_configured=sender.configured,
-    )
+    try:
+        return registry.status(
+            installation_id=installation_id,
+            push_configured=sender.configured,
+        )
+    except MobilePushRegistryFormatError as error:
+        raise _registry_unavailable() from error
 
 
 @router.post("/register", response_model=MobileAlertStatusResponse)
@@ -42,12 +48,18 @@ def register_mobile_alert_device(
     settings: Settings = Depends(get_settings),
 ) -> MobileAlertStatusResponse:
     registry = MobilePushTokenRegistry(settings.mobile_push_token_registry_file)
-    registry.upsert(request)
+    try:
+        registry.upsert(request)
+    except MobilePushRegistryFormatError as error:
+        raise _registry_unavailable() from error
     sender = FirebaseMobilePushSender(settings.firebase_service_account_file)
-    return registry.status(
-        installation_id=request.installation_id,
-        push_configured=sender.configured,
-    )
+    try:
+        return registry.status(
+            installation_id=request.installation_id,
+            push_configured=sender.configured,
+        )
+    except MobilePushRegistryFormatError as error:
+        raise _registry_unavailable() from error
 
 
 @router.delete("/register/{installation_id}", response_model=MobileAlertStatusResponse)
@@ -56,12 +68,18 @@ def unregister_mobile_alert_device(
     settings: Settings = Depends(get_settings),
 ) -> MobileAlertStatusResponse:
     registry = MobilePushTokenRegistry(settings.mobile_push_token_registry_file)
-    registry.disable(installation_id)
+    try:
+        registry.disable(installation_id)
+    except MobilePushRegistryFormatError as error:
+        raise _registry_unavailable() from error
     sender = FirebaseMobilePushSender(settings.firebase_service_account_file)
-    return registry.status(
-        installation_id=installation_id,
-        push_configured=sender.configured,
-    )
+    try:
+        return registry.status(
+            installation_id=installation_id,
+            push_configured=sender.configured,
+        )
+    except MobilePushRegistryFormatError as error:
+        raise _registry_unavailable() from error
 
 
 @router.post("/test", response_model=MobileAlertTestResponse)
@@ -70,7 +88,10 @@ def send_mobile_alert_test(
     settings: Settings = Depends(get_settings),
 ) -> MobileAlertTestResponse:
     registry = MobilePushTokenRegistry(settings.mobile_push_token_registry_file)
-    installation = registry.get(request.installation_id)
+    try:
+        installation = registry.get(request.installation_id)
+    except MobilePushRegistryFormatError as error:
+        raise _registry_unavailable() from error
     if installation is None or not installation.enabled:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -86,3 +107,10 @@ def send_mobile_alert_test(
         ) from error
     registry.mark_test_sent(request.installation_id)
     return MobileAlertTestResponse(status="sent", sent_count=result.sent_count)
+
+
+def _registry_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Mobile alert registry is unavailable",
+    )

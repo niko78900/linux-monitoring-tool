@@ -11,6 +11,7 @@ _ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 _BOT_DIR = Path(__file__).resolve().parents[1]
 _DEFAULT_STATUS_SCHEDULE_STATE_FILE = _BOT_DIR / "status_schedule_state.json"
 _DEFAULT_ALERT_STATE_FILE = _BOT_DIR / "alert_state.json"
+_DEFAULT_MOBILE_PUSH_OUTBOX_FILE = _BOT_DIR / "mobile_push_delivery_state.json"
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,9 @@ class BotConfig:
     mobile_push_enabled: bool
     mobile_push_include_recovery: bool
     mobile_push_token_registry_file: str
+    mobile_push_outbox_file: str
+    mobile_push_retry_initial_seconds: int
+    mobile_push_retry_max_seconds: int
     firebase_service_account_file: str
     status_schedule_state_file: str
     alert_state_file: str
@@ -63,6 +67,23 @@ class BotConfig:
             "MOBILE_PUSH_TOKEN_REGISTRY_FILE",
             "/var/lib/linux-monitoring/mobile_push_tokens.json",
         )
+        mobile_push_outbox_file = _parse_path(
+            source,
+            "MOBILE_PUSH_OUTBOX_FILE",
+            "/var/lib/linux-monitoring/mobile_push_delivery_state.json",
+        )
+        mobile_push_retry_initial_seconds = _parse_int(
+            source,
+            "MOBILE_PUSH_RETRY_INITIAL_SECONDS",
+            default=30,
+            minimum=1,
+        )
+        mobile_push_retry_max_seconds = _parse_int(
+            source,
+            "MOBILE_PUSH_RETRY_MAX_SECONDS",
+            default=900,
+            minimum=1,
+        )
         firebase_service_account_file = _parse_path(
             source,
             "FIREBASE_SERVICE_ACCOUNT_FILE",
@@ -88,6 +109,9 @@ class BotConfig:
             mobile_push_enabled=mobile_push_enabled,
             mobile_push_include_recovery=mobile_push_include_recovery,
             mobile_push_token_registry_file=mobile_push_token_registry_file,
+            mobile_push_outbox_file=mobile_push_outbox_file,
+            mobile_push_retry_initial_seconds=mobile_push_retry_initial_seconds,
+            mobile_push_retry_max_seconds=mobile_push_retry_max_seconds,
             firebase_service_account_file=firebase_service_account_file,
             status_schedule_state_file=status_schedule_state_file,
             alert_state_file=alert_state_file,

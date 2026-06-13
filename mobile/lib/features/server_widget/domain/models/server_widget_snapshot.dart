@@ -115,10 +115,18 @@ class ServerWidgetSnapshot {
           ? gpu?.temperatureC ?? summary.gpuTempC
           : null,
       primaryDiskPercent: selectedDisk?.percent ?? system.disk.percent,
-      primaryDiskLabel: selectedDisk?.mountpoint ?? system.disk.mountpoint,
+      primaryDiskLabel: _friendlyLabel(
+        settings.widgetStorageLabel,
+        fallback: 'Primary Storage',
+      ),
       primaryDiskFreeBytes: selectedDisk?.free ?? system.disk.free,
       secondaryDiskPercent: secondaryDisk?.percent,
-      secondaryDiskLabel: secondaryDisk?.mountpoint,
+      secondaryDiskLabel: secondaryDisk == null
+          ? null
+          : _friendlyLabel(
+              settings.widgetSecondaryStorageLabel,
+              fallback: 'Secondary Storage',
+            ),
       secondaryDiskFreeBytes: secondaryDisk?.free,
       raidHealth: _aggregateHealth(
         system.raidArrays.map((array) => array.health.status),
@@ -341,6 +349,11 @@ String? _aggregateHealth(Iterable<String> statuses) {
     }
   }
   return worstStatus;
+}
+
+String _friendlyLabel(String value, {required String fallback}) {
+  final trimmed = value.trim();
+  return trimmed.isEmpty ? fallback : trimmed;
 }
 
 bool _bool(Object? value) {

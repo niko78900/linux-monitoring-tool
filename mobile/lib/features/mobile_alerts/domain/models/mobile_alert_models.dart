@@ -6,6 +6,7 @@ class MobileAlertStatus {
     required this.installationId,
     required this.deviceName,
     required this.platform,
+    required this.includeRecovery,
     required this.lastRegisteredAt,
     required this.lastTestSentAt,
   });
@@ -18,6 +19,7 @@ class MobileAlertStatus {
       installationId: json['installation_id'] as String?,
       deviceName: json['device_name'] as String?,
       platform: json['platform'] as String?,
+      includeRecovery: json['include_recovery'] as bool? ?? true,
       lastRegisteredAt: _date(json['last_registered_at']),
       lastTestSentAt: _date(json['last_test_sent_at']),
     );
@@ -29,6 +31,7 @@ class MobileAlertStatus {
   final String? installationId;
   final String? deviceName;
   final String? platform;
+  final bool includeRecovery;
   final DateTime? lastRegisteredAt;
   final DateTime? lastTestSentAt;
 }
@@ -54,6 +57,7 @@ class MobileAlertRegistrationRequest {
     required this.fcmToken,
     this.platform = 'android',
     this.enabled = true,
+    this.includeRecovery = true,
   });
 
   final String installationId;
@@ -61,6 +65,7 @@ class MobileAlertRegistrationRequest {
   final String fcmToken;
   final String platform;
   final bool enabled;
+  final bool includeRecovery;
 
   Map<String, dynamic> toJson() {
     return {
@@ -69,6 +74,7 @@ class MobileAlertRegistrationRequest {
       'fcm_token': fcmToken,
       'platform': platform,
       'enabled': enabled,
+      'include_recovery': includeRecovery,
     };
   }
 }

@@ -78,6 +78,8 @@ class MetricChartScaleHysteresis {
   double? _lowerTargetY;
   int _lowerSampleCount = 0;
 
+  double? get currentMaxY => _effectiveMaxY;
+
   double update(double targetMaxY) {
     final previous = _effectiveMaxY;
     if (previous == null || targetMaxY >= previous) {

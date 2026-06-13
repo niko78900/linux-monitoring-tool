@@ -12,6 +12,7 @@ class MobileAlertRegistrationRequest(BaseModel):
     fcm_token: str = Field(min_length=20, max_length=4096)
     platform: Literal["android"] = "android"
     enabled: bool = True
+    include_recovery: bool = True
 
 
 class MobileAlertStatusResponse(BaseModel):
@@ -21,6 +22,7 @@ class MobileAlertStatusResponse(BaseModel):
     device_name: str | None = None
     platform: str | None = None
     enabled: bool = False
+    include_recovery: bool = True
     last_registered_at: datetime | None = None
     last_test_sent_at: datetime | None = None
 

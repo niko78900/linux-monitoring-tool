@@ -19,10 +19,10 @@ void main() {
       gpuUtilizationPercent: 11,
       gpuTemperatureC: 49,
       primaryDiskPercent: 63,
-      primaryDiskLabel: '/mnt/storage',
+      primaryDiskLabel: 'Cold Storage',
       primaryDiskFreeBytes: 37,
       secondaryDiskPercent: 40,
-      secondaryDiskLabel: '/mnt/warm',
+      secondaryDiskLabel: 'Warm Storage',
       secondaryDiskFreeBytes: 60,
       raidHealth: 'healthy',
       diskHealth: 'healthy',
@@ -41,8 +41,8 @@ void main() {
 
     expect(decoded.hostname, snapshot.hostname);
     expect(decoded.serverReachable, isTrue);
-    expect(decoded.primaryDiskLabel, '/mnt/storage');
-    expect(decoded.secondaryDiskLabel, '/mnt/warm');
+    expect(decoded.primaryDiskLabel, 'Cold Storage');
+    expect(decoded.secondaryDiskLabel, 'Warm Storage');
     expect(decoded.networkSendBytesPerSecond, 2048);
     expect(decoded.topNetworkSpeedMbps, 1000);
   });
@@ -60,7 +60,7 @@ void main() {
     expect(snapshot.gpuUtilizationPercent, isNull);
     expect(snapshot.gpuTemperatureC, isNull);
     expect(snapshot.networkRecvBytesPerSecond, isNull);
-    expect(snapshot.primaryDiskLabel, '/mnt/storage');
+    expect(snapshot.primaryDiskLabel, 'Cold Storage');
     expect(snapshot.primaryDiskFreeBytes, 37);
   });
 
@@ -76,7 +76,7 @@ void main() {
       updatedAt: DateTime.utc(2026, 6, 11, 12),
     );
 
-    expect(snapshot.secondaryDiskLabel, '/mnt/warm');
+    expect(snapshot.secondaryDiskLabel, 'Warm Storage');
     expect(snapshot.secondaryDiskPercent, 40);
     expect(snapshot.secondaryDiskFreeBytes, 60);
   });
@@ -116,10 +116,10 @@ void main() {
         gpuUtilizationPercent: 11,
         gpuTemperatureC: 49,
         primaryDiskPercent: 63,
-        primaryDiskLabel: '/mnt/storage',
+        primaryDiskLabel: 'Cold Storage',
         primaryDiskFreeBytes: 37,
         secondaryDiskPercent: 40,
-        secondaryDiskLabel: '/mnt/warm',
+        secondaryDiskLabel: 'Warm Storage',
         secondaryDiskFreeBytes: 60,
         raidHealth: 'healthy',
         diskHealth: 'healthy',
@@ -136,7 +136,7 @@ void main() {
     expect(previous.serverReachable, isFalse);
     expect(previous.isStale, isTrue);
     expect(previous.cpuPercent, 22);
-    expect(previous.secondaryDiskLabel, '/mnt/warm');
+    expect(previous.secondaryDiskLabel, 'Warm Storage');
   });
 
   test('snapshot serialization excludes sensitive values', () {
@@ -149,6 +149,8 @@ void main() {
       'passphrase',
       'shell_output',
       'file_contents',
+      '/mnt/storage',
+      '/mnt/warm',
     ];
     final snapshot = ServerWidgetSnapshot.fromMonitoringData(
       summary: _summary(),
@@ -161,6 +163,23 @@ void main() {
     for (final value in forbidden) {
       expect(encoded.contains(value), isFalse);
     }
+  });
+
+  test('snapshot builder falls back to generic friendly labels', () {
+    final settings = AppSettings.defaults().copyWith(
+      widgetStorageLabel: '',
+      widgetShowSecondaryStorage: true,
+      widgetSecondaryStorageLabel: '',
+    );
+    final snapshot = ServerWidgetSnapshot.fromMonitoringData(
+      summary: _summary(),
+      system: _system(),
+      settings: settings,
+      updatedAt: DateTime.utc(2026, 6, 11, 12),
+    );
+
+    expect(snapshot.primaryDiskLabel, 'Primary Storage');
+    expect(snapshot.secondaryDiskLabel, 'Secondary Storage');
   });
 }
 

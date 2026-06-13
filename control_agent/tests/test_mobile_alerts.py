@@ -7,6 +7,7 @@ from pathlib import Path
 from app.models.mobile_alerts import MobileAlertRegistrationRequest
 from app.services.mobile_push_registry import MobilePushTokenRegistry
 from app.services.mobile_push_sender import MobilePushSendResult
+from shared.mobile_push_registry import LOCK_FILE_MODE, REGISTRY_FILE_MODE
 
 
 def _payload(fcm_token: str = "fcm-token-" + "x" * 32) -> dict[str, object]:
@@ -16,6 +17,7 @@ def _payload(fcm_token: str = "fcm-token-" + "x" * 32) -> dict[str, object]:
         "fcm_token": fcm_token,
         "platform": "android",
         "enabled": True,
+        "include_recovery": False,
     }
 
 
@@ -48,6 +50,7 @@ def test_register_and_status_do_not_expose_fcm_token(client, auth_headers) -> No
     payload = response.json()
     assert payload["registered"] is True
     assert payload["installation_id"] == "tablet-install-1"
+    assert payload["include_recovery"] is False
     assert "fcm_token" not in json.dumps(payload)
 
     status_response = client.get(
@@ -56,6 +59,7 @@ def test_register_and_status_do_not_expose_fcm_token(client, auth_headers) -> No
     )
     assert status_response.status_code == 200
     assert status_response.json()["registered"] is True
+    assert status_response.json()["include_recovery"] is False
     assert "fcm_token" not in json.dumps(status_response.json())
 
 
@@ -70,6 +74,33 @@ def test_register_replaces_token_for_same_installation(tmp_path: Path) -> None:
     installations = registry.enabled_installations()
     assert len(installations) == 1
     assert installations[0].fcm_token.startswith("second-")
+    assert installations[0].include_recovery is False
+
+
+def test_old_registry_entry_defaults_include_recovery(tmp_path: Path) -> None:
+    registry_path = tmp_path / "tokens.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "installations": [
+                    {
+                        "installation_id": "tablet-install-1",
+                        "device_name": "Homelab Tablet",
+                        "fcm_token": "fcm-token-" + "x" * 32,
+                        "platform": "android",
+                        "enabled": True,
+                        "last_registered_at": "2026-06-12T00:00:00+00:00",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    installations = MobilePushTokenRegistry(registry_path).enabled_installations()
+
+    assert len(installations) == 1
+    assert installations[0].include_recovery is True
 
 
 def test_unregister_disables_installation(client, auth_headers) -> None:
@@ -94,6 +125,23 @@ def test_invalid_payload_rejected(client, auth_headers) -> None:
     assert response.status_code == 422
 
 
+def test_malformed_registry_returns_token_safe_error(
+    client,
+    auth_headers,
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "mobile_push_tokens.json").write_text("{broken", encoding="utf-8")
+
+    response = client.get(
+        "/api/mobile-alerts/status?installation_id=tablet-install-1",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Mobile alert registry is unavailable"
+    assert "fcm" not in json.dumps(response.json()).lower()
+
+
 def test_registry_persistence_is_atomic_and_private(tmp_path: Path) -> None:
     registry_path = tmp_path / "tokens.json"
     registry = MobilePushTokenRegistry(registry_path)
@@ -103,7 +151,31 @@ def test_registry_persistence_is_atomic_and_private(tmp_path: Path) -> None:
     assert registry_path.exists()
     assert not list(tmp_path.glob("*.tmp"))
     if os.name != "nt":
-        assert registry_path.stat().st_mode & 0o777 == 0o600
+        assert registry_path.stat().st_mode & 0o777 == REGISTRY_FILE_MODE
+        assert registry.lock_path.stat().st_mode & 0o777 == LOCK_FILE_MODE
+
+
+def test_registry_updates_do_not_lose_invalid_token_cleanup(tmp_path: Path) -> None:
+    registry = MobilePushTokenRegistry(tmp_path / "tokens.json")
+    registry.upsert(MobileAlertRegistrationRequest.model_validate(_payload()))
+    registry.upsert(
+        MobileAlertRegistrationRequest.model_validate(
+            {
+                **_payload("fcm-token-" + "y" * 32),
+                "installation_id": "tablet-install-2",
+                "device_name": "Second Tablet",
+                "include_recovery": True,
+            }
+        )
+    )
+
+    registry.disable_installations({"tablet-install-1"})
+    enabled = registry.enabled_installations()
+
+    assert [installation.installation_id for installation in enabled] == [
+        "tablet-install-2"
+    ]
+    assert enabled[0].include_recovery is True
 
 
 def test_test_push_endpoint_calls_sender_safely(client, auth_headers, monkeypatch) -> None:

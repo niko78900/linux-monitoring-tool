@@ -13,7 +13,7 @@
             android:value="homelab_urgent_alerts_v1" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@mipmap/ic_launcher" />
+            android:resource="@drawable/ic_homelab_notification" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

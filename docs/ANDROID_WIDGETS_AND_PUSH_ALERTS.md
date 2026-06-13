@@ -45,13 +45,21 @@ Never copy the service-account JSON into the APK or commit it.
 
 ## Debian Configuration
 
-Create a shared registry path for the control agent and bot:
+Create a shared state path for the control agent and bot. The directory is
+group-writable and setgid so either service user can atomically replace shared
+files while preserving group access.
 
 ```bash
-sudo install -d -m 0750 -o linux-monitor-control-agent -g linux-monitoring /var/lib/linux-monitoring
+sudo install -d -m 2770 -o linux-monitor-control-agent -g linux-monitoring /var/lib/linux-monitoring
 sudo touch /var/lib/linux-monitoring/mobile_push_tokens.json
 sudo chown linux-monitor-control-agent:linux-monitoring /var/lib/linux-monitoring/mobile_push_tokens.json
 sudo chmod 0640 /var/lib/linux-monitoring/mobile_push_tokens.json
+sudo touch /var/lib/linux-monitoring/mobile_push_tokens.lock
+sudo chown linux-monitor-control-agent:linux-monitoring /var/lib/linux-monitoring/mobile_push_tokens.lock
+sudo chmod 0660 /var/lib/linux-monitoring/mobile_push_tokens.lock
+sudo touch /var/lib/linux-monitoring/mobile_push_delivery_state.json
+sudo chown linux-monitor-discord-bot:linux-monitoring /var/lib/linux-monitoring/mobile_push_delivery_state.json
+sudo chmod 0640 /var/lib/linux-monitoring/mobile_push_delivery_state.json
 ```
 
 Configure both services:
@@ -66,6 +74,9 @@ Configure the bot:
 ```text
 MOBILE_PUSH_ENABLED=false
 MOBILE_PUSH_INCLUDE_RECOVERY=true
+MOBILE_PUSH_OUTBOX_FILE=/var/lib/linux-monitoring/mobile_push_delivery_state.json
+MOBILE_PUSH_RETRY_INITIAL_SECONDS=30
+MOBILE_PUSH_RETRY_MAX_SECONDS=900
 GPU_USAGE_ALERT_THRESHOLD=85
 ```
 
@@ -95,36 +106,65 @@ Mobile push sends only `cpu-usage`, `gpu-usage`, `memory-usage`, and `disk-usage
 
 ## Read-Only Debian Verification
 
-This block avoids printing tokens or service-account JSON:
+This block avoids printing tokens or service-account JSON and does not modify
+files or restart services:
 
 ```bash
 systemctl is-active linux-monitor-control-agent.service
 systemctl is-active linux-monitor-discord-bot.service
 
+CONTROL_ENV_FILE="$(
+  systemctl show linux-monitor-control-agent.service --property=EnvironmentFiles |
+    sed 's/^EnvironmentFiles=//' |
+    tr ' ' '\n' |
+    sed 's/^-//' |
+    cut -d: -f1 |
+    awk 'NF {print; exit}'
+)"
+CONTROL_ENV_FILE="${CONTROL_ENV_FILE:-/etc/linux-monitor-control-agent.env}"
+sudo test -r "$CONTROL_ENV_FILE"
+
 sudo test -f /etc/linux-monitor-mobile-alerts/firebase-service-account.json && \
   sudo stat -c '%U:%G %a %n' /etc/linux-monitor-mobile-alerts/firebase-service-account.json
 
+sudo stat -c '%U:%G %a %n' /var/lib/linux-monitoring
 sudo test -f /var/lib/linux-monitoring/mobile_push_tokens.json && \
   sudo stat -c '%U:%G %a %n' /var/lib/linux-monitoring/mobile_push_tokens.json
+sudo test -f /var/lib/linux-monitoring/mobile_push_tokens.lock && \
+  sudo stat -c '%U:%G %a %n' /var/lib/linux-monitoring/mobile_push_tokens.lock
+sudo test -f /var/lib/linux-monitoring/mobile_push_delivery_state.json && \
+  sudo stat -c '%U:%G %a %n' /var/lib/linux-monitoring/mobile_push_delivery_state.json
 
 systemctl show linux-monitor-control-agent.service --property=Environment | \
   tr ' ' '\n' | grep -E 'MOBILE_PUSH_TOKEN_REGISTRY_FILE|FIREBASE_SERVICE_ACCOUNT_FILE' | sed 's/=.*/=set/'
 
 systemctl show linux-monitor-discord-bot.service --property=Environment | \
-  tr ' ' '\n' | grep -E 'MOBILE_PUSH_ENABLED|MOBILE_PUSH_INCLUDE_RECOVERY|MOBILE_PUSH_TOKEN_REGISTRY_FILE|FIREBASE_SERVICE_ACCOUNT_FILE|GPU_USAGE_ALERT_THRESHOLD' | sed 's/=.*/=set/'
+  tr ' ' '\n' | grep -E 'MOBILE_PUSH_ENABLED|MOBILE_PUSH_INCLUDE_RECOVERY|MOBILE_PUSH_TOKEN_REGISTRY_FILE|MOBILE_PUSH_OUTBOX_FILE|MOBILE_PUSH_RETRY_INITIAL_SECONDS|MOBILE_PUSH_RETRY_MAX_SECONDS|FIREBASE_SERVICE_ACCOUNT_FILE|GPU_USAGE_ALERT_THRESHOLD' | sed 's/=.*/=set/'
 
-CONTROL_API_TOKEN="$(sudo cat /etc/linux-monitor-control-agent/api-token)"
+CONTROL_API_TOKEN="$(
+  sudo awk '/^CONTROL_API_TOKEN=/ {sub(/^CONTROL_API_TOKEN=/, ""); print; exit}' "$CONTROL_ENV_FILE"
+)"
+test -n "${CONTROL_API_TOKEN:-}"
 curl -fsS -H "Authorization: Bearer ${CONTROL_API_TOKEN}" \
   'http://100.64.10.22:4042/api/mobile-alerts/status' | python3 -m json.tool
 unset CONTROL_API_TOKEN
 
-python3 - <<'PY'
+sudo python3 - <<'PY'
 import json
 from pathlib import Path
 path = Path('/var/lib/linux-monitoring/mobile_push_tokens.json')
 payload = json.loads(path.read_text()) if path.exists() and path.stat().st_size else {'installations': []}
 enabled = [item for item in payload.get('installations', []) if item.get('enabled')]
 print(f'enabled_installations={len(enabled)}')
+PY
+
+sudo python3 - <<'PY'
+import json
+from pathlib import Path
+path = Path('/var/lib/linux-monitoring/mobile_push_delivery_state.json')
+payload = json.loads(path.read_text()) if path.exists() and path.stat().st_size else {'deliveries': []}
+pending = [item for item in payload.get('deliveries', []) if not item.get('delivered_at')]
+print(f'pending_mobile_push_deliveries={len(pending)}')
 PY
 
 getent hosts fcm.googleapis.com >/dev/null && echo 'firebase_dns=ok'
@@ -144,7 +184,7 @@ journalctl -u linux-monitor-discord-bot.service -n 80 --no-pager | grep -Ei 'mob
 2. Copy/install the APK on the tablet.
 3. Install Python dependencies for the control agent and bot.
 4. Install the Firebase Admin service-account JSON on Debian with restrictive permissions.
-5. Configure registry and Firebase env vars for both services.
+5. Configure registry, outbox, retry, and Firebase env vars for both services.
 6. Restart the control agent.
 7. Register the tablet from Settings.
 8. Enable `MOBILE_PUSH_ENABLED=true` for the bot.
@@ -167,7 +207,7 @@ journalctl -u linux-monitor-discord-bot.service -n 80 --no-pager | grep -Ei 'mob
 ## Rollback
 
 1. Set `MOBILE_PUSH_ENABLED=false` and restart the Discord bot.
-2. Disable push alerts from tablet Settings or delete the installation from the registry.
+2. Disable push alerts from tablet Settings or mark the installation disabled in the registry during a maintenance window.
 3. Remove widgets from the launcher if desired.
 4. Restore the previous APK if needed.
 5. Remove Firebase credentials from Debian if future re-enable is not planned.
