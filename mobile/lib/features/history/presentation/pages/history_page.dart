@@ -151,115 +151,149 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
           title: 'Overview',
           child: _AsyncHistorySection<HistoryOverviewResponseModel>(
             state: overviewState,
-            builder: (history) => _HistoryChartGrid(
-              children: [
-                HistoryChart(
-                  title: 'CPU Usage',
-                  points: [
-                    for (final point in history.points)
-                      HistoryChartPoint(
-                        timestamp: point.timestamp,
-                        value: point.cpuPercentAvg,
+            builder: (history) {
+              HistoryChart chart({
+                required String title,
+                required List<HistoryChartPoint> points,
+                Color color = AppColors.accent,
+                MetricChartValueType valueType = MetricChartValueType.number,
+              }) {
+                return HistoryChart(
+                  title: title,
+                  points: points,
+                  color: color,
+                  valueType: valueType,
+                  windowStart: history.from,
+                  windowEnd: history.to,
+                  resolutionSeconds: history.resolutionSeconds,
+                  range: history.range,
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _HistoryWindowMetadata(
+                    range: history.range,
+                    from: history.from,
+                    to: history.to,
+                    pointCount: history.points.length,
+                    resolutionSeconds: history.resolutionSeconds,
+                    lastSampleAt: history.points.lastOrNull?.timestamp,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  _HistoryChartGrid(
+                    children: [
+                      chart(
+                        title: 'CPU Usage',
+                        points: [
+                          for (final point in history.points)
+                            HistoryChartPoint(
+                              timestamp: point.timestamp,
+                              value: point.cpuPercentAvg,
+                            ),
+                        ],
+                        valueType: MetricChartValueType.percent,
                       ),
-                  ],
-                  valueType: MetricChartValueType.percent,
-                ),
-                HistoryChart(
-                  title: 'CPU Temperature',
-                  points: [
-                    for (final point in history.points)
-                      HistoryChartPoint(
-                        timestamp: point.timestamp,
-                        value: point.cpuTemperatureCAvg,
+                      chart(
+                        title: 'CPU Temperature',
+                        points: [
+                          for (final point in history.points)
+                            HistoryChartPoint(
+                              timestamp: point.timestamp,
+                              value: point.cpuTemperatureCAvg,
+                            ),
+                        ],
+                        valueType: MetricChartValueType.temperatureC,
+                        color: AppColors.warning,
                       ),
-                  ],
-                  valueType: MetricChartValueType.temperatureC,
-                  color: AppColors.warning,
-                ),
-                HistoryChart(
-                  title: 'Memory Usage',
-                  points: [
-                    for (final point in history.points)
-                      HistoryChartPoint(
-                        timestamp: point.timestamp,
-                        value: point.memoryPercentAvg,
+                      chart(
+                        title: 'Memory Usage',
+                        points: [
+                          for (final point in history.points)
+                            HistoryChartPoint(
+                              timestamp: point.timestamp,
+                              value: point.memoryPercentAvg,
+                            ),
+                        ],
+                        valueType: MetricChartValueType.percent,
+                        color: AppColors.healthy,
                       ),
-                  ],
-                  valueType: MetricChartValueType.percent,
-                  color: AppColors.healthy,
-                ),
-                HistoryChart(
-                  title: 'Swap Usage',
-                  points: [
-                    for (final point in history.points)
-                      HistoryChartPoint(
-                        timestamp: point.timestamp,
-                        value: point.swapPercentAvg,
+                      chart(
+                        title: 'Swap Usage',
+                        points: [
+                          for (final point in history.points)
+                            HistoryChartPoint(
+                              timestamp: point.timestamp,
+                              value: point.swapPercentAvg,
+                            ),
+                        ],
+                        valueType: MetricChartValueType.percent,
+                        color: AppColors.textMuted,
                       ),
-                  ],
-                  valueType: MetricChartValueType.percent,
-                  color: AppColors.textMuted,
-                ),
-                HistoryChart(
-                  title: 'GPU Utilization',
-                  points: [
-                    for (final point in history.points)
-                      HistoryChartPoint(
-                        timestamp: point.timestamp,
-                        value: point.gpuUtilizationPercentAvg,
+                      chart(
+                        title: 'GPU Utilization',
+                        points: [
+                          for (final point in history.points)
+                            HistoryChartPoint(
+                              timestamp: point.timestamp,
+                              value: point.gpuUtilizationPercentAvg,
+                            ),
+                        ],
+                        valueType: MetricChartValueType.percent,
                       ),
-                  ],
-                  valueType: MetricChartValueType.percent,
-                ),
-                HistoryChart(
-                  title: 'GPU Temperature',
-                  points: [
-                    for (final point in history.points)
-                      HistoryChartPoint(
-                        timestamp: point.timestamp,
-                        value: point.gpuTemperatureCAvg,
+                      chart(
+                        title: 'GPU Temperature',
+                        points: [
+                          for (final point in history.points)
+                            HistoryChartPoint(
+                              timestamp: point.timestamp,
+                              value: point.gpuTemperatureCAvg,
+                            ),
+                        ],
+                        valueType: MetricChartValueType.temperatureC,
+                        color: AppColors.warning,
                       ),
-                  ],
-                  valueType: MetricChartValueType.temperatureC,
-                  color: AppColors.warning,
-                ),
-                HistoryChart(
-                  title: 'GPU VRAM Used',
-                  points: [
-                    for (final point in history.points)
-                      HistoryChartPoint(
-                        timestamp: point.timestamp,
-                        value: point.gpuMemoryUsedMbAvg,
+                      chart(
+                        title: 'GPU VRAM Used',
+                        points: [
+                          for (final point in history.points)
+                            HistoryChartPoint(
+                              timestamp: point.timestamp,
+                              value: point.gpuMemoryUsedMbAvg,
+                            ),
+                        ],
+                        valueType: MetricChartValueType.megabytes,
+                        color: AppColors.healthy,
                       ),
-                  ],
-                  valueType: MetricChartValueType.megabytes,
-                  color: AppColors.healthy,
-                ),
-                HistoryChart(
-                  title: 'Network Receive',
-                  points: [
-                    for (final point in history.points)
-                      HistoryChartPoint(
-                        timestamp: point.timestamp,
-                        value: point.networkRecvBytesPerSecondAvg,
+                      chart(
+                        title: 'Network Receive',
+                        points: [
+                          for (final point in history.points)
+                            HistoryChartPoint(
+                              timestamp: point.timestamp,
+                              value: point.networkRecvBytesPerSecondAvg,
+                            ),
+                        ],
+                        valueType: MetricChartValueType.bytesPerSecond,
+                        color: AppColors.healthy,
                       ),
-                  ],
-                  valueType: MetricChartValueType.bytesPerSecond,
-                  color: AppColors.healthy,
-                ),
-                HistoryChart(
-                  title: 'Network Send',
-                  points: [
-                    for (final point in history.points)
-                      HistoryChartPoint(
-                        timestamp: point.timestamp,
-                        value: point.networkSendBytesPerSecondAvg,
+                      chart(
+                        title: 'Network Send',
+                        points: [
+                          for (final point in history.points)
+                            HistoryChartPoint(
+                              timestamp: point.timestamp,
+                              value: point.networkSendBytesPerSecondAvg,
+                            ),
+                        ],
+                        valueType: MetricChartValueType.bytesPerSecond,
                       ),
-                  ],
-                  valueType: MetricChartValueType.bytesPerSecond,
-                ),
-              ],
-            ),
+                    ],
+                  ),
+                ],
+              );
+            },
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -288,6 +322,24 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
             state: storageState,
             builder: (history) {
               final latest = history.points.lastOrNull;
+              HistoryChart chart({
+                required String title,
+                required List<HistoryChartPoint> points,
+                Color color = AppColors.accent,
+                MetricChartValueType valueType = MetricChartValueType.number,
+              }) {
+                return HistoryChart(
+                  title: title,
+                  points: points,
+                  color: color,
+                  valueType: valueType,
+                  windowStart: history.from,
+                  windowEnd: history.to,
+                  resolutionSeconds: history.resolutionSeconds,
+                  range: history.range,
+                );
+              }
+
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -295,10 +347,19 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                     Text(
                       'Latest: ${latest.healthStatus} | ${latest.readOnlyAny ? 'Read-only' : 'Read-write visible'} | ${latest.availableAny ? 'Available' : 'Unavailable'}',
                     ),
+                  if (latest != null) const SizedBox(height: AppSpacing.sm),
+                  _HistoryWindowMetadata(
+                    range: history.range,
+                    from: history.from,
+                    to: history.to,
+                    pointCount: history.points.length,
+                    resolutionSeconds: history.resolutionSeconds,
+                    lastSampleAt: latest?.timestamp,
+                  ),
                   const SizedBox(height: AppSpacing.md),
                   _HistoryChartGrid(
                     children: [
-                      HistoryChart(
+                      chart(
                         title: 'Usage %',
                         points: [
                           for (final point in history.points)
@@ -309,7 +370,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                         ],
                         valueType: MetricChartValueType.percent,
                       ),
-                      HistoryChart(
+                      chart(
                         title: 'Used Space',
                         points: [
                           for (final point in history.points)
@@ -321,7 +382,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                         valueType: MetricChartValueType.bytes,
                         color: AppColors.warning,
                       ),
-                      HistoryChart(
+                      chart(
                         title: 'Free Space',
                         points: [
                           for (final point in history.points)
@@ -368,6 +429,25 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                   state: diskState,
                   builder: (history) {
                     final latest = history.points.lastOrNull;
+                    HistoryChart chart({
+                      required String title,
+                      required List<HistoryChartPoint> points,
+                      Color color = AppColors.accent,
+                      MetricChartValueType valueType =
+                          MetricChartValueType.number,
+                    }) {
+                      return HistoryChart(
+                        title: title,
+                        points: points,
+                        color: color,
+                        valueType: valueType,
+                        windowStart: history.from,
+                        windowEnd: history.to,
+                        resolutionSeconds: history.resolutionSeconds,
+                        range: history.range,
+                      );
+                    }
+
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -375,10 +455,20 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                           Text(
                             'Latest: ${latest.healthStatus} | ${latest.kernelState ?? 'Unknown kernel state'} | ${formatTemperature(latest.temperatureCAvg)}',
                           ),
+                        if (latest != null)
+                          const SizedBox(height: AppSpacing.sm),
+                        _HistoryWindowMetadata(
+                          range: history.range,
+                          from: history.from,
+                          to: history.to,
+                          pointCount: history.points.length,
+                          resolutionSeconds: history.resolutionSeconds,
+                          lastSampleAt: latest?.timestamp,
+                        ),
                         const SizedBox(height: AppSpacing.md),
                         _HistoryChartGrid(
                           children: [
-                            HistoryChart(
+                            chart(
                               title: 'Disk Temperature',
                               points: [
                                 for (final point in history.points)
@@ -425,6 +515,25 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                   state: raidState,
                   builder: (history) {
                     final latest = history.points.lastOrNull;
+                    HistoryChart chart({
+                      required String title,
+                      required List<HistoryChartPoint> points,
+                      Color color = AppColors.accent,
+                      MetricChartValueType valueType =
+                          MetricChartValueType.number,
+                    }) {
+                      return HistoryChart(
+                        title: title,
+                        points: points,
+                        color: color,
+                        valueType: valueType,
+                        windowStart: history.from,
+                        windowEnd: history.to,
+                        resolutionSeconds: history.resolutionSeconds,
+                        range: history.range,
+                      );
+                    }
+
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -432,10 +541,20 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                           Text(
                             'Latest: ${latest.healthStatus} | ${latest.state ?? 'Unknown state'} | ${latest.syncAction ?? 'No sync action'}',
                           ),
+                        if (latest != null)
+                          const SizedBox(height: AppSpacing.sm),
+                        _HistoryWindowMetadata(
+                          range: history.range,
+                          from: history.from,
+                          to: history.to,
+                          pointCount: history.points.length,
+                          resolutionSeconds: history.resolutionSeconds,
+                          lastSampleAt: latest?.timestamp,
+                        ),
                         const SizedBox(height: AppSpacing.md),
                         _HistoryChartGrid(
                           children: [
-                            HistoryChart(
+                            chart(
                               title: 'Degraded Disks',
                               points: [
                                 for (final point in history.points)
@@ -446,7 +565,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                               ],
                               color: AppColors.warning,
                             ),
-                            HistoryChart(
+                            chart(
                               title: 'Active Disks',
                               points: [
                                 for (final point in history.points)
@@ -523,6 +642,89 @@ class _AsyncHistorySection<T> extends StatelessWidget {
     }
     return error.toString();
   }
+}
+
+class _HistoryWindowMetadata extends StatelessWidget {
+  const _HistoryWindowMetadata({
+    required this.range,
+    required this.from,
+    required this.to,
+    required this.pointCount,
+    required this.resolutionSeconds,
+    required this.lastSampleAt,
+  });
+
+  final HistoryRangeValue range;
+  final DateTime? from;
+  final DateTime? to;
+  final int pointCount;
+  final int resolutionSeconds;
+  final DateTime? lastSampleAt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      _formatHistoryWindowMetadata(
+        range: range,
+        from: from,
+        to: to,
+        pointCount: pointCount,
+        resolutionSeconds: resolutionSeconds,
+        lastSampleAt: lastSampleAt,
+      ),
+      style: Theme.of(
+        context,
+      ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+    );
+  }
+}
+
+String _formatHistoryWindowMetadata({
+  required HistoryRangeValue range,
+  required DateTime? from,
+  required DateTime? to,
+  required int pointCount,
+  required int resolutionSeconds,
+  required DateTime? lastSampleAt,
+}) {
+  final window = from != null && to != null
+      ? 'Showing ${_formatHistoryDateTime(from)} -> ${_formatHistoryDateTime(to)}'
+      : 'Showing ${range.label}';
+  final pointLabel = pointCount == 1 ? '1 point' : '$pointCount points';
+  return [
+    window,
+    pointLabel,
+    '${_formatBucketSize(resolutionSeconds)} buckets',
+    'last ${_formatHistoryDateTime(lastSampleAt)}',
+  ].join(' | ');
+}
+
+String _formatHistoryDateTime(DateTime? value) {
+  if (value == null) {
+    return 'unknown';
+  }
+  return DateFormat('MMM d HH:mm').format(value.toLocal());
+}
+
+String _formatBucketSize(int seconds) {
+  if (seconds <= 0) {
+    return 'unknown';
+  }
+  const hourSeconds = Duration.minutesPerHour * Duration.secondsPerMinute;
+  const daySeconds = Duration.hoursPerDay * hourSeconds;
+  if (seconds % daySeconds == 0) {
+    final days = seconds ~/ daySeconds;
+    return '${days}d';
+  }
+  if (seconds % hourSeconds == 0) {
+    final hours = seconds ~/ hourSeconds;
+    return '${hours}h';
+  }
+  if (seconds % Duration.secondsPerMinute == 0) {
+    final minutes = seconds ~/ Duration.secondsPerMinute;
+    return '${minutes}m';
+  }
+  return '${seconds}s';
 }
 
 class _HistoryChartGrid extends StatelessWidget {

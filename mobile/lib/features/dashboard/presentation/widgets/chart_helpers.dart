@@ -37,21 +37,56 @@ class MetricChartPlotPoint {
 }
 
 class MetricChartPlotSeries {
-  const MetricChartPlotSeries(this.points);
+  const MetricChartPlotSeries(
+    this.points, {
+    List<FlSpot>? spots,
+    List<int>? pointSpotIndexes,
+    double? minX,
+    double? maxX,
+  }) : _spots = spots,
+       _pointSpotIndexes = pointSpotIndexes,
+       _minX = minX,
+       _maxX = maxX;
 
   final List<MetricChartPlotPoint> points;
+  final List<FlSpot>? _spots;
+  final List<int>? _pointSpotIndexes;
+  final double? _minX;
+  final double? _maxX;
 
-  List<FlSpot> get spots => [for (final point in points) point.spot];
+  List<FlSpot> get spots => _spots ?? [for (final point in points) point.spot];
 
-  double get minX => points.isEmpty ? 0 : points.first.spot.x;
+  double get minX => _minX ?? (points.isEmpty ? 0 : points.first.spot.x);
 
   double get maxX {
+    if (_maxX != null) {
+      return _maxX > minX ? _maxX : minX + 1;
+    }
     if (points.isEmpty) {
       return 1;
     }
     final first = points.first.spot.x;
     final last = points.last.spot.x;
     return last > first ? last : first + 1;
+  }
+
+  int spotIndexForPointIndex(int pointIndex) {
+    return _pointSpotIndexes?[pointIndex] ?? pointIndex;
+  }
+
+  MetricChartPlotPoint? pointForSpotIndex(int spotIndex) {
+    final indexes = _pointSpotIndexes;
+    if (indexes == null) {
+      if (spotIndex < 0 || spotIndex >= points.length) {
+        return null;
+      }
+      return points[spotIndex];
+    }
+    final pointIndex = indexes.indexOf(spotIndex);
+    if (pointIndex < 0 || pointIndex >= points.length) {
+      return null;
+    }
+    return points[pointIndex];
   }
 
   int? nearestPointIndexForX(double x) {
@@ -118,9 +153,22 @@ MetricChartPlotSeries buildMetricChartPlotSeries<T>(
   List<T> items, {
   required DateTime? Function(T item) timestampOf,
   required double? Function(T item) valueOf,
+  DateTime? windowStart,
+  DateTime? windowEnd,
+  Duration? maxGap,
 }) {
   final points = <MetricChartPlotPoint>[];
+  final spots = <FlSpot>[];
+  final pointSpotIndexes = <int>[];
   DateTime? firstTimestamp;
+  DateTime? previousTimestamp;
+  final hasWindow =
+      windowStart != null &&
+      windowEnd != null &&
+      windowEnd.isAfter(windowStart);
+  final maxX = hasWindow
+      ? windowEnd.difference(windowStart).inMilliseconds / 1000
+      : null;
 
   for (var sourceIndex = 0; sourceIndex < items.length; sourceIndex += 1) {
     final item = items[sourceIndex];
@@ -131,25 +179,53 @@ MetricChartPlotSeries buildMetricChartPlotSeries<T>(
 
     final timestamp = timestampOf(item);
     firstTimestamp ??= timestamp;
-    var x = timestamp != null && firstTimestamp != null
-        ? timestamp.difference(firstTimestamp).inMilliseconds / 1000
-        : points.length.toDouble();
+    double x;
+    if (hasWindow) {
+      final windowTimestamp = timestamp;
+      if (windowTimestamp == null) {
+        continue;
+      }
+      x = windowTimestamp.difference(windowStart).inMilliseconds / 1000;
+    } else if (timestamp != null && firstTimestamp != null) {
+      x = timestamp.difference(firstTimestamp).inMilliseconds / 1000;
+    } else {
+      x = points.length.toDouble();
+    }
 
     if (points.isNotEmpty && x <= points.last.spot.x) {
       x = points.last.spot.x + _repeatedTimestampStepSeconds;
     }
 
+    if (maxGap != null &&
+        previousTimestamp != null &&
+        timestamp != null &&
+        timestamp.difference(previousTimestamp).abs() > maxGap &&
+        spots.isNotEmpty &&
+        spots.last != FlSpot.nullSpot) {
+      spots.add(FlSpot.nullSpot);
+    }
+
+    final spot = FlSpot(x, value);
+    spots.add(spot);
+    pointSpotIndexes.add(spots.length - 1);
     points.add(
       MetricChartPlotPoint(
-        spot: FlSpot(x, value),
+        spot: spot,
         timestamp: timestamp,
         value: value,
         sourceIndex: sourceIndex,
       ),
     );
+    previousTimestamp = timestamp ?? previousTimestamp;
   }
 
-  return MetricChartPlotSeries(points);
+  return MetricChartPlotSeries(
+    points,
+    spots: spots,
+    pointSpotIndexes: pointSpotIndexes,
+    minX: hasWindow ? 0 : null,
+    maxX: maxX,
+  );
 }
 
 String formatMetricChartValue(num? value, MetricChartValueType type) {
@@ -167,19 +243,27 @@ String formatMetricChartValue(num? value, MetricChartValueType type) {
   };
 }
 
-String formatMetricChartTimestamp(DateTime? timestamp) {
+String formatMetricChartTimestamp(
+  DateTime? timestamp, {
+  bool includeDate = false,
+}) {
   if (timestamp == null) {
     return 'N/A';
   }
-  return DateFormat.Hms().format(timestamp);
+  final local = timestamp.toLocal();
+  if (includeDate) {
+    return DateFormat('MMM d HH:mm').format(local);
+  }
+  return DateFormat.Hms().format(local);
 }
 
 String formatMetricChartTooltip(
   DateTime? timestamp,
   num? value,
-  MetricChartValueFormatter formatter,
-) {
-  return '${formatMetricChartTimestamp(timestamp)}\n${formatter(value)}';
+  MetricChartValueFormatter formatter, {
+  bool includeDate = false,
+}) {
+  return '${formatMetricChartTimestamp(timestamp, includeDate: includeDate)}\n${formatter(value)}';
 }
 
 double metricChartReservedSize(MetricChartValueType type) {

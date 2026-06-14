@@ -89,6 +89,7 @@ void main() {
 
   test('tooltip and axis edge configuration are stable', () {
     final timestamp = DateTime.utc(2026, 6, 12, 2, 14, 35);
+    final timestampText = formatMetricChartTimestamp(timestamp);
 
     expect(
       formatMetricChartTooltip(
@@ -97,10 +98,28 @@ void main() {
         (value) =>
             formatMetricChartValue(value, MetricChartValueType.bytesPerSecond),
       ),
-      '02:14:35\n25 KB/s',
+      '$timestampText\n25 KB/s',
     );
     expect(metricChartIncludeMaxTitle, isFalse);
     expect(metricChartTouchSpotThreshold, greaterThanOrEqualTo(24));
+  });
+
+  test('history tooltip includes date context outside the 1h range', () {
+    final timestamp = DateTime(2026, 6, 14, 0, 55);
+
+    final oneHour = formatHistoryChartTooltipTimestamp(
+      timestamp,
+      range: HistoryRangeValue.oneHour,
+    );
+    final twentyFourHours = formatHistoryChartTooltipTimestamp(
+      timestamp,
+      range: HistoryRangeValue.twentyFourHours,
+    );
+
+    expect(oneHour, '00:55:00');
+    expect(twentyFourHours, contains('Jun 14'));
+    expect(twentyFourHours, contains('00:55'));
+    expect(twentyFourHours, isNot(matches(RegExp(r'^\d{2}:\d{2}:\d{2}$'))));
   });
 
   test('sampled telemetry charts use straight line segments by default', () {
@@ -411,6 +430,79 @@ void main() {
     expect(bar.isCurved, isFalse);
     expect(bar.spots.last.x, data.maxX);
     expect(bar.spots.last.y, lessThanOrEqualTo(data.maxY));
+  });
+
+  testWidgets('history chart anchors x range to backend history window', (
+    tester,
+  ) async {
+    final start = DateTime(2026, 6, 14);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HistoryChart(
+            title: 'Anchored History',
+            valueType: MetricChartValueType.percent,
+            windowStart: start,
+            windowEnd: start.add(const Duration(hours: 24)),
+            resolutionSeconds: 300,
+            range: HistoryRangeValue.twentyFourHours,
+            points: [
+              HistoryChartPoint(
+                timestamp: start.add(const Duration(hours: 6)),
+                value: 10,
+              ),
+              HistoryChartPoint(
+                timestamp: start.add(const Duration(hours: 12)),
+                value: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final data = _lineChartData(tester);
+    final bar = data.lineBarsData.single;
+    expect(data.minX, 0);
+    expect(data.maxX, 86400);
+    expect(bar.spots.first.x, 21600);
+    expect(bar.spots.last.x, 43200);
+  });
+
+  testWidgets('history chart breaks long gaps instead of connecting them', (
+    tester,
+  ) async {
+    final start = DateTime(2026, 6, 14);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HistoryChart(
+            title: 'Gapped History',
+            valueType: MetricChartValueType.percent,
+            windowStart: start,
+            windowEnd: start.add(const Duration(hours: 2)),
+            resolutionSeconds: 300,
+            range: HistoryRangeValue.twentyFourHours,
+            points: [
+              HistoryChartPoint(timestamp: start, value: 10),
+              HistoryChartPoint(
+                timestamp: start.add(const Duration(minutes: 5)),
+                value: 20,
+              ),
+              HistoryChartPoint(
+                timestamp: start.add(const Duration(hours: 1, minutes: 5)),
+                value: 30,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final data = _lineChartData(tester);
+    final spots = data.lineBarsData.single.spots;
+    expect(spots, contains(FlSpot.nullSpot));
+    expect(spots.where((spot) => spot != FlSpot.nullSpot), hasLength(3));
   });
 
   testWidgets('history chart keeps nearest-X selection during vertical drag', (

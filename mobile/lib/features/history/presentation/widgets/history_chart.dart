@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -18,6 +19,10 @@ class HistoryChart extends StatefulWidget {
     this.tooltipValueFormatter,
     this.leftReservedSize,
     this.minimumY,
+    this.windowStart,
+    this.windowEnd,
+    this.resolutionSeconds,
+    this.range,
     @visibleForTesting this.onSelectedSampleChanged,
   });
 
@@ -30,6 +35,10 @@ class HistoryChart extends StatefulWidget {
   final MetricChartValueFormatter? tooltipValueFormatter;
   final double? leftReservedSize;
   final double? minimumY;
+  final DateTime? windowStart;
+  final DateTime? windowEnd;
+  final int? resolutionSeconds;
+  final HistoryRangeValue? range;
   final ValueChanged<int?>? onSelectedSampleChanged;
 
   @override
@@ -62,7 +71,22 @@ class _HistoryChartState extends State<HistoryChart> {
       populated,
       timestampOf: (point) => point.timestamp,
       valueOf: (point) => point.value,
+      windowStart: _hasValidWindow ? widget.windowStart : null,
+      windowEnd: _hasValidWindow ? widget.windowEnd : null,
+      maxGap: _gapBreakThreshold,
     );
+    if (series.points.isEmpty) {
+      _selectedPointIndex = null;
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: SizedBox(
+            height: 180,
+            child: Center(child: Text('${widget.title}: no history data')),
+          ),
+        ),
+      );
+    }
     if (_selectedPointIndex != null &&
         _selectedPointIndex! >= series.points.length) {
       _selectedPointIndex = null;
@@ -85,15 +109,18 @@ class _HistoryChartState extends State<HistoryChart> {
         widget.leftReservedSize ?? metricChartReservedSize(widget.valueType);
     final selectedPointIndex = _selectedPointIndex;
     final spots = series.spots;
+    final selectedSpotIndex = selectedPointIndex == null
+        ? null
+        : series.spotIndexForPointIndex(selectedPointIndex);
     final barData = LineChartBarData(
       spots: spots,
       isCurved: metricChartUseCurvedTelemetryLines,
       color: widget.color,
       barWidth: 2.4,
       dotData: const FlDotData(show: false),
-      showingIndicators: selectedPointIndex == null
+      showingIndicators: selectedSpotIndex == null
           ? const []
-          : [selectedPointIndex],
+          : [selectedSpotIndex],
       belowBarData: BarAreaData(
         show: true,
         color: widget.color.withValues(alpha: 0.12),
@@ -121,7 +148,7 @@ class _HistoryChartState extends State<HistoryChart> {
                       ? const []
                       : [
                           ShowingTooltipIndicators([
-                            LineBarSpot(barData, 0, spots[selectedPointIndex]),
+                            LineBarSpot(barData, 0, spots[selectedSpotIndex!]),
                           ]),
                         ],
                   lineTouchData: LineTouchData(
@@ -158,7 +185,7 @@ class _HistoryChartState extends State<HistoryChart> {
                         for (final spot in spots)
                           LineTooltipItem(
                             _tooltipText(
-                              series.points[spot.spotIndex],
+                              series.pointForSpotIndex(spot.spotIndex)!,
                               tooltipFormatter,
                             ),
                             const TextStyle(
@@ -205,8 +232,30 @@ class _HistoryChartState extends State<HistoryChart> {
                     topTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
                     ),
-                    bottomTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: _hasValidWindow,
+                        reservedSize: 28,
+                        interval: _bottomTitleInterval(series.maxX),
+                        minIncluded: true,
+                        maxIncluded: true,
+                        getTitlesWidget: (value, meta) {
+                          if (!_isBottomTitleValue(value, series.maxX)) {
+                            return const SizedBox.shrink();
+                          }
+                          return SideTitleWidget(
+                            meta: meta,
+                            space: AppSpacing.xs,
+                            child: Text(
+                              _formatBottomTitle(value),
+                              maxLines: 1,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: AppColors.textMuted),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
                   borderData: FlBorderData(show: false),
@@ -250,6 +299,80 @@ class _HistoryChartState extends State<HistoryChart> {
     MetricChartPlotPoint point,
     MetricChartValueFormatter formatter,
   ) {
-    return formatMetricChartTooltip(point.timestamp, point.value, formatter);
+    return '${formatHistoryChartTooltipTimestamp(point.timestamp, range: widget.range, windowStart: widget.windowStart, windowEnd: widget.windowEnd)}\n${formatter(point.value)}';
   }
+
+  bool get _hasValidWindow {
+    final start = widget.windowStart;
+    final end = widget.windowEnd;
+    return start != null && end != null && end.isAfter(start);
+  }
+
+  Duration? get _gapBreakThreshold {
+    final seconds = widget.resolutionSeconds;
+    if (seconds == null || seconds <= 0) {
+      return null;
+    }
+    return Duration(milliseconds: (seconds * 2500).round());
+  }
+
+  double _bottomTitleInterval(double maxX) {
+    if (maxX <= 0 || maxX.isNaN || maxX.isInfinite) {
+      return 1;
+    }
+    return maxX / 2;
+  }
+
+  bool _isBottomTitleValue(double value, double maxX) {
+    final tolerance = maxX <= 0 ? 0.01 : maxX * 0.01;
+    final middle = maxX / 2;
+    return (value - 0).abs() <= tolerance ||
+        (value - middle).abs() <= tolerance ||
+        (value - maxX).abs() <= tolerance;
+  }
+
+  String _formatBottomTitle(double value) {
+    final start = widget.windowStart;
+    if (start == null) {
+      return '';
+    }
+    final timestamp = start.add(Duration(milliseconds: (value * 1000).round()));
+    return formatHistoryChartAxisTimestamp(timestamp, range: widget.range);
+  }
+}
+
+@visibleForTesting
+String formatHistoryChartTooltipTimestamp(
+  DateTime? timestamp, {
+  HistoryRangeValue? range,
+  DateTime? windowStart,
+  DateTime? windowEnd,
+}) {
+  final includeDate = range == null
+      ? _windowNeedsDateContext(windowStart, windowEnd)
+      : range != HistoryRangeValue.oneHour;
+  return formatMetricChartTimestamp(timestamp, includeDate: includeDate);
+}
+
+@visibleForTesting
+String formatHistoryChartAxisTimestamp(
+  DateTime? timestamp, {
+  HistoryRangeValue? range,
+}) {
+  if (timestamp == null) {
+    return 'N/A';
+  }
+  final local = timestamp.toLocal();
+  if (range == HistoryRangeValue.sevenDays ||
+      range == HistoryRangeValue.thirtyDays) {
+    return DateFormat('MMM d').format(local);
+  }
+  return DateFormat.Hm().format(local);
+}
+
+bool _windowNeedsDateContext(DateTime? start, DateTime? end) {
+  if (start == null || end == null || !end.isAfter(start)) {
+    return false;
+  }
+  return end.difference(start) > const Duration(hours: 1);
 }

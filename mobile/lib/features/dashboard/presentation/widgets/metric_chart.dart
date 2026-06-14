@@ -43,6 +43,7 @@ class _MetricChartState extends State<MetricChart> {
       MetricChartScaleHysteresis();
   int? _selectedPointIndex;
   String? _lastTelemetrySignature;
+  bool _touchActive = false;
 
   @override
   void didUpdateWidget(covariant MetricChart oldWidget) {
@@ -54,6 +55,12 @@ class _MetricChartState extends State<MetricChart> {
       _scaleHysteresis.reset();
       _lastTelemetrySignature = null;
       _selectedPointIndex = null;
+    }
+    if (_selectedPointIndex != null &&
+        !_touchActive &&
+        _samplesSignature(oldWidget.samples) !=
+            _samplesSignature(widget.samples)) {
+      _clearSelectedPoint();
     }
   }
 
@@ -120,15 +127,18 @@ class _MetricChartState extends State<MetricChart> {
         widget.leftReservedSize ?? metricChartReservedSize(widget.valueType);
     final selectedPointIndex = _selectedPointIndex;
     final spots = series.spots;
+    final selectedSpotIndex = selectedPointIndex == null
+        ? null
+        : series.spotIndexForPointIndex(selectedPointIndex);
     final barData = LineChartBarData(
       spots: spots,
       isCurved: metricChartUseCurvedTelemetryLines,
       color: widget.color,
       barWidth: 2.4,
       dotData: const FlDotData(show: false),
-      showingIndicators: selectedPointIndex == null
+      showingIndicators: selectedSpotIndex == null
           ? const []
-          : [selectedPointIndex],
+          : [selectedSpotIndex],
       belowBarData: BarAreaData(
         show: true,
         color: widget.color.withValues(alpha: 0.12),
@@ -156,7 +166,7 @@ class _MetricChartState extends State<MetricChart> {
                       ? const []
                       : [
                           ShowingTooltipIndicators([
-                            LineBarSpot(barData, 0, spots[selectedPointIndex]),
+                            LineBarSpot(barData, 0, spots[selectedSpotIndex!]),
                           ]),
                         ],
                   lineTouchData: LineTouchData(
@@ -193,7 +203,7 @@ class _MetricChartState extends State<MetricChart> {
                         for (final spot in spots)
                           LineTooltipItem(
                             _tooltipText(
-                              series.points[spot.spotIndex],
+                              series.pointForSpotIndex(spot.spotIndex)!,
                               tooltipFormatter,
                             ),
                             const TextStyle(
@@ -261,10 +271,12 @@ class _MetricChartState extends State<MetricChart> {
     MetricChartPlotSeries series,
   ) {
     if (!event.isInterestedForInteractions || response == null) {
+      _touchActive = false;
       _selectPoint(null);
       return;
     }
 
+    _touchActive = true;
     final index = series.nearestPointIndexForX(
       response.touchChartCoordinate.dx,
     );
@@ -281,6 +293,11 @@ class _MetricChartState extends State<MetricChart> {
     widget.onSelectedSampleChanged?.call(index);
   }
 
+  void _clearSelectedPoint() {
+    _selectedPointIndex = null;
+    widget.onSelectedSampleChanged?.call(null);
+  }
+
   double _effectiveMaxYForTelemetry(String signature, double targetMaxY) {
     if (_lastTelemetrySignature != signature) {
       _lastTelemetrySignature = signature;
@@ -294,6 +311,16 @@ class _MetricChartState extends State<MetricChart> {
     return '${series.points.length}:'
         '${last.timestamp?.microsecondsSinceEpoch ?? last.spot.x}:'
         '$targetMaxY';
+  }
+
+  String _samplesSignature(List<MetricSample> samples) {
+    if (samples.isEmpty) {
+      return '0';
+    }
+    final last = samples.last;
+    return '${samples.length}:'
+        '${last.timestamp.microsecondsSinceEpoch}:'
+        '${last.value}';
   }
 
   String _tooltipText(

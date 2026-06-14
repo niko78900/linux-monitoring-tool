@@ -49,6 +49,9 @@ void main() {
     expect(find.text('GPU VRAM Used'), findsOneWidget);
     expect(find.text('GPU VRAM Used (MB)'), findsNothing);
     expect(find.text('Network Receive'), findsOneWidget);
+    expect(find.textContaining('Showing'), findsWidgets);
+    expect(find.textContaining('1 point'), findsWidgets);
+    expect(find.textContaining('5m buckets'), findsWidgets);
   });
 
   testWidgets('history page shows loading state while overview is pending', (
