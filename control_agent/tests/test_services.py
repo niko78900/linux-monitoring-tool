@@ -27,6 +27,9 @@ def test_service_registry_parses(tmp_path: Path) -> None:
 
     assert len(services) == 2
     assert services[0].adapter == "docker"
+    assert services[0].category == "media"
+    assert services[0].url == "http://127.0.0.1:8096"
+    assert services[0].ports == ["8096/tcp"]
     assert services[1].adapter == "systemd"
 
 
@@ -112,6 +115,9 @@ def test_docker_adapter_status_reads_runtime(tmp_path: Path) -> None:
     )
 
     assert status.runtime_type == "docker"
+    assert status.runtime_target == "jellyfin"
+    assert status.category == "media"
+    assert status.url == "http://127.0.0.1:8096"
     assert status.runtime_state == "running"
     assert status.health_probe_state == "healthy"
 
@@ -234,6 +240,10 @@ services:
     host_id: homelab-server
     adapter: docker
     target: jellyfin
+    category: media
+    description: Media server
+    url: http://127.0.0.1:8096
+    ports: [8096/tcp]
     allowed_actions: [start, stop, restart]
     health_probe:
       type: http

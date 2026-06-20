@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:homelab_tablet/core/errors/app_exception.dart';
 import 'package:homelab_tablet/features/services/data/service_repository.dart';
 import 'package:homelab_tablet/features/services/domain/models/service_models.dart';
+import 'package:homelab_tablet/features/services/presentation/pages/service_detail_page.dart';
 import 'package:homelab_tablet/features/services/presentation/pages/services_page.dart';
 
 void main() {
@@ -25,7 +27,62 @@ void main() {
     expect(find.text('Jellyfin'), findsOneWidget);
     expect(find.text('Running'), findsOneWidget);
     expect(find.text('HTTP healthy'), findsOneWidget);
+    expect(find.text('media'), findsOneWidget);
+    expect(find.text('8096/tcp'), findsOneWidget);
     expect(find.text('Restart'), findsOneWidget);
+  });
+
+  testWidgets('tapping service details opens detail page', (tester) async {
+    final repository = FakeServiceRepository(services: [_service()]);
+    final router = GoRouter(
+      initialLocation: '/services',
+      routes: [
+        GoRoute(
+          path: '/services',
+          builder: (context, state) => const ServicesPage(),
+          routes: [
+            GoRoute(
+              path: ':serviceId',
+              builder: (context, state) => ServiceDetailPage(
+                serviceId: state.pathParameters['serviceId'] ?? '',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [serviceRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Details'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Runtime'), findsOneWidget);
+    expect(find.text('Container'), findsOneWidget);
+    expect(find.text('jellyfin'), findsOneWidget);
+  });
+
+  testWidgets('empty state still works when no services are configured', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serviceRepositoryProvider.overrideWithValue(FakeServiceRepository()),
+        ],
+        child: const MaterialApp(home: Scaffold(body: ServicesPage())),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('No services configured'), findsOneWidget);
   });
 
   testWidgets('shows confirmation dialog before action', (tester) async {
@@ -140,8 +197,14 @@ ManagedService _service() {
     displayName: 'Jellyfin',
     hostId: 'homelab-server',
     runtimeAdapter: 'docker',
+    runtimeTarget: 'jellyfin',
     runtimeState: 'running',
     healthProbeState: 'healthy',
+    category: 'media',
+    description: 'Media streaming server',
+    url: 'http://127.0.0.1:8096',
+    ports: const ['8096/tcp'],
+    image: 'jellyfin/jellyfin',
     lastChecked: DateTime.utc(2026, 6, 11, 20),
     allowedActions: const ['start', 'stop', 'restart'],
     lastAction: const ServiceActionResult(

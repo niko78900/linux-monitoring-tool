@@ -22,6 +22,11 @@ class ServiceConfig(BaseModel):
     host_id: str
     adapter: ServiceAdapter
     target: str
+    category: str = "service"
+    description: str | None = None
+    url: str | None = None
+    ports: list[str] = Field(default_factory=list)
+    image: str | None = None
     allowed_actions: list[ServiceAction] = Field(default_factory=list)
     health_probe: ServiceHealthProbeConfig | None = None
 
@@ -42,8 +47,14 @@ class ManagedServiceStatus(BaseModel):
     display_name: str
     host_id: str
     runtime_type: ServiceAdapter
+    runtime_target: str
     runtime_state: str
     health_probe_state: str
+    category: str
+    description: str | None = None
+    url: str | None = None
+    ports: list[str] = Field(default_factory=list)
+    image: str | None = None
     last_checked: datetime
     allowed_actions: list[ServiceAction] = Field(default_factory=list)
     last_action: ServiceActionRecord | None = None

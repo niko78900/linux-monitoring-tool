@@ -4,8 +4,14 @@ class ManagedService {
     required this.displayName,
     required this.hostId,
     required this.runtimeAdapter,
+    required this.runtimeTarget,
     required this.runtimeState,
     required this.healthProbeState,
+    required this.category,
+    required this.description,
+    required this.url,
+    required this.ports,
+    required this.image,
     required this.lastChecked,
     required this.allowedActions,
     required this.lastAction,
@@ -17,8 +23,17 @@ class ManagedService {
       displayName: json['display_name'] as String? ?? 'Unknown service',
       hostId: json['host_id'] as String? ?? 'unknown',
       runtimeAdapter: json['runtime_type'] as String? ?? 'unknown',
+      runtimeTarget: json['runtime_target'] as String? ?? 'unknown',
       runtimeState: json['runtime_state'] as String? ?? 'unknown',
       healthProbeState: json['health_probe_state'] as String? ?? 'unknown',
+      category: json['category'] as String? ?? 'service',
+      description: json['description'] as String?,
+      url: json['url'] as String?,
+      ports: [
+        for (final item in (json['ports'] as List<dynamic>? ?? const []))
+          item.toString(),
+      ],
+      image: json['image'] as String?,
       lastChecked: _parseDateTime(json['last_checked']),
       allowedActions: [
         for (final item
@@ -37,8 +52,14 @@ class ManagedService {
   final String displayName;
   final String hostId;
   final String runtimeAdapter;
+  final String runtimeTarget;
   final String runtimeState;
   final String healthProbeState;
+  final String category;
+  final String? description;
+  final String? url;
+  final List<String> ports;
+  final String? image;
   final DateTime? lastChecked;
   final List<String> allowedActions;
   final ServiceActionResult? lastAction;

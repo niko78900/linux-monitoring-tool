@@ -4,6 +4,12 @@ services:
     host_id: homelab-server
     adapter: docker
     target: jellyfin
+    category: media
+    description: Media streaming server.
+    url: http://100.64.10.22:8096
+    ports:
+      - 8096/tcp
+    image: jellyfin/jellyfin
     allowed_actions:
       - start
       - stop
@@ -18,6 +24,11 @@ services:
     host_id: homelab-server
     adapter: systemd
     target: hfs.service
+    category: files
+    description: HTTP file server for homelab file access.
+    url: http://100.64.10.22:8081
+    ports:
+      - 8081/tcp
     allowed_actions:
       - start
       - stop
@@ -25,4 +36,131 @@ services:
     health_probe:
       type: http
       url: http://127.0.0.1:8081
+      timeout_seconds: 3
+
+  - id: uptime-kuma
+    display_name: Uptime Kuma
+    host_id: homelab-server
+    adapter: docker
+    target: uptime-kuma
+    category: monitoring
+    description: Availability monitoring dashboard.
+    url: http://100.64.10.22:3001
+    ports:
+      - 3001/tcp
+    image: louislam/uptime-kuma
+    allowed_actions: [start, stop, restart]
+    health_probe:
+      type: http
+      url: http://127.0.0.1:3001
+      timeout_seconds: 3
+
+  - id: crafty
+    display_name: Crafty
+    host_id: homelab-server
+    adapter: docker
+    target: crafty
+    category: game
+    description: Minecraft server management dashboard.
+    url: http://100.64.10.22:8443
+    ports:
+      - 8443/tcp
+    allowed_actions: [start, stop, restart]
+
+  - id: palworld
+    display_name: Palworld Server
+    host_id: homelab-server
+    adapter: docker
+    target: palworld
+    category: game
+    description: Palworld dedicated server.
+    ports:
+      - 8211/udp
+    allowed_actions: [start, stop, restart]
+
+  - id: minecraft
+    display_name: Minecraft Server
+    host_id: homelab-server
+    adapter: docker
+    target: minecraft
+    category: game
+    description: Minecraft dedicated server.
+    ports:
+      - 25565/tcp
+    allowed_actions: [start, stop, restart]
+
+  - id: odysseus
+    display_name: Odysseus
+    host_id: homelab-server
+    adapter: docker
+    target: odysseus
+    category: app
+    description: Homelab application service.
+    allowed_actions: [start, stop, restart]
+
+  - id: chromadb
+    display_name: ChromaDB
+    host_id: homelab-server
+    adapter: docker
+    target: chromadb
+    category: data
+    description: Vector database service.
+    ports:
+      - 8000/tcp
+    allowed_actions: [start, stop, restart]
+
+  - id: searxng
+    display_name: SearXNG
+    host_id: homelab-server
+    adapter: docker
+    target: searxng
+    category: search
+    description: Private metasearch service.
+    url: http://100.64.10.22:8080
+    ports:
+      - 8080/tcp
+    allowed_actions: [start, stop, restart]
+
+  - id: ntfy
+    display_name: ntfy
+    host_id: homelab-server
+    adapter: docker
+    target: ntfy
+    category: notifications
+    description: Push notification broker.
+    url: http://100.64.10.22:8082
+    ports:
+      - 8082/tcp
+    allowed_actions: [start, stop, restart]
+
+  - id: linux-monitor-backend
+    display_name: Linux Monitor Backend
+    host_id: homelab-server
+    adapter: systemd
+    target: linux-monitor-backend.service
+    category: monitoring
+    description: Monitoring API used by the tablet.
+    url: http://100.64.10.22:4040/api
+    ports:
+      - 4040/tcp
+    allowed_actions: [restart]
+    health_probe:
+      type: http
+      url: http://127.0.0.1:4040/api/health
+      timeout_seconds: 3
+
+  - id: linux-monitor-control-agent
+    display_name: Linux Monitor Control Agent
+    host_id: homelab-server
+    adapter: systemd
+    target: linux-monitor-control-agent.service
+    category: monitoring
+    description: Restricted control API used by the tablet.
+    url: http://100.64.10.22:4042/api
+    ports:
+      - 4042/tcp
+    allowed_actions: [restart]
+    health_probe:
+      type: http
+      url: http://127.0.0.1:4042/api/health
       timeout_seconds: 3

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/errors/app_exception.dart';
@@ -84,6 +85,8 @@ class _ServicesPageState extends ConsumerState<ServicesPage> {
                       pending: _pendingActions.contains(service.serviceId),
                       onRefresh: () => ref.invalidate(serviceListProvider),
                       onAction: (action) => _confirmAction(service, action),
+                      onDetails: () =>
+                          context.go('/services/${service.serviceId}'),
                     ),
                   ),
               ],
@@ -196,12 +199,14 @@ class _ServiceCard extends StatelessWidget {
     required this.pending,
     required this.onRefresh,
     required this.onAction,
+    required this.onDetails,
   });
 
   final ManagedService service;
   final bool pending;
   final VoidCallback onRefresh;
   final ValueChanged<String> onAction;
+  final VoidCallback onDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -229,6 +234,18 @@ class _ServiceCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
+          _InfoLine(label: 'Category', value: service.category),
+          _InfoLine(
+            label: service.runtimeAdapter == 'docker' ? 'Container' : 'Unit',
+            value: service.runtimeTarget,
+          ),
+          _InfoLine(label: 'URL', value: service.url ?? 'Not configured'),
+          _InfoLine(
+            label: 'Ports',
+            value: service.ports.isEmpty
+                ? 'Not configured'
+                : service.ports.join(', '),
+          ),
           _InfoLine(
             label: 'Last checked',
             value: _formatTime(service.lastChecked),
@@ -253,6 +270,11 @@ class _ServiceCard extends StatelessWidget {
                 tooltip: 'Refresh',
                 onPressed: pending ? null : onRefresh,
                 icon: const Icon(Icons.refresh),
+              ),
+              OutlinedButton.icon(
+                onPressed: onDetails,
+                icon: const Icon(Icons.dashboard_customize),
+                label: const Text('Details'),
               ),
               FilledButton.icon(
                 onPressed: pending || !service.allows('start')
