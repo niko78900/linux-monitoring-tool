@@ -54,6 +54,12 @@ class _ServiceDetailPageState extends ConsumerState<ServiceDetailPage> {
                 label: _runtimeLabel(service.runtimeState),
                 tone: _runtimeTone(service.runtimeState),
               ),
+              IconButton(
+                tooltip: 'Refresh service',
+                onPressed: () =>
+                    ref.invalidate(serviceDetailsProvider(widget.serviceId)),
+                icon: const Icon(Icons.refresh),
+              ),
             ],
           ),
           if (_message != null) ...[
@@ -70,8 +76,8 @@ class _ServiceDetailPageState extends ConsumerState<ServiceDetailPage> {
                 child: SectionCard(
                   title: 'Runtime',
                   trailing: StatusBadge(
-                    label: service.healthProbeState,
-                    tone: _healthTone(service.healthProbeState),
+                    label: _runtimeLabel(service.runtimeState),
+                    tone: _runtimeTone(service.runtimeState),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,17 +94,71 @@ class _ServiceDetailPageState extends ConsumerState<ServiceDetailPage> {
                             ? 'Container'
                             : 'Unit',
                         value: service.runtimeTarget,
+                        selectable: true,
                       ),
                       _InfoLine(
                         label: 'Adapter',
                         value: service.runtimeAdapter,
                       ),
                       if (service.image != null)
-                        _InfoLine(label: 'Image', value: service.image!),
+                        _InfoLine(
+                          label: 'Image',
+                          value: service.image!,
+                          selectable: true,
+                        ),
+                      const SizedBox(height: AppSpacing.md),
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.sm,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () =>
+                                _copy(service.serviceId, 'Service ID copied.'),
+                            icon: const Icon(Icons.copy),
+                            label: const Text('Copy ID'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () =>
+                                _copy(service.runtimeTarget, 'Target copied.'),
+                            icon: const Icon(Icons.copy_all),
+                            label: const Text('Copy target'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: service.image == null
+                                ? null
+                                : () => _copy(service.image!, 'Image copied.'),
+                            icon: const Icon(Icons.inventory_2_outlined),
+                            label: const Text('Copy image'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 420,
+                child: SectionCard(
+                  title: 'Health',
+                  trailing: StatusBadge(
+                    label: service.healthProbeState,
+                    tone: _healthTone(service.healthProbeState),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _InfoLine(
+                        label: 'State',
+                        value: service.healthProbeState,
+                      ),
                       _InfoLine(
                         label: 'Last checked',
                         value: _formatTime(service.lastChecked),
                       ),
+                      if (service.url == null)
+                        const Text('No service URL configured for probing.')
+                      else
+                        Text('Probe target: ${service.url}'),
                     ],
                   ),
                 ),
@@ -153,12 +213,9 @@ class _ServiceDetailPageState extends ConsumerState<ServiceDetailPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (service.lastAction == null)
-                        const Text('No recent service action.')
-                      else
-                        Text(
-                          '${service.lastAction!.action} ${service.lastAction!.status}: ${service.lastAction!.detail ?? 'no detail'}',
-                        ),
+                      const Text(
+                        'Actions are executed by the control agent only when they are allowlisted for this service.',
+                      ),
                       const SizedBox(height: AppSpacing.md),
                       Wrap(
                         spacing: AppSpacing.sm,
@@ -186,12 +243,68 @@ class _ServiceDetailPageState extends ConsumerState<ServiceDetailPage> {
                             label: const Text('Stop'),
                           ),
                           OutlinedButton.icon(
-                            onPressed: () =>
-                                _copy(service.runtimeTarget, 'Target copied.'),
-                            icon: const Icon(Icons.copy_all),
-                            label: const Text('Copy target'),
+                            onPressed: service.url == null
+                                ? null
+                                : () => _openUrl(service.url!),
+                            icon: const Icon(Icons.open_in_new),
+                            label: const Text('Open URL'),
                           ),
                         ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 420,
+                child: SectionCard(
+                  title: 'Last Action',
+                  child: service.lastAction == null
+                      ? const Text('No recent service action.')
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _InfoLine(
+                              label: 'Action',
+                              value: service.lastAction!.action,
+                            ),
+                            _InfoLine(
+                              label: 'Status',
+                              value: service.lastAction!.status,
+                            ),
+                            _InfoLine(
+                              label: 'Requested',
+                              value: _formatTime(
+                                service.lastAction!.requestedAt,
+                              ),
+                            ),
+                            _InfoLine(
+                              label: 'Detail',
+                              value: service.lastAction!.detail ?? 'No detail',
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+              SizedBox(
+                width: 420,
+                child: SectionCard(
+                  title: 'Metadata',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _InfoLine(
+                        label: 'Service ID',
+                        value: service.serviceId,
+                        selectable: true,
+                      ),
+                      _InfoLine(label: 'Host', value: service.hostId),
+                      _InfoLine(label: 'Category', value: service.category),
+                      _InfoLine(
+                        label: 'Actions',
+                        value: service.allowedActions.isEmpty
+                            ? 'None'
+                            : service.allowedActions.join(', '),
                       ),
                     ],
                   ),
@@ -230,9 +343,7 @@ class _ServiceDetailPageState extends ConsumerState<ServiceDetailPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('${_titleCase(action)} ${service.displayName}?'),
-        content: Text(
-          'Send the allowlisted $action action for ${service.displayName}.',
-        ),
+        content: _ActionConfirmationDetails(service: service, action: action),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -265,6 +376,11 @@ class _ServiceDetailPageState extends ConsumerState<ServiceDetailPage> {
       setState(() => _message = '${service.displayName}: ${result.status}');
       ref.invalidate(serviceListProvider);
       ref.invalidate(serviceDetailsProvider(service.serviceId));
+      await Future<void>.delayed(const Duration(seconds: 1));
+      if (mounted) {
+        ref.invalidate(serviceListProvider);
+        ref.invalidate(serviceDetailsProvider(service.serviceId));
+      }
     } catch (error) {
       if (mounted) {
         setState(() => _message = _describeError(error));
@@ -321,6 +437,34 @@ class _ServiceDetailPageState extends ConsumerState<ServiceDetailPage> {
       return value;
     }
     return '${value[0].toUpperCase()}${value.substring(1)}';
+  }
+}
+
+class _ActionConfirmationDetails extends StatelessWidget {
+  const _ActionConfirmationDetails({
+    required this.service,
+    required this.action,
+  });
+
+  final ManagedService service;
+  final String action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'This sends a server-side allowlisted action. No arbitrary command will be executed.',
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _InfoLine(label: 'Service', value: service.displayName),
+        _InfoLine(label: 'Action', value: action),
+        _InfoLine(label: 'Host', value: service.hostId),
+        _InfoLine(label: 'Target', value: service.runtimeTarget),
+      ],
+    );
   }
 }
 

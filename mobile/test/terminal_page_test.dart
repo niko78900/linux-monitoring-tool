@@ -34,4 +34,35 @@ void main() {
     expect(find.text('Open SSH Settings'), findsOneWidget);
     expect(find.text('Import Key'), findsOneWidget);
   });
+
+  testWidgets(
+    'shows connection header and quick input when SSH is configured',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'onboardingComplete': true,
+        'ssh.displayName': 'Homelab SSH',
+        'ssh.host': 'server.tailnet.ts.net',
+        'ssh.port': 22,
+        'ssh.username': 'tablet_shell',
+        'ssh.hasImportedKey': true,
+      });
+      final preferences = await SharedPreferences.getInstance();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+          child: const MaterialApp(home: Scaffold(body: TerminalPage())),
+        ),
+      );
+
+      await tester.pump();
+
+      expect(find.text('Homelab SSH'), findsOneWidget);
+      expect(find.text('Disconnected'), findsOneWidget);
+      expect(find.text('server.tailnet.ts.net:22'), findsOneWidget);
+      expect(find.text('tablet_shell'), findsOneWidget);
+      expect(find.text('Quick input'), findsOneWidget);
+      expect(find.text('docker ps'), findsOneWidget);
+    },
+  );
 }

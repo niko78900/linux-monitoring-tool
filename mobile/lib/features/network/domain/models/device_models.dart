@@ -1,9 +1,14 @@
+import 'package:json_annotation/json_annotation.dart';
+
+part 'device_models.g.dart';
+
 class DevicesDashboard {
   const DevicesDashboard({required this.devices});
 
   final List<KnownDevice> devices;
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake, createToJson: false)
 class KnownDevice {
   const KnownDevice({
     required this.id,
@@ -27,15 +32,23 @@ class KnownDevice {
     required this.probes,
   });
 
+  @JsonKey(defaultValue: 'unknown')
   final String id;
+  @JsonKey(defaultValue: 'Unknown device')
   final String name;
+  @JsonKey(defaultValue: 'other')
   final String category;
   final String? lanIp;
   final String? tailscaleIp;
+  @JsonKey(defaultValue: false)
   final bool online;
+  @JsonKey(fromJson: _doubleFromJson)
   final double? latencyMs;
+  @JsonKey(fromJson: _parseDateTime)
   final DateTime? lastChecked;
+  @JsonKey(fromJson: _parseDateTime)
   final DateTime? lastSeen;
+  @JsonKey(defaultValue: false)
   final bool wolEnabled;
   final String? wakeAction;
   final String? notes;
@@ -43,40 +56,20 @@ class KnownDevice {
   final String? tailscaleDnsName;
   final String? tailscaleOs;
   final bool? tailscaleOnline;
+  @JsonKey(fromJson: _parseDateTime)
   final DateTime? tailscaleLastSeen;
+  @JsonKey(defaultValue: 'No probes')
   final String probeSummary;
+  @JsonKey(fromJson: _deviceProbeResultsFromJson)
   final List<DeviceProbeResult> probes;
 
-  factory KnownDevice.fromJson(Map<String, dynamic> json) {
-    return KnownDevice(
-      id: json['id'] as String? ?? 'unknown',
-      name: json['name'] as String? ?? 'Unknown device',
-      category: json['category'] as String? ?? 'other',
-      lanIp: json['lan_ip'] as String?,
-      tailscaleIp: json['tailscale_ip'] as String?,
-      online: json['online'] as bool? ?? false,
-      latencyMs: (json['latency_ms'] as num?)?.toDouble(),
-      lastChecked: _parseDateTime(json['last_checked']),
-      lastSeen: _parseDateTime(json['last_seen']),
-      wolEnabled: json['wol_enabled'] as bool? ?? false,
-      wakeAction: json['wake_action'] as String?,
-      notes: json['notes'] as String?,
-      tailscaleHostName: json['tailscale_host_name'] as String?,
-      tailscaleDnsName: json['tailscale_dns_name'] as String?,
-      tailscaleOs: json['tailscale_os'] as String?,
-      tailscaleOnline: json['tailscale_online'] as bool?,
-      tailscaleLastSeen: _parseDateTime(json['tailscale_last_seen']),
-      probeSummary: json['probe_summary'] as String? ?? 'No probes',
-      probes: [
-        for (final probe in (json['probes'] as List<dynamic>? ?? const []))
-          DeviceProbeResult.fromJson(probe as Map<String, dynamic>),
-      ],
-    );
-  }
+  factory KnownDevice.fromJson(Map<String, dynamic> json) =>
+      _$KnownDeviceFromJson(json);
 
   String? get preferredIp => tailscaleIp ?? lanIp;
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake, createToJson: false)
 class DeviceProbeResult {
   const DeviceProbeResult({
     required this.type,
@@ -87,24 +80,34 @@ class DeviceProbeResult {
     required this.summary,
   });
 
+  @JsonKey(defaultValue: 'unknown')
   final String type;
+  @JsonKey(defaultValue: 'Probe')
   final String label;
+  @JsonKey(fromJson: _intFromJson)
   final int? port;
+  @JsonKey(defaultValue: false)
   final bool reachable;
+  @JsonKey(fromJson: _doubleFromJson)
   final double? latencyMs;
+  @JsonKey(defaultValue: '')
   final String summary;
 
-  factory DeviceProbeResult.fromJson(Map<String, dynamic> json) {
-    return DeviceProbeResult(
-      type: json['type'] as String? ?? 'unknown',
-      label: json['label'] as String? ?? 'Probe',
-      port: json['port'] as int?,
-      reachable: json['reachable'] as bool? ?? false,
-      latencyMs: (json['latency_ms'] as num?)?.toDouble(),
-      summary: json['summary'] as String? ?? '',
-    );
-  }
+  factory DeviceProbeResult.fromJson(Map<String, dynamic> json) =>
+      _$DeviceProbeResultFromJson(json);
 }
+
+List<DeviceProbeResult> _deviceProbeResultsFromJson(Object? value) {
+  return [
+    for (final item in value is List<dynamic> ? value : const <dynamic>[])
+      if (item is Map<String, dynamic>) DeviceProbeResult.fromJson(item),
+  ];
+}
+
+double? _doubleFromJson(Object? value) =>
+    value is num ? value.toDouble() : null;
+
+int? _intFromJson(Object? value) => value is num ? value.toInt() : null;
 
 DateTime? _parseDateTime(Object? value) {
   final text = value as String?;

@@ -22,6 +22,7 @@ import '../../features/terminal/presentation/pages/terminal_page.dart';
 import '../config/app_settings.dart';
 import '../security/app_lock_service.dart';
 import '../widgets/app_scaffold.dart';
+import 'page_transitions.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final settings = ref.watch(settingsControllerProvider);
@@ -41,90 +42,129 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/onboarding',
-        builder: (context, state) => const OnboardingPage(),
+        pageBuilder: (context, state) =>
+            buildFadeSlidePage(state: state, child: const OnboardingPage()),
       ),
       ShellRoute(
         builder: (context, state, child) => AppScaffold(child: child),
         routes: [
           GoRoute(
             path: '/overview',
-            builder: (context, state) => const OverviewPage(),
+            pageBuilder: (context, state) =>
+                buildFadeSlidePage(state: state, child: const OverviewPage()),
           ),
           GoRoute(
             path: '/hardware',
-            builder: (context, state) => const HardwarePage(),
+            pageBuilder: (context, state) =>
+                buildFadeSlidePage(state: state, child: const HardwarePage()),
           ),
           GoRoute(
             path: '/storage',
-            builder: (context, state) => const StoragePage(),
+            pageBuilder: (context, state) =>
+                buildFadeSlidePage(state: state, child: const StoragePage()),
           ),
-          GoRoute(path: '/gpu', builder: (context, state) => const GpuPage()),
+          GoRoute(
+            path: '/gpu',
+            pageBuilder: (context, state) =>
+                buildFadeSlidePage(state: state, child: const GpuPage()),
+          ),
           GoRoute(
             path: '/network',
-            builder: (context, state) => const NetworkPage(),
+            pageBuilder: (context, state) =>
+                buildFadeSlidePage(state: state, child: const NetworkPage()),
           ),
           GoRoute(
             path: '/history',
-            builder: (context, state) => const HistoryPage(),
+            pageBuilder: (context, state) =>
+                buildFadeSlidePage(state: state, child: const HistoryPage()),
           ),
           GoRoute(
             path: '/hosts',
-            builder: (context, state) => const HostsPage(),
+            pageBuilder: (context, state) =>
+                buildFadeSlidePage(state: state, child: const HostsPage()),
             routes: [
               GoRoute(
                 path: ':hostId',
-                builder: (context, state) => HostDetailsPage(
-                  hostId: state.pathParameters['hostId'] ?? '',
+                pageBuilder: (context, state) => buildFadeSlidePage(
+                  state: state,
+                  child: HostDetailsPage(
+                    hostId: state.pathParameters['hostId'] ?? '',
+                  ),
                 ),
               ),
             ],
           ),
           GoRoute(
             path: '/devices',
-            builder: (context, state) => const DevicesPage(),
+            pageBuilder: (context, state) =>
+                buildFadeSlidePage(state: state, child: const DevicesPage()),
             routes: [
               GoRoute(
                 path: ':deviceId',
-                builder: (context, state) => DeviceDetailPage(
-                  deviceId: state.pathParameters['deviceId'] ?? '',
+                pageBuilder: (context, state) => buildFadeSlidePage(
+                  state: state,
+                  child: DeviceDetailPage(
+                    deviceId: state.pathParameters['deviceId'] ?? '',
+                  ),
                 ),
               ),
             ],
           ),
           GoRoute(
             path: '/actions',
-            builder: (context, state) =>
-                const PrivilegedRoute(title: 'Actions', child: ActionsPage()),
+            pageBuilder: (context, state) => buildFadeSlidePage(
+              state: state,
+              child: const PrivilegedRoute(
+                title: 'Actions',
+                child: ActionsPage(),
+              ),
+            ),
           ),
           GoRoute(
             path: '/terminal',
-            builder: (context, state) =>
-                const PrivilegedRoute(title: 'Terminal', child: TerminalPage()),
+            pageBuilder: (context, state) => buildFadeSlidePage(
+              state: state,
+              child: const PrivilegedRoute(
+                title: 'Terminal',
+                child: TerminalPage(),
+              ),
+            ),
           ),
           GoRoute(
             path: '/files',
-            builder: (context, state) =>
-                const PrivilegedRoute(title: 'Files', child: FilesPage()),
+            pageBuilder: (context, state) => buildFadeSlidePage(
+              state: state,
+              child: const PrivilegedRoute(title: 'Files', child: FilesPage()),
+            ),
           ),
           GoRoute(
             path: '/services',
-            builder: (context, state) => PrivilegedRoute(
-              title: 'Services',
-              child: ServicesPage(hostId: state.uri.queryParameters['hostId']),
+            pageBuilder: (context, state) => buildFadeSlidePage(
+              state: state,
+              child: PrivilegedRoute(
+                title: 'Services',
+                child: ServicesPage(
+                  hostId: state.uri.queryParameters['hostId'],
+                ),
+              ),
             ),
           ),
           GoRoute(
             path: '/services/:serviceId',
-            builder: (context, state) => PrivilegedRoute(
-              title: 'Service',
-              child: ServiceDetailPage(
-                serviceId: state.pathParameters['serviceId'] ?? '',
+            pageBuilder: (context, state) => buildFadeSlidePage(
+              state: state,
+              child: PrivilegedRoute(
+                title: 'Service',
+                child: ServiceDetailPage(
+                  serviceId: state.pathParameters['serviceId'] ?? '',
+                ),
               ),
             ),
           ),
           GoRoute(
             path: '/settings',
-            builder: (context, state) => const SettingsPage(),
+            pageBuilder: (context, state) =>
+                buildFadeSlidePage(state: state, child: const SettingsPage()),
           ),
         ],
       ),

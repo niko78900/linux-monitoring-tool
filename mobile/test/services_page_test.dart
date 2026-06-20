@@ -7,9 +7,11 @@ import 'package:homelab_tablet/features/services/data/service_repository.dart';
 import 'package:homelab_tablet/features/services/domain/models/service_models.dart';
 import 'package:homelab_tablet/features/services/presentation/pages/service_detail_page.dart';
 import 'package:homelab_tablet/features/services/presentation/pages/services_page.dart';
+import 'package:homelab_tablet/features/services/presentation/service_dashboard_filters.dart';
 
 void main() {
   testWidgets('renders service cards', (tester) async {
+    _setTabletSurface(tester);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -25,14 +27,15 @@ void main() {
 
     expect(find.text('Services'), findsOneWidget);
     expect(find.text('Jellyfin'), findsOneWidget);
-    expect(find.text('Running'), findsOneWidget);
+    expect(find.text('Running'), findsAtLeastNWidgets(1));
     expect(find.text('HTTP healthy'), findsOneWidget);
-    expect(find.text('media'), findsOneWidget);
+    expect(find.text('media'), findsAtLeastNWidgets(1));
     expect(find.text('8096/tcp'), findsOneWidget);
     expect(find.text('Restart'), findsOneWidget);
   });
 
   testWidgets('tapping service details opens detail page', (tester) async {
+    _setTabletSurface(tester);
     final repository = FakeServiceRepository(services: [_service()]);
     final router = GoRouter(
       initialLocation: '/services',
@@ -60,17 +63,20 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Details'));
+    final detailsButton = find.widgetWithText(OutlinedButton, 'Details');
+    await tester.ensureVisible(detailsButton);
+    await tester.tap(detailsButton);
     await tester.pumpAndSettle();
 
     expect(find.text('Runtime'), findsOneWidget);
     expect(find.text('Container'), findsOneWidget);
-    expect(find.text('jellyfin'), findsOneWidget);
+    expect(find.text('jellyfin'), findsAtLeastNWidgets(1));
   });
 
   testWidgets('empty state still works when no services are configured', (
     tester,
   ) async {
+    _setTabletSurface(tester);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -86,6 +92,7 @@ void main() {
   });
 
   testWidgets('shows confirmation dialog before action', (tester) async {
+    _setTabletSurface(tester);
     final repository = FakeServiceRepository(services: [_service()]);
 
     await tester.pumpWidget(
@@ -96,13 +103,16 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Restart'));
+    final restartButtonFinder = find.widgetWithText(OutlinedButton, 'Restart');
+    await tester.ensureVisible(restartButtonFinder);
+    await tester.tap(restartButtonFinder);
     await tester.pumpAndSettle();
 
     expect(find.text('Restart Jellyfin?'), findsOneWidget);
   });
 
   testWidgets('disables buttons while action is pending', (tester) async {
+    _setTabletSurface(tester);
     final repository = FakeServiceRepository(
       services: [_service()],
       actionDelay: const Duration(milliseconds: 200),
@@ -116,14 +126,14 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Restart'));
+    final restartButtonFinder = find.widgetWithText(OutlinedButton, 'Restart');
+    await tester.ensureVisible(restartButtonFinder);
+    await tester.tap(restartButtonFinder);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Restart').last);
     await tester.pump();
 
-    final restartButton = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Restart'),
-    );
+    final restartButton = tester.widget<OutlinedButton>(restartButtonFinder);
     expect(restartButton.onPressed, isNull);
 
     await tester.pump(const Duration(milliseconds: 1500));
@@ -131,6 +141,7 @@ void main() {
   });
 
   testWidgets('shows error state when service list fails', (tester) async {
+    _setTabletSurface(tester);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -147,6 +158,75 @@ void main() {
     expect(find.text('Service controls unavailable'), findsOneWidget);
     expect(find.text('offline'), findsOneWidget);
   });
+
+  test('filters services by category, runtime, health, and search', () {
+    final services = [
+      _service(),
+      _service(
+        serviceId: 'crafty',
+        displayName: 'Crafty',
+        category: 'game',
+        runtimeState: 'running',
+        healthProbeState: 'healthy',
+      ),
+      _service(
+        serviceId: 'hfs',
+        displayName: 'HFS',
+        category: 'files',
+        runtimeState: 'stopped',
+        healthProbeState: 'timeout',
+      ),
+    ];
+
+    final filtered = filterAndSortServices(
+      services: services,
+      searchQuery: 'jelly',
+      category: 'media',
+      runtime: 'running',
+      health: 'healthy',
+      sortMode: ServiceSortMode.name,
+    );
+
+    expect(filtered.map((service) => service.serviceId), ['jellyfin']);
+  });
+
+  test('sorts unhealthy services first', () {
+    final services = [
+      _service(serviceId: 'healthy', displayName: 'Healthy'),
+      _service(
+        serviceId: 'unhealthy',
+        displayName: 'Unhealthy',
+        healthProbeState: 'unreachable',
+      ),
+      _service(
+        serviceId: 'stopped',
+        displayName: 'Stopped',
+        runtimeState: 'stopped',
+      ),
+    ];
+
+    final sorted = filterAndSortServices(
+      services: services,
+      searchQuery: '',
+      category: 'all',
+      runtime: 'all',
+      health: 'all',
+      sortMode: ServiceSortMode.unhealthyFirst,
+    );
+
+    expect(sorted.map((service) => service.serviceId), [
+      'unhealthy',
+      'stopped',
+      'healthy',
+    ]);
+  });
+}
+
+void _setTabletSurface(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1280, 900);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
 }
 
 class FakeServiceRepository extends ServiceRepository {
@@ -191,28 +271,42 @@ class FakeServiceRepository extends ServiceRepository {
   }
 }
 
-ManagedService _service() {
-  return ManagedService(
+ManagedService _service({
+  String serviceId = 'jellyfin',
+  String displayName = 'Jellyfin',
+  String hostId = 'homelab-server',
+  String runtimeAdapter = 'docker',
+  String runtimeTarget = 'jellyfin',
+  String runtimeState = 'running',
+  String healthProbeState = 'healthy',
+  String category = 'media',
+  String? description = 'Media streaming server',
+  String? url = 'http://127.0.0.1:8096',
+  List<String> ports = const ['8096/tcp'],
+  String? image = 'jellyfin/jellyfin',
+  ServiceActionResult? lastAction = const ServiceActionResult(
     serviceId: 'jellyfin',
-    displayName: 'Jellyfin',
-    hostId: 'homelab-server',
-    runtimeAdapter: 'docker',
-    runtimeTarget: 'jellyfin',
-    runtimeState: 'running',
-    healthProbeState: 'healthy',
-    category: 'media',
-    description: 'Media streaming server',
-    url: 'http://127.0.0.1:8096',
-    ports: const ['8096/tcp'],
-    image: 'jellyfin/jellyfin',
+    action: 'restart',
+    status: 'accepted',
+    requestedAt: null,
+    detail: 'accepted',
+  ),
+}) {
+  return ManagedService(
+    serviceId: serviceId,
+    displayName: displayName,
+    hostId: hostId,
+    runtimeAdapter: runtimeAdapter,
+    runtimeTarget: runtimeTarget,
+    runtimeState: runtimeState,
+    healthProbeState: healthProbeState,
+    category: category,
+    description: description,
+    url: url,
+    ports: ports,
+    image: image,
     lastChecked: DateTime.utc(2026, 6, 11, 20),
     allowedActions: const ['start', 'stop', 'restart'],
-    lastAction: const ServiceActionResult(
-      serviceId: 'jellyfin',
-      action: 'restart',
-      status: 'accepted',
-      requestedAt: null,
-      detail: 'accepted',
-    ),
+    lastAction: lastAction,
   );
 }

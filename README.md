@@ -122,12 +122,14 @@ Notable current behavior:
 - Devices shows configured devices plus Tailscale peers, with duplicate merge
   behavior in the control agent.
 - Hosts shows managed hosts and useful host actions.
-- Services shows configured allowlisted services and a service detail dashboard.
+- Services shows configured allowlisted services with search/filter/sort
+  controls and a service detail dashboard.
 - Files uses direct restricted SFTP with configurable background disconnect
-  timing and capped previews.
-- GPU numbers stay neutral; utilization and VRAM bars carry threshold color.
-- Hardware and Storage apply shared threshold colors for values where higher is
-  worse.
+  timing, capped previews, and explicit download/open-externally flows.
+- The SSH terminal keeps direct `dartssh2` security and adds a clearer status
+  header plus safe quick-input chips that only write into the active shell.
+- Hardware, Storage, GPU, and Overview apply shared threshold colors for values
+  where higher is worse; informational values remain neutral.
 - Android widgets store non-sensitive flattened telemetry only.
 
 ## Quick Start

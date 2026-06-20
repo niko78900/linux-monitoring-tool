@@ -21,16 +21,21 @@ void main() {
     );
     await tester.pump();
     await tester.scrollUntilVisible(
-      find.text('Widgets & Alerts'),
+      find.text('Widgets'),
       500,
       scrollable: find.byType(Scrollable).first,
     );
 
-    expect(find.text('Widgets & Alerts'), findsOneWidget);
+    expect(find.text('Widgets'), findsOneWidget);
     expect(find.text('Server Essentials'), findsOneWidget);
     expect(find.text('Compact Status'), findsOneWidget);
     expect(find.text('Primary widget label'), findsOneWidget);
     expect(find.text('Secondary widget label'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Push notifications'),
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Push notifications'), findsOneWidget);
     expect(find.text('Mobile-alert backend token'), findsOneWidget);
     expect(find.text('Send test notification'), findsOneWidget);

@@ -5,8 +5,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/byte_format.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../domain/models/remote_file_entry.dart';
-
-enum FileEntryAction { preview, download, rename, move, softDelete }
+import 'files_view_models.dart';
 
 class RemoteFileList extends StatelessWidget {
   const RemoteFileList({
@@ -84,6 +83,13 @@ class RemoteFileList extends StatelessWidget {
                 ),
               if (!entry.isDirectory && !entry.isSymbolicLink)
                 IconButton(
+                  tooltip: 'Open externally',
+                  onPressed: () =>
+                      onEntryAction(entry, FileEntryAction.openExternal),
+                  icon: const Icon(Icons.open_in_new),
+                ),
+              if (!entry.isDirectory && !entry.isSymbolicLink)
+                IconButton(
                   tooltip: 'Download file',
                   onPressed: () => onDownload(entry),
                   icon: const Icon(Icons.download),
@@ -95,6 +101,16 @@ class RemoteFileList extends StatelessWidget {
                     const PopupMenuItem(
                       value: FileEntryAction.preview,
                       child: Text('Preview'),
+                    ),
+                  if (!entry.isDirectory && !entry.isSymbolicLink)
+                    const PopupMenuItem(
+                      value: FileEntryAction.openExternal,
+                      child: Text('Open externally'),
+                    ),
+                  if (!entry.isDirectory && !entry.isSymbolicLink)
+                    const PopupMenuItem(
+                      value: FileEntryAction.download,
+                      child: Text('Download'),
                     ),
                   const PopupMenuItem(
                     value: FileEntryAction.rename,

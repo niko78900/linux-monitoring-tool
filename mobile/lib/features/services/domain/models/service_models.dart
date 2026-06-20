@@ -1,3 +1,8 @@
+import 'package:json_annotation/json_annotation.dart';
+
+part 'service_models.g.dart';
+
+@JsonSerializable(fieldRename: FieldRename.snake, createToJson: false)
 class ManagedService {
   const ManagedService({
     required this.serviceId,
@@ -17,56 +22,41 @@ class ManagedService {
     required this.lastAction,
   });
 
-  factory ManagedService.fromJson(Map<String, dynamic> json) {
-    return ManagedService(
-      serviceId: json['service_id'] as String? ?? 'unknown',
-      displayName: json['display_name'] as String? ?? 'Unknown service',
-      hostId: json['host_id'] as String? ?? 'unknown',
-      runtimeAdapter: json['runtime_type'] as String? ?? 'unknown',
-      runtimeTarget: json['runtime_target'] as String? ?? 'unknown',
-      runtimeState: json['runtime_state'] as String? ?? 'unknown',
-      healthProbeState: json['health_probe_state'] as String? ?? 'unknown',
-      category: json['category'] as String? ?? 'service',
-      description: json['description'] as String?,
-      url: json['url'] as String?,
-      ports: [
-        for (final item in (json['ports'] as List<dynamic>? ?? const []))
-          item.toString(),
-      ],
-      image: json['image'] as String?,
-      lastChecked: _parseDateTime(json['last_checked']),
-      allowedActions: [
-        for (final item
-            in (json['allowed_actions'] as List<dynamic>? ?? const []))
-          item.toString(),
-      ],
-      lastAction: json['last_action'] is Map<String, dynamic>
-          ? ServiceActionResult.fromJson(
-              json['last_action'] as Map<String, dynamic>,
-            )
-          : null,
-    );
-  }
+  factory ManagedService.fromJson(Map<String, dynamic> json) =>
+      _$ManagedServiceFromJson(json);
 
+  @JsonKey(defaultValue: 'unknown')
   final String serviceId;
+  @JsonKey(defaultValue: 'Unknown service')
   final String displayName;
+  @JsonKey(defaultValue: 'unknown')
   final String hostId;
+  @JsonKey(name: 'runtime_type', defaultValue: 'unknown')
   final String runtimeAdapter;
+  @JsonKey(defaultValue: 'unknown')
   final String runtimeTarget;
+  @JsonKey(defaultValue: 'unknown')
   final String runtimeState;
+  @JsonKey(defaultValue: 'unknown')
   final String healthProbeState;
+  @JsonKey(defaultValue: 'service')
   final String category;
   final String? description;
   final String? url;
+  @JsonKey(fromJson: _stringListFromJson)
   final List<String> ports;
   final String? image;
+  @JsonKey(fromJson: _parseDateTime)
   final DateTime? lastChecked;
+  @JsonKey(fromJson: _stringListFromJson)
   final List<String> allowedActions;
+  @JsonKey(fromJson: _serviceActionResultFromJson)
   final ServiceActionResult? lastAction;
 
   bool allows(String action) => allowedActions.contains(action);
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake, createToJson: false)
 class ServiceActionResult {
   const ServiceActionResult({
     required this.serviceId,
@@ -76,21 +66,31 @@ class ServiceActionResult {
     required this.detail,
   });
 
-  factory ServiceActionResult.fromJson(Map<String, dynamic> json) {
-    return ServiceActionResult(
-      serviceId: json['service_id'] as String? ?? 'unknown',
-      action: json['action'] as String? ?? 'unknown',
-      status: json['status'] as String? ?? 'unknown',
-      requestedAt: _parseDateTime(json['requested_at']),
-      detail: json['detail'] as String?,
-    );
-  }
+  factory ServiceActionResult.fromJson(Map<String, dynamic> json) =>
+      _$ServiceActionResultFromJson(json);
 
+  @JsonKey(defaultValue: 'unknown')
   final String serviceId;
+  @JsonKey(defaultValue: 'unknown')
   final String action;
+  @JsonKey(defaultValue: 'unknown')
   final String status;
+  @JsonKey(fromJson: _parseDateTime)
   final DateTime? requestedAt;
   final String? detail;
+}
+
+List<String> _stringListFromJson(Object? value) {
+  return [
+    for (final item in value is List<dynamic> ? value : const <dynamic>[])
+      item.toString(),
+  ];
+}
+
+ServiceActionResult? _serviceActionResultFromJson(Object? value) {
+  return value is Map<String, dynamic>
+      ? ServiceActionResult.fromJson(value)
+      : null;
 }
 
 DateTime? _parseDateTime(Object? value) {

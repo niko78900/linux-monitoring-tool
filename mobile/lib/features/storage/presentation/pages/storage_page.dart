@@ -209,6 +209,9 @@ class _StoragePageState extends ConsumerState<StoragePage> {
                             InfoRow(
                               label: 'Temperature',
                               value: formatTemperature(disk.temperatureC),
+                              valueColor: toneColor(
+                                temperatureTone(disk.temperatureC),
+                              ),
                             ),
                             InfoRow(
                               label: 'Mounted partitions',
