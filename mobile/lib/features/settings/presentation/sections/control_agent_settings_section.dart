@@ -30,7 +30,13 @@ class ControlAgentSettingsSection extends StatelessWidget {
         children: [
           TextField(
             controller: controlUrlController,
-            decoration: const InputDecoration(labelText: 'Control API URL'),
+            decoration: const InputDecoration(
+              labelText: 'Control API URL',
+              hintText: 'http://100.64.10.22:4042/api',
+              helperText:
+                  'Control agent endpoint for a real tablet over Tailscale. '
+                  'Use /api on port 4042.',
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           TextField(

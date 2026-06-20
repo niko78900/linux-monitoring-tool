@@ -25,16 +25,20 @@ import '../widgets/app_scaffold.dart';
 import 'page_transitions.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final settings = ref.watch(settingsControllerProvider);
+  final onboardingComplete = ref.watch(
+    settingsControllerProvider.select(
+      (settings) => settings.onboardingComplete,
+    ),
+  );
 
   return GoRouter(
-    initialLocation: settings.onboardingComplete ? '/overview' : '/onboarding',
+    initialLocation: onboardingComplete ? '/overview' : '/onboarding',
     redirect: (context, state) {
       final path = state.uri.path;
-      if (!settings.onboardingComplete && path != '/onboarding') {
+      if (!onboardingComplete && path != '/onboarding') {
         return '/onboarding';
       }
-      if (settings.onboardingComplete && path == '/onboarding') {
+      if (onboardingComplete && path == '/onboarding') {
         return '/overview';
       }
       return null;

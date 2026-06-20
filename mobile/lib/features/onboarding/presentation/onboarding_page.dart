@@ -312,7 +312,10 @@ class _MonitoringStep extends StatelessWidget {
           controller: controller,
           decoration: const InputDecoration(
             labelText: 'Monitoring API URL',
-            hintText: 'https://server.tailnet.ts.net/monitor/api',
+            hintText: 'http://100.64.10.22:4040/api',
+            helperText:
+                'Real tablet over Tailscale: http://100.64.10.22:4040/api\n'
+                'Android emulator only: http://10.0.2.2:4040/api',
           ),
         ),
         const SizedBox(height: AppSpacing.md),
@@ -355,7 +358,9 @@ class _ControlStep extends StatelessWidget {
           controller: urlController,
           decoration: const InputDecoration(
             labelText: 'Control API URL',
-            hintText: 'https://server.tailnet.ts.net/control/api',
+            hintText: 'http://100.64.10.22:4042/api',
+            helperText:
+                'Real tablet over Tailscale: http://100.64.10.22:4042/api',
           ),
         ),
         const SizedBox(height: AppSpacing.md),

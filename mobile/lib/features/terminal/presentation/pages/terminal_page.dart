@@ -9,10 +9,12 @@ import 'package:xterm/xterm.dart';
 
 import '../../../../core/config/app_settings.dart';
 import '../../../../core/errors/app_exception.dart';
+import '../../../../core/security/secure_storage_service.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/status_badge.dart';
 import '../../../../core/widgets/status_tone.dart';
 import '../../data/ssh_connection_service.dart';
+import '../../domain/models/ssh_connection_models.dart';
 import '../widgets/terminal_accessory_bar.dart';
 import '../widgets/terminal_connection_dialogs.dart';
 
@@ -27,6 +29,8 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
     with WidgetsBindingObserver {
   late final Terminal _terminal;
   late final TerminalController _terminalController;
+  late final FocusNode _terminalFocusNode;
+  final _terminalViewKey = GlobalKey<TerminalViewState>();
 
   StreamSubscription<String>? _stdoutSubscription;
   StreamSubscription<String>? _stderrSubscription;
@@ -43,6 +47,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
     WidgetsBinding.instance.addObserver(this);
     _terminal = Terminal(maxLines: 5000);
     _terminalController = TerminalController();
+    _terminalFocusNode = FocusNode();
     _terminal.write('SSH profile ready.\r\n');
   }
 
@@ -59,6 +64,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
       unawaited(connection.close());
     }
     _terminalController.dispose();
+    _terminalFocusNode.dispose();
     super.dispose();
   }
 
@@ -94,84 +100,82 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final header = _TerminalHeader(
-                profile: profile,
-                status: _status,
-                message: _message,
-                connectedAt: _connectedAt,
-              );
-              final actions = _TerminalActions(
-                connected: _connection != null,
-                connecting: _status == _TerminalStatus.connecting,
-                onConnect: _connect,
-                onDisconnect: _disconnect,
-                onCopySelection: _copySelection,
-                onCopyBuffer: _copyBuffer,
-                onPaste: _pasteClipboard,
-                onClear: _clearTerminal,
-              );
-              if (constraints.maxWidth < 760) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    header,
-                    const SizedBox(height: AppSpacing.sm),
-                    actions,
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: header),
-                  const SizedBox(width: AppSpacing.md),
-                  actions,
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+          final compact = keyboardOpen || constraints.maxHeight < 560;
+          final padding = EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            compact ? AppSpacing.sm : AppSpacing.lg,
+            AppSpacing.lg,
+            compact ? AppSpacing.xs : AppSpacing.lg,
+          );
+          return Padding(
+            padding: padding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _TerminalHeaderAndActions(
+                  profile: profile,
+                  status: _status,
+                  message: _message,
+                  connectedAt: _connectedAt,
+                  compact: compact,
+                  connected: _connection != null,
+                  connecting: _status == _TerminalStatus.connecting,
+                  onConnect: _connect,
+                  onDisconnect: _disconnect,
+                  onCopySelection: _copySelection,
+                  onCopyBuffer: _copyBuffer,
+                  onPaste: _pasteClipboard,
+                  onClear: _clearTerminal,
+                ),
+                SizedBox(height: compact ? AppSpacing.sm : AppSpacing.md),
+                if (!compact) ...[
+                  _QuickCommandBar(
+                    enabled: _connection != null,
+                    onCommand: _sendQuickCommand,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
                 ],
-              );
-            },
-          ),
-          const SizedBox(height: AppSpacing.md),
-          _QuickCommandBar(
-            enabled: _connection != null,
-            onCommand: _sendQuickCommand,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Expanded(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outlineVariant,
+                Expanded(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: TerminalView(
+                        _terminal,
+                        key: _terminalViewKey,
+                        controller: _terminalController,
+                        focusNode: _terminalFocusNode,
+                        autofocus: true,
+                        deleteDetection: true,
+                        keyboardType: TextInputType.visiblePassword,
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: TerminalView(
-                  _terminal,
-                  controller: _terminalController,
-                  autofocus: true,
-                  padding: const EdgeInsets.all(AppSpacing.sm),
+                SizedBox(height: compact ? AppSpacing.xs : AppSpacing.sm),
+                TerminalAccessoryBar(
+                  compact: compact,
+                  ctrlEnabled: _ctrlEnabled,
+                  altEnabled: _altEnabled,
+                  onCtrlToggle: (value) => setState(() => _ctrlEnabled = value),
+                  onAltToggle: (value) => setState(() => _altEnabled = value),
+                  onKeyPressed: _sendAccessoryKey,
+                  onShortcutPressed: _sendShortcut,
                 ),
-              ),
+              ],
             ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          TerminalAccessoryBar(
-            ctrlEnabled: _ctrlEnabled,
-            altEnabled: _altEnabled,
-            onCtrlToggle: (value) => setState(() => _ctrlEnabled = value),
-            onAltToggle: (value) => setState(() => _altEnabled = value),
-            onKeyPressed: _sendAccessoryKey,
-            onShortcutPressed: _sendShortcut,
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -191,10 +195,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
         width: _terminal.viewWidth,
         height: _terminal.viewHeight,
         onTrustHost: (hostKey) => showHostTrustDialog(context, hostKey),
-        onPassphraseRequired: () => showPassphrasePromptDialog(
-          context,
-          title: 'Enter the SSH key passphrase',
-        ),
+        onPassphraseRequired: _promptPassphrase,
       );
 
       _connection = connection;
@@ -290,6 +291,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
     await Clipboard.setData(ClipboardData(text: text));
     _terminalController.clearSelection();
     _showSnackBar('Selection copied.');
+    _focusTerminal();
   }
 
   Future<void> _copyBuffer() async {
@@ -300,6 +302,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
     }
     await Clipboard.setData(ClipboardData(text: text));
     _showSnackBar('Terminal buffer copied.');
+    _focusTerminal();
   }
 
   Future<void> _pasteClipboard() async {
@@ -314,6 +317,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
       return;
     }
     _terminal.paste(text);
+    _focusTerminal();
   }
 
   Future<void> _clearTerminal() async {
@@ -339,6 +343,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
     }
     _terminal.buffer.clear();
     _terminal.buffer.setCursor(0, 0);
+    _focusTerminal();
   }
 
   void _sendQuickCommand(String command) {
@@ -348,6 +353,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
     }
     _terminal.textInput(command);
     _terminal.keyInput(TerminalKey.enter);
+    _focusTerminal();
   }
 
   void _sendAccessoryKey(String key) {
@@ -411,6 +417,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
         }
     }
     _clearModifiers();
+    _focusTerminal();
   }
 
   void _sendShortcut(String shortcut) {
@@ -430,6 +437,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
         break;
     }
     _clearModifiers();
+    _focusTerminal();
   }
 
   void _clearModifiers() {
@@ -439,6 +447,56 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
         _altEnabled = false;
       });
     }
+  }
+
+  void _focusTerminal() {
+    if (!mounted) {
+      return;
+    }
+    _terminalFocusNode.requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _terminalViewKey.currentState?.requestKeyboard();
+      }
+    });
+  }
+
+  Future<PassphrasePromptResult?> _promptPassphrase() async {
+    final settings = ref.read(settingsControllerProvider);
+    final result = await showPassphrasePromptDialog(
+      context,
+      title: 'Enter the SSH key passphrase',
+      rememberInitially: settings.sshProfile.storePassphrase,
+    );
+    if (result == null) {
+      return null;
+    }
+
+    final storage = ref.read(secureStorageServiceProvider);
+    if (result.remember) {
+      await storage.writeSshPassphrase(result.passphrase);
+      ref
+          .read(settingsControllerProvider.notifier)
+          .save(
+            settings.copyWith(
+              sshProfile: settings.sshProfile.copyWith(storePassphrase: true),
+            ),
+          );
+    } else {
+      await storage.clearSshPassphrase();
+      if (settings.sshProfile.storePassphrase) {
+        ref
+            .read(settingsControllerProvider.notifier)
+            .save(
+              settings.copyWith(
+                sshProfile: settings.sshProfile.copyWith(
+                  storePassphrase: false,
+                ),
+              ),
+            );
+      }
+    }
+    return result;
   }
 
   String _describeError(Object error) {
@@ -458,18 +516,96 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
   }
 }
 
-class _TerminalHeader extends StatelessWidget {
-  const _TerminalHeader({
+class _TerminalHeaderAndActions extends StatelessWidget {
+  const _TerminalHeaderAndActions({
     required this.profile,
     required this.status,
     required this.message,
     required this.connectedAt,
+    required this.compact,
+    required this.connected,
+    required this.connecting,
+    required this.onConnect,
+    required this.onDisconnect,
+    required this.onCopySelection,
+    required this.onCopyBuffer,
+    required this.onPaste,
+    required this.onClear,
   });
 
   final ConnectionProfile profile;
   final _TerminalStatus status;
   final String? message;
   final DateTime? connectedAt;
+  final bool compact;
+  final bool connected;
+  final bool connecting;
+  final VoidCallback onConnect;
+  final VoidCallback onDisconnect;
+  final VoidCallback onCopySelection;
+  final VoidCallback onCopyBuffer;
+  final VoidCallback onPaste;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final header = _TerminalHeader(
+      profile: profile,
+      status: status,
+      message: message,
+      connectedAt: connectedAt,
+      compact: compact,
+    );
+    final actions = _TerminalActions(
+      connected: connected,
+      connecting: connecting,
+      compact: compact,
+      onConnect: onConnect,
+      onDisconnect: onDisconnect,
+      onCopySelection: onCopySelection,
+      onCopyBuffer: onCopyBuffer,
+      onPaste: onPaste,
+      onClear: onClear,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (compact || constraints.maxWidth < 760) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              header,
+              const SizedBox(height: AppSpacing.sm),
+              actions,
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: header),
+            const SizedBox(width: AppSpacing.md),
+            actions,
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TerminalHeader extends StatelessWidget {
+  const _TerminalHeader({
+    required this.profile,
+    required this.status,
+    required this.message,
+    required this.connectedAt,
+    required this.compact,
+  });
+
+  final ConnectionProfile profile;
+  final _TerminalStatus status;
+  final String? message;
+  final DateTime? connectedAt;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -490,7 +626,7 @@ class _TerminalHeader extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
+        padding: EdgeInsets.all(compact ? AppSpacing.sm : AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -504,7 +640,7 @@ class _TerminalHeader extends StatelessWidget {
                 StatusBadge(label: status.label, tone: status.tone),
               ],
             ),
-            const SizedBox(height: AppSpacing.sm),
+            SizedBox(height: compact ? AppSpacing.xs : AppSpacing.sm),
             Wrap(
               spacing: AppSpacing.md,
               runSpacing: AppSpacing.xs,
@@ -522,8 +658,13 @@ class _TerminalHeader extends StatelessWidget {
               ],
             ),
             if (message != null && message!.trim().isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(message!, style: theme.textTheme.bodyMedium),
+              SizedBox(height: compact ? AppSpacing.xs : AppSpacing.sm),
+              Text(
+                message!,
+                maxLines: compact ? 1 : null,
+                overflow: compact ? TextOverflow.ellipsis : null,
+                style: theme.textTheme.bodyMedium,
+              ),
             ],
           ],
         ),
@@ -555,6 +696,7 @@ class _TerminalActions extends StatelessWidget {
   const _TerminalActions({
     required this.connected,
     required this.connecting,
+    required this.compact,
     required this.onConnect,
     required this.onDisconnect,
     required this.onCopySelection,
@@ -565,6 +707,7 @@ class _TerminalActions extends StatelessWidget {
 
   final bool connected;
   final bool connecting;
+  final bool compact;
   final VoidCallback onConnect;
   final VoidCallback onDisconnect;
   final VoidCallback onCopySelection;
@@ -587,7 +730,7 @@ class _TerminalActions extends StatelessWidget {
         OutlinedButton.icon(
           onPressed: connected ? onDisconnect : null,
           icon: const Icon(Icons.link_off),
-          label: const Text('Disconnect'),
+          label: Text(compact ? 'Close' : 'Disconnect'),
         ),
         IconButton(
           tooltip: 'Copy selected text',
