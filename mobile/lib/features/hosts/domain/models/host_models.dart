@@ -1,9 +1,14 @@
+import 'package:json_annotation/json_annotation.dart';
+
+part 'host_models.g.dart';
+
 class ManagedHostsDashboard {
   const ManagedHostsDashboard({required this.hosts});
 
   final List<ManagedHost> hosts;
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake, createToJson: false)
 class ManagedHost {
   const ManagedHost({
     required this.id,
@@ -28,48 +33,14 @@ class ManagedHost {
     required this.probeSummary,
   });
 
-  factory ManagedHost.fromJson(Map<String, dynamic> json) {
-    return ManagedHost(
-      id: json['id'] as String? ?? 'unknown',
-      displayName: json['display_name'] as String? ?? 'Unknown host',
-      category: json['category'] as String? ?? 'other',
-      description: json['description'] as String?,
-      lanIp: json['lan_ip'] as String?,
-      tailscaleIp: json['tailscale_ip'] as String?,
-      tailscaleHostname: json['tailscale_hostname'] as String?,
-      monitoringApiUrl: json['monitoring_api_url'] as String?,
-      controlApiUrl: json['control_api_url'] as String?,
-      enabled: json['enabled'] as bool? ?? true,
-      online: json['online'] as bool? ?? false,
-      status: HostAvailability.fromJson(
-        json['status'],
-        online: json['online'] as bool?,
-      ),
-      latencyMs: (json['latency_ms'] as num?)?.toDouble(),
-      lastChecked: _parseDateTime(json['last_checked']),
-      lastSeen: _parseDateTime(json['last_seen']),
-      capabilities: [
-        for (final item in (json['capabilities'] as List<dynamic>? ?? const []))
-          item.toString(),
-      ],
-      services: [
-        for (final item in (json['services'] as List<dynamic>? ?? const []))
-          item.toString(),
-      ],
-      tags: [
-        for (final item in (json['tags'] as List<dynamic>? ?? const []))
-          item.toString(),
-      ],
-      probes: [
-        for (final item in (json['probes'] as List<dynamic>? ?? const []))
-          HostProbeResult.fromJson(item as Map<String, dynamic>),
-      ],
-      probeSummary: json['probe_summary'] as String? ?? 'No probes',
-    );
-  }
+  factory ManagedHost.fromJson(Map<String, dynamic> json) =>
+      _$ManagedHostFromJson(json);
 
+  @JsonKey(defaultValue: 'unknown')
   final String id;
+  @JsonKey(defaultValue: 'Unknown host')
   final String displayName;
+  @JsonKey(defaultValue: 'other')
   final String category;
   final String? description;
   final String? lanIp;
@@ -77,16 +48,30 @@ class ManagedHost {
   final String? tailscaleHostname;
   final String? monitoringApiUrl;
   final String? controlApiUrl;
+  @JsonKey(defaultValue: true)
   final bool enabled;
+  @JsonKey(defaultValue: false)
   final bool online;
+  @JsonKey(
+    readValue: _readHostAvailability,
+    fromJson: _hostAvailabilityFromJson,
+  )
   final HostAvailability status;
+  @JsonKey(fromJson: _doubleFromJson)
   final double? latencyMs;
+  @JsonKey(fromJson: _parseDateTime)
   final DateTime? lastChecked;
+  @JsonKey(fromJson: _parseDateTime)
   final DateTime? lastSeen;
+  @JsonKey(fromJson: _stringListFromJson)
   final List<String> capabilities;
+  @JsonKey(fromJson: _stringListFromJson)
   final List<String> services;
+  @JsonKey(fromJson: _stringListFromJson)
   final List<String> tags;
+  @JsonKey(fromJson: _hostProbeResultsFromJson)
   final List<HostProbeResult> probes;
+  @JsonKey(defaultValue: 'No probes')
   final String probeSummary;
 
   String? get preferredIp => tailscaleIp ?? lanIp;
@@ -112,6 +97,7 @@ enum HostAvailability {
   }
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake, createToJson: false)
 class HostProbeResult {
   const HostProbeResult({
     required this.type,
@@ -122,24 +108,62 @@ class HostProbeResult {
     required this.summary,
   });
 
-  factory HostProbeResult.fromJson(Map<String, dynamic> json) {
-    return HostProbeResult(
-      type: json['type'] as String? ?? 'unknown',
-      label: json['label'] as String? ?? 'Probe',
-      port: json['port'] as int?,
-      reachable: json['reachable'] as bool? ?? false,
-      latencyMs: (json['latency_ms'] as num?)?.toDouble(),
-      summary: json['summary'] as String? ?? '',
-    );
-  }
+  factory HostProbeResult.fromJson(Map<String, dynamic> json) =>
+      _$HostProbeResultFromJson(json);
 
+  @JsonKey(defaultValue: 'unknown')
   final String type;
+  @JsonKey(defaultValue: 'Probe')
   final String label;
+  @JsonKey(fromJson: _intFromJson)
   final int? port;
+  @JsonKey(defaultValue: false)
   final bool reachable;
+  @JsonKey(fromJson: _doubleFromJson)
   final double? latencyMs;
+  @JsonKey(defaultValue: '')
   final String summary;
 }
+
+Object? _readHostAvailability(Map json, String key) {
+  final raw = json[key];
+  final normalized = raw?.toString().trim().toLowerCase();
+  final known = const {
+    'online',
+    'unreachable',
+    'offline',
+    'unknown',
+    'not_checked',
+    'not checked',
+  };
+  if (known.contains(normalized)) {
+    return raw;
+  }
+  return json['online'] == true ? 'online' : raw;
+}
+
+HostAvailability _hostAvailabilityFromJson(Object? value) {
+  return HostAvailability.fromJson(value);
+}
+
+List<String> _stringListFromJson(Object? value) {
+  return [
+    for (final item in value is List<dynamic> ? value : const <dynamic>[])
+      item.toString(),
+  ];
+}
+
+List<HostProbeResult> _hostProbeResultsFromJson(Object? value) {
+  return [
+    for (final item in value is List<dynamic> ? value : const <dynamic>[])
+      if (item is Map<String, dynamic>) HostProbeResult.fromJson(item),
+  ];
+}
+
+double? _doubleFromJson(Object? value) =>
+    value is num ? value.toDouble() : null;
+
+int? _intFromJson(Object? value) => value is num ? value.toInt() : null;
 
 DateTime? _parseDateTime(Object? value) {
   final text = value as String?;
