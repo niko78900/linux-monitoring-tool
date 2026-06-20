@@ -12,7 +12,8 @@ The app consumes:
 
 ## Current Features
 
-- Tablet-first dark Material 3 shell with responsive navigation.
+- Tablet-first dark Material 3 shell with responsive navigation and subtle
+  fade/slide page transitions.
 - Overview status chips and metric cards that route to the relevant pages.
 - Hardware, Storage, GPU, Network, History, Hosts, Devices, Services, Actions,
   Terminal, Files, and Settings pages.
@@ -21,12 +22,14 @@ The app consumes:
   scan blocks are not shown.
 - Hosts page for managed hosts and important machines, with SSH/SFTP/RDP/copy
   actions where configured.
-- Services page with configured service cards and a service detail dashboard.
+- Services page with configured service cards, search/filter/sort controls, and
+  a service detail dashboard.
 - Direct SSH terminal using `dartssh2`, secure key storage, and host-fingerprint
-  trust.
+  trust, with a compact status header and safe quick-input chips that write only
+  into the active SSH session.
 - Restricted SFTP browser with configurable background timeout, capped text/code
   previews, image previews, download/open support, and external open support for
-  PDF/Office files.
+  PDF/Office files or unsupported files where a system app can handle them.
 - Android home-screen widgets backed by non-sensitive flattened telemetry.
 - Backend-owned Firebase mobile alert registration and test push flow.
 
@@ -130,8 +133,11 @@ builds do not globally enable cleartext traffic.
 - Hardware and Storage values use shared threshold colors where higher values
   are worse: `0-60` healthy, `61-80` warning, `81+` critical.
 - Available RAM stays neutral because higher available memory is not bad.
-- GPU numeric values stay neutral; only utilization and VRAM bars use threshold
-  coloring.
+- Important percent and temperature values can opt into shared threshold colors
+  through `MetricCard.valueTone` or `InfoRow.valueColor`.
+- GPU model, driver, power, and fan values stay neutral; utilization,
+  temperature, and VRAM values use threshold colors, and utilization/VRAM bars
+  remain threshold-colored.
 
 ## Dependency Notes
 
