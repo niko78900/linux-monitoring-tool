@@ -12,6 +12,16 @@ class SshHostFingerprint {
   String get displayValue => '$algorithm $fingerprint';
 }
 
+class PassphrasePromptResult {
+  const PassphrasePromptResult({
+    required this.passphrase,
+    required this.remember,
+  });
+
+  final String passphrase;
+  final bool remember;
+}
+
 class SshHostKeyChangedException extends AppException {
   SshHostKeyChangedException({
     required this.host,

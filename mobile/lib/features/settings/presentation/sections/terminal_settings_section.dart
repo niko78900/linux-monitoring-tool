@@ -13,18 +13,18 @@ class TerminalSettingsSection extends StatelessWidget {
     required this.hostController,
     required this.portController,
     required this.userController,
-    required this.passphraseController,
     required this.keySummary,
     required this.trustedFingerprint,
+    required this.passphraseRemembered,
     required this.testing,
     required this.onSaveProfiles,
     required this.onSetPassphraseStorage,
+    required this.onForgetPassphrase,
     required this.onImportKey,
     required this.onPasteKey,
     required this.onRemoveKey,
     required this.onTest,
     required this.onResetTrustedFingerprint,
-    required this.onSave,
   });
 
   final AppSettings settings;
@@ -32,18 +32,18 @@ class TerminalSettingsSection extends StatelessWidget {
   final TextEditingController hostController;
   final TextEditingController portController;
   final TextEditingController userController;
-  final TextEditingController passphraseController;
   final String? keySummary;
   final String? trustedFingerprint;
+  final bool passphraseRemembered;
   final bool testing;
   final ValueChanged<AppSettings> onSaveProfiles;
   final void Function(AppSettings settings, bool value) onSetPassphraseStorage;
+  final ValueChanged<AppSettings> onForgetPassphrase;
   final ValueChanged<AppSettings> onImportKey;
   final ValueChanged<AppSettings> onPasteKey;
   final ValueChanged<AppSettings> onRemoveKey;
   final ValueChanged<AppSettings> onTest;
   final ValueChanged<ConnectionProfile> onResetTrustedFingerprint;
-  final ValueChanged<AppSettings> onSave;
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +52,11 @@ class TerminalSettingsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            'Used by the Terminal page for interactive SSH shell access. Files/SFTP has its own restricted profile below.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: AppSpacing.md),
           TextField(
             controller: nameController,
             decoration: const InputDecoration(labelText: 'SSH profile name'),
@@ -77,18 +82,24 @@ class TerminalSettingsSection extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             value: settings.sshProfile.storePassphrase,
             onChanged: (value) => onSetPassphraseStorage(settings, value),
-            title: const Text('Store passphrase in secure storage'),
-          ),
-          if (settings.sshProfile.storePassphrase) ...[
-            TextField(
-              controller: passphraseController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'SSH key passphrase',
-              ),
+            title: const Text('Remember passphrase after it is entered'),
+            subtitle: Text(
+              passphraseRemembered
+                  ? 'A passphrase is saved in Android secure storage.'
+                  : 'You will be asked during connect or test, then can choose whether to remember it.',
             ),
-            const SizedBox(height: AppSpacing.md),
-          ],
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: passphraseRemembered
+                  ? () => onForgetPassphrase(settings)
+                  : null,
+              icon: const Icon(Icons.lock_reset),
+              label: const Text('Forget remembered passphrase'),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
           SettingsInfoLine(
             label: 'Imported key',
             value: keySummary ?? 'No key imported',
@@ -146,42 +157,6 @@ class TerminalSettingsSection extends StatelessWidget {
                 child: const Text('Reset trusted fingerprint'),
               ),
             ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: settings.allowSftpUpload,
-            onChanged: (value) =>
-                onSave(settings.copyWith(allowSftpUpload: value)),
-            title: const Text('Allow uploads'),
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: settings.allowSftpCreateDirectory,
-            onChanged: (value) =>
-                onSave(settings.copyWith(allowSftpCreateDirectory: value)),
-            title: const Text('Allow create directory'),
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: settings.allowSftpRename,
-            onChanged: (value) =>
-                onSave(settings.copyWith(allowSftpRename: value)),
-            title: const Text('Allow rename'),
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: settings.allowSftpMove,
-            onChanged: (value) =>
-                onSave(settings.copyWith(allowSftpMove: value)),
-            title: const Text('Allow move'),
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: settings.allowSftpSoftDelete,
-            onChanged: (value) =>
-                onSave(settings.copyWith(allowSftpSoftDelete: value)),
-            title: const Text('Allow soft delete'),
           ),
         ],
       ),

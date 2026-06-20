@@ -9,7 +9,7 @@ import '../../../core/security/secure_storage_service.dart';
 import '../../terminal/domain/models/ssh_connection_models.dart';
 
 typedef SftpHostTrustPrompt = Future<bool> Function(SshHostFingerprint hostKey);
-typedef SftpPassphrasePrompt = Future<String?> Function();
+typedef SftpPassphrasePrompt = Future<PassphrasePromptResult?> Function();
 
 final sftpConnectionServiceProvider = Provider<SftpConnectionService>(
   (ref) => SftpConnectionService(
@@ -57,12 +57,12 @@ class SftpConnectionService {
       throw const SshPrivateKeyMissingException();
     }
 
-    final passphrase = await _resolvePassphrase(
+    final identities = await _loadIdentities(
       privateKey,
-      await _storage.readSftpPassphrase(),
-      onPassphraseRequired,
+      readStoredPassphrase: _storage.readSftpPassphrase,
+      clearStoredPassphrase: _storage.clearSftpPassphrase,
+      onPassphraseRequired: onPassphraseRequired,
     );
-    final identities = _parsePrivateKey(privateKey, passphrase);
 
     SshHostKeyChangedException? fingerprintMismatch;
     var hostRejected = false;
@@ -137,26 +137,35 @@ class SftpConnectionService {
     return _fingerprints.resetTrustedFingerprint(profile.host, profile.port);
   }
 
-  Future<String?> _resolvePassphrase(
-    String privateKey,
-    String? storedPassphrase,
+  Future<List<SSHKeyPair>> _loadIdentities(
+    String privateKey, {
     SftpPassphrasePrompt? onPassphraseRequired,
-  ) async {
+    required Future<String?> Function() readStoredPassphrase,
+    required Future<void> Function() clearStoredPassphrase,
+  }) async {
     if (!SSHKeyPair.isEncryptedPem(privateKey)) {
-      return null;
+      return _parsePrivateKey(privateKey, null);
     }
 
+    final storedPassphrase = await readStoredPassphrase();
     final passphrase = storedPassphrase?.trim();
     if (passphrase != null && passphrase.isNotEmpty) {
-      return passphrase;
+      try {
+        return _parsePrivateKey(privateKey, passphrase);
+      } on SshInvalidPrivateKeyException {
+        await clearStoredPassphrase();
+        if (onPassphraseRequired == null) {
+          rethrow;
+        }
+      }
     }
 
     final prompted = await onPassphraseRequired?.call();
-    final normalized = prompted?.trim();
+    final normalized = prompted?.passphrase.trim();
     if (normalized == null || normalized.isEmpty) {
       throw const SshPassphraseRequiredException();
     }
-    return normalized;
+    return _parsePrivateKey(privateKey, normalized);
   }
 
   List<SSHKeyPair> _parsePrivateKey(String pem, String? passphrase) {

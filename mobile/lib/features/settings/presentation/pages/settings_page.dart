@@ -19,7 +19,9 @@ import '../../../mobile_alerts/data/mobile_alert_service.dart';
 import '../../../mobile_alerts/domain/models/mobile_alert_models.dart';
 import '../../../network/data/control_api_client.dart';
 import '../../../server_widget/data/server_widget_service.dart';
+import '../../../terminal/data/private_key_validation.dart';
 import '../../../terminal/data/ssh_connection_service.dart';
+import '../../../terminal/domain/models/ssh_connection_models.dart';
 import '../../../terminal/presentation/widgets/terminal_connection_dialogs.dart';
 import '../sections/control_agent_settings_section.dart';
 import '../sections/debug_settings_section.dart';
@@ -68,8 +70,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   String? _mobileAlertStatusText;
   String? _sshKeySummary;
   String? _sshTrustedFingerprint;
+  bool _sshPassphraseRemembered = false;
   String? _sftpKeySummary;
   String? _sftpTrustedFingerprint;
+  bool _sftpPassphraseRemembered = false;
 
   @override
   void dispose() {
@@ -125,18 +129,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           hostController: _sshHost,
           portController: _sshPort,
           userController: _sshUser,
-          passphraseController: _sshPassphrase,
           keySummary: _sshKeySummary,
           trustedFingerprint: _sshTrustedFingerprint,
+          passphraseRemembered: _sshPassphraseRemembered,
           testing: _testingSsh,
           onSaveProfiles: _saveProfiles,
           onSetPassphraseStorage: _setSshPassphraseStorage,
+          onForgetPassphrase: _forgetSshPassphrase,
           onImportKey: _importSshKey,
           onPasteKey: _pasteSshKey,
           onRemoveKey: _removeSshKey,
           onTest: _testSsh,
           onResetTrustedFingerprint: _resetTrustedFingerprint,
-          onSave: _save,
         ),
         FilesSettingsSection(
           settings: settings,
@@ -144,14 +148,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           hostController: _sftpHost,
           portController: _sftpPort,
           userController: _sftpUser,
-          passphraseController: _sftpPassphrase,
           rootController: _sftpRoot,
           keySummary: _sftpKeySummary,
           trustedFingerprint: _sftpTrustedFingerprint,
+          passphraseRemembered: _sftpPassphraseRemembered,
           testing: _testingSftp,
           onSaveProfiles: _saveProfiles,
           onSave: _save,
           onSetPassphraseStorage: _setSftpPassphraseStorage,
+          onForgetPassphrase: _forgetSftpPassphrase,
           onImportKey: _importSftpKey,
           onPasteKey: _pasteSftpKey,
           onRemoveKey: _removeSftpKey,
@@ -297,11 +302,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _persistSshPassphrase(AppSettings settings) async {
     final storage = ref.read(secureStorageServiceProvider);
-    if (settings.sshProfile.storePassphrase &&
-        _sshPassphrase.text.trim().isNotEmpty) {
-      await storage.writeSshPassphrase(_sshPassphrase.text);
-    } else {
+    final passphrase = _sshPassphrase.text.trim();
+    if (!settings.sshProfile.storePassphrase) {
       await storage.clearSshPassphrase();
+      return;
+    }
+    if (passphrase.isNotEmpty) {
+      await storage.writeSshPassphrase(passphrase);
     }
   }
 
@@ -319,6 +326,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     if (!enabled) {
       _sshPassphrase.clear();
     }
+    await _refreshSshSecretState(next);
     if (mounted) {
       ScaffoldMessenger.of(
         context,
@@ -328,11 +336,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _persistSftpPassphrase(AppSettings settings) async {
     final storage = ref.read(secureStorageServiceProvider);
-    if (settings.sftpProfile.storePassphrase &&
-        _sftpPassphrase.text.trim().isNotEmpty) {
-      await storage.writeSftpPassphrase(_sftpPassphrase.text);
-    } else {
+    final passphrase = _sftpPassphrase.text.trim();
+    if (!settings.sftpProfile.storePassphrase) {
       await storage.clearSftpPassphrase();
+      return;
+    }
+    if (passphrase.isNotEmpty) {
+      await storage.writeSftpPassphrase(passphrase);
     }
   }
 
@@ -350,10 +360,45 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     if (!enabled) {
       _sftpPassphrase.clear();
     }
+    await _refreshSftpSecretState(next);
     if (mounted) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Settings saved')));
+    }
+  }
+
+  Future<void> _forgetSshPassphrase(AppSettings settings) async {
+    await ref.read(secureStorageServiceProvider).clearSshPassphrase();
+    _sshPassphrase.clear();
+    final next = _buildSettingsFromFields(
+      settings.copyWith(
+        sshProfile: settings.sshProfile.copyWith(storePassphrase: false),
+      ),
+    );
+    ref.read(settingsControllerProvider.notifier).save(next);
+    await _refreshSshSecretState(next);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('SSH key passphrase forgotten')),
+      );
+    }
+  }
+
+  Future<void> _forgetSftpPassphrase(AppSettings settings) async {
+    await ref.read(secureStorageServiceProvider).clearSftpPassphrase();
+    _sftpPassphrase.clear();
+    final next = _buildSettingsFromFields(
+      settings.copyWith(
+        sftpProfile: settings.sftpProfile.copyWith(storePassphrase: false),
+      ),
+    );
+    ref.read(settingsControllerProvider.notifier).save(next);
+    await _refreshSftpSecretState(next);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('SFTP key passphrase forgotten')),
+      );
     }
   }
 
@@ -691,10 +736,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           .testConnection(
             profile: next.sshProfile,
             onTrustHost: (hostKey) => showHostTrustDialog(context, hostKey),
-            onPassphraseRequired: () => showPassphrasePromptDialog(
-              context,
-              title: 'Enter the SSH key passphrase',
-            ),
+            onPassphraseRequired: () => _promptSshPassphrase(next),
           );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -727,10 +769,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           .testConnection(
             profile: next.sftpProfile,
             onTrustHost: (hostKey) => showHostTrustDialog(context, hostKey),
-            onPassphraseRequired: () => showPassphrasePromptDialog(
-              context,
-              title: 'Enter the SFTP key passphrase',
-            ),
+            onPassphraseRequired: () => _promptSftpPassphrase(next),
           );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -751,10 +790,73 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
+  Future<PassphrasePromptResult?> _promptSshPassphrase(
+    AppSettings settings,
+  ) async {
+    final result = await showPassphrasePromptDialog(
+      context,
+      title: 'Enter the SSH key passphrase',
+      rememberInitially: settings.sshProfile.storePassphrase,
+    );
+    if (result == null) {
+      return null;
+    }
+
+    final storage = ref.read(secureStorageServiceProvider);
+    final next = _buildSettingsFromFields(
+      settings.copyWith(
+        sshProfile: settings.sshProfile.copyWith(
+          storePassphrase: result.remember,
+        ),
+      ),
+    );
+    if (result.remember) {
+      _sshPassphrase.text = result.passphrase;
+      await storage.writeSshPassphrase(result.passphrase);
+    } else {
+      _sshPassphrase.clear();
+      await storage.clearSshPassphrase();
+    }
+    ref.read(settingsControllerProvider.notifier).save(next);
+    await _refreshSshSecretState(next);
+    return result;
+  }
+
+  Future<PassphrasePromptResult?> _promptSftpPassphrase(
+    AppSettings settings,
+  ) async {
+    final result = await showPassphrasePromptDialog(
+      context,
+      title: 'Enter the SFTP key passphrase',
+      rememberInitially: settings.sftpProfile.storePassphrase,
+    );
+    if (result == null) {
+      return null;
+    }
+
+    final storage = ref.read(secureStorageServiceProvider);
+    final next = _buildSettingsFromFields(
+      settings.copyWith(
+        sftpProfile: settings.sftpProfile.copyWith(
+          storePassphrase: result.remember,
+        ),
+      ),
+    );
+    if (result.remember) {
+      _sftpPassphrase.text = result.passphrase;
+      await storage.writeSftpPassphrase(result.passphrase);
+    } else {
+      _sftpPassphrase.clear();
+      await storage.clearSftpPassphrase();
+    }
+    ref.read(settingsControllerProvider.notifier).save(next);
+    await _refreshSftpSecretState(next);
+    return result;
+  }
+
   Future<void> _importSshKey(AppSettings settings) async {
     final result = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pem', 'key', 'txt'],
+      type: FileType.any,
       withData: true,
     );
     if (result == null || result.files.isEmpty) {
@@ -819,7 +921,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _storeSshKey(AppSettings settings, String contents) async {
-    final normalized = contents.trim();
+    late final String normalized;
+    try {
+      normalized = validateAndNormalizePrivateKey(contents);
+    } on AppException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+      return;
+    }
     await ref.read(secureStorageServiceProvider).writeSshPrivateKey(normalized);
     final next = _buildSettingsFromFields(
       settings.copyWith(
@@ -838,8 +950,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _importSftpKey(AppSettings settings) async {
     final result = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pem', 'key', 'txt'],
+      type: FileType.any,
       withData: true,
     );
     if (result == null || result.files.isEmpty) {
@@ -904,7 +1015,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _storeSftpKey(AppSettings settings, String contents) async {
-    final normalized = contents.trim();
+    late final String normalized;
+    try {
+      normalized = validateAndNormalizePrivateKey(contents);
+    } on AppException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+      return;
+    }
     await ref
         .read(secureStorageServiceProvider)
         .writeSftpPrivateKey(normalized);
@@ -989,6 +1110,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final storage = ref.read(secureStorageServiceProvider);
     final service = ref.read(sshConnectionServiceProvider);
     final key = await storage.readSshPrivateKey();
+    final passphrase = await storage.readSshPassphrase();
     final fingerprint = await service.readTrustedFingerprint(
       settings.sshProfile,
     );
@@ -998,6 +1120,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     setState(() {
       _sshKeySummary = key == null || key.isEmpty ? null : _summarizeKey(key);
       _sshTrustedFingerprint = fingerprint;
+      _sshPassphraseRemembered = passphrase != null && passphrase.isNotEmpty;
     });
   }
 
@@ -1005,6 +1128,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final storage = ref.read(secureStorageServiceProvider);
     final service = ref.read(sftpConnectionServiceProvider);
     final key = await storage.readSftpPrivateKey();
+    final passphrase = await storage.readSftpPassphrase();
     final fingerprint = await service.readTrustedFingerprint(
       settings.sftpProfile,
     );
@@ -1014,6 +1138,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     setState(() {
       _sftpKeySummary = key == null || key.isEmpty ? null : _summarizeKey(key);
       _sftpTrustedFingerprint = fingerprint;
+      _sftpPassphraseRemembered = passphrase != null && passphrase.isNotEmpty;
     });
   }
 

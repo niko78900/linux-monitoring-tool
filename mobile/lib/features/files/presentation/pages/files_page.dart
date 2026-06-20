@@ -12,6 +12,7 @@ import 'package:open_filex/open_filex.dart';
 
 import '../../../../core/config/app_settings.dart';
 import '../../../../core/errors/app_exception.dart';
+import '../../../../core/security/secure_storage_service.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/path_safety.dart';
 import '../../../../core/widgets/empty_state.dart';
@@ -32,6 +33,7 @@ import '../widgets/files_view_models.dart';
 import '../widgets/recent_downloads_panel.dart';
 import '../widgets/remote_file_list.dart';
 import '../widgets/transfer_queue_panel.dart';
+import '../../../terminal/domain/models/ssh_connection_models.dart';
 import '../../../terminal/presentation/widgets/terminal_connection_dialogs.dart';
 
 class FilesPage extends ConsumerStatefulWidget {
@@ -266,10 +268,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
           .open(
             profile: profile,
             onTrustHost: (hostKey) => showHostTrustDialog(context, hostKey),
-            onPassphraseRequired: () => showPassphrasePromptDialog(
-              context,
-              title: 'Enter the SFTP key passphrase',
-            ),
+            onPassphraseRequired: _promptPassphrase,
           );
       _connection = connection;
       setState(() {
@@ -306,6 +305,44 @@ class _FilesPageState extends ConsumerState<FilesPage>
         _message = message;
       }
     });
+  }
+
+  Future<PassphrasePromptResult?> _promptPassphrase() async {
+    final settings = ref.read(settingsControllerProvider);
+    final result = await showPassphrasePromptDialog(
+      context,
+      title: 'Enter the SFTP key passphrase',
+      rememberInitially: settings.sftpProfile.storePassphrase,
+    );
+    if (result == null) {
+      return null;
+    }
+
+    final storage = ref.read(secureStorageServiceProvider);
+    if (result.remember) {
+      await storage.writeSftpPassphrase(result.passphrase);
+      ref
+          .read(settingsControllerProvider.notifier)
+          .save(
+            settings.copyWith(
+              sftpProfile: settings.sftpProfile.copyWith(storePassphrase: true),
+            ),
+          );
+    } else {
+      await storage.clearSftpPassphrase();
+      if (settings.sftpProfile.storePassphrase) {
+        ref
+            .read(settingsControllerProvider.notifier)
+            .save(
+              settings.copyWith(
+                sftpProfile: settings.sftpProfile.copyWith(
+                  storePassphrase: false,
+                ),
+              ),
+            );
+      }
+    }
+    return result;
   }
 
   Future<void> _loadDirectory(String requestedPath) async {

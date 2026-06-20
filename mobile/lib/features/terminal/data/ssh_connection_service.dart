@@ -10,7 +10,7 @@ import '../../../core/security/secure_storage_service.dart';
 import '../domain/models/ssh_connection_models.dart';
 
 typedef SshHostTrustPrompt = Future<bool> Function(SshHostFingerprint hostKey);
-typedef SshPassphrasePrompt = Future<String?> Function();
+typedef SshPassphrasePrompt = Future<PassphrasePromptResult?> Function();
 
 final sshConnectionServiceProvider = Provider<SshConnectionService>(
   (ref) => SshConnectionService(
@@ -38,6 +38,7 @@ class SshConnectionService {
       profile: profile,
       readPrivateKey: _storage.readSshPrivateKey,
       readStoredPassphrase: _storage.readSshPassphrase,
+      clearStoredPassphrase: _storage.clearSshPassphrase,
       onTrustHost: onTrustHost,
       onPassphraseRequired: onPassphraseRequired,
     );
@@ -59,6 +60,7 @@ class SshConnectionService {
       profile: profile,
       readPrivateKey: _storage.readSshPrivateKey,
       readStoredPassphrase: _storage.readSshPassphrase,
+      clearStoredPassphrase: _storage.clearSshPassphrase,
       onTrustHost: onTrustHost,
       onPassphraseRequired: onPassphraseRequired,
     );
@@ -93,6 +95,7 @@ class SshConnectionService {
     required ConnectionProfile profile,
     required Future<String?> Function() readPrivateKey,
     required Future<String?> Function() readStoredPassphrase,
+    required Future<void> Function() clearStoredPassphrase,
     required SshHostTrustPrompt onTrustHost,
     SshPassphrasePrompt? onPassphraseRequired,
   }) async {
@@ -107,12 +110,12 @@ class SshConnectionService {
       throw const SshPrivateKeyMissingException();
     }
 
-    final passphrase = await _resolvePassphrase(
+    final identities = await _loadIdentities(
       privateKey,
-      await readStoredPassphrase(),
-      onPassphraseRequired,
+      readStoredPassphrase: readStoredPassphrase,
+      clearStoredPassphrase: clearStoredPassphrase,
+      onPassphraseRequired: onPassphraseRequired,
     );
-    final identities = _parsePrivateKey(privateKey, passphrase);
 
     SshHostKeyChangedException? fingerprintMismatch;
     var hostRejected = false;
@@ -169,26 +172,35 @@ class SshConnectionService {
     }
   }
 
-  Future<String?> _resolvePassphrase(
-    String privateKey,
-    String? storedPassphrase,
+  Future<List<SSHKeyPair>> _loadIdentities(
+    String privateKey, {
     SshPassphrasePrompt? onPassphraseRequired,
-  ) async {
+    required Future<String?> Function() readStoredPassphrase,
+    required Future<void> Function() clearStoredPassphrase,
+  }) async {
     if (!SSHKeyPair.isEncryptedPem(privateKey)) {
-      return null;
+      return _parsePrivateKey(privateKey, null);
     }
 
+    final storedPassphrase = await readStoredPassphrase();
     final passphrase = storedPassphrase?.trim();
     if (passphrase != null && passphrase.isNotEmpty) {
-      return passphrase;
+      try {
+        return _parsePrivateKey(privateKey, passphrase);
+      } on SshInvalidPrivateKeyException {
+        await clearStoredPassphrase();
+        if (onPassphraseRequired == null) {
+          rethrow;
+        }
+      }
     }
 
     final prompted = await onPassphraseRequired?.call();
-    final normalized = prompted?.trim();
+    final normalized = prompted?.passphrase.trim();
     if (normalized == null || normalized.isEmpty) {
       throw const SshPassphraseRequiredException();
     }
-    return normalized;
+    return _parsePrivateKey(privateKey, normalized);
   }
 
   List<SSHKeyPair> _parsePrivateKey(String pem, String? passphrase) {

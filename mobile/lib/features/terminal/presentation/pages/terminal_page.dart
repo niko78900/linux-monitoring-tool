@@ -9,10 +9,12 @@ import 'package:xterm/xterm.dart';
 
 import '../../../../core/config/app_settings.dart';
 import '../../../../core/errors/app_exception.dart';
+import '../../../../core/security/secure_storage_service.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/status_badge.dart';
 import '../../../../core/widgets/status_tone.dart';
 import '../../data/ssh_connection_service.dart';
+import '../../domain/models/ssh_connection_models.dart';
 import '../widgets/terminal_accessory_bar.dart';
 import '../widgets/terminal_connection_dialogs.dart';
 
@@ -193,10 +195,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
         width: _terminal.viewWidth,
         height: _terminal.viewHeight,
         onTrustHost: (hostKey) => showHostTrustDialog(context, hostKey),
-        onPassphraseRequired: () => showPassphrasePromptDialog(
-          context,
-          title: 'Enter the SSH key passphrase',
-        ),
+        onPassphraseRequired: _promptPassphrase,
       );
 
       _connection = connection;
@@ -460,6 +459,44 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
         _terminalViewKey.currentState?.requestKeyboard();
       }
     });
+  }
+
+  Future<PassphrasePromptResult?> _promptPassphrase() async {
+    final settings = ref.read(settingsControllerProvider);
+    final result = await showPassphrasePromptDialog(
+      context,
+      title: 'Enter the SSH key passphrase',
+      rememberInitially: settings.sshProfile.storePassphrase,
+    );
+    if (result == null) {
+      return null;
+    }
+
+    final storage = ref.read(secureStorageServiceProvider);
+    if (result.remember) {
+      await storage.writeSshPassphrase(result.passphrase);
+      ref
+          .read(settingsControllerProvider.notifier)
+          .save(
+            settings.copyWith(
+              sshProfile: settings.sshProfile.copyWith(storePassphrase: true),
+            ),
+          );
+    } else {
+      await storage.clearSshPassphrase();
+      if (settings.sshProfile.storePassphrase) {
+        ref
+            .read(settingsControllerProvider.notifier)
+            .save(
+              settings.copyWith(
+                sshProfile: settings.sshProfile.copyWith(
+                  storePassphrase: false,
+                ),
+              ),
+            );
+      }
+    }
+    return result;
   }
 
   String _describeError(Object error) {
