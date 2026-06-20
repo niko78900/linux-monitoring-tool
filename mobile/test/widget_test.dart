@@ -21,6 +21,42 @@ void main() {
     expect(find.text('Monitoring API'), findsOneWidget);
   });
 
+  testWidgets('onboarding shows tablet API examples and advances stably', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+        child: const HomelabTabletApp(),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('http://100.64.10.22:4040/api'),
+      findsAtLeastNWidgets(1),
+    );
+    expect(find.textContaining('Android emulator only'), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Monitoring API URL'),
+      'http://100.64.10.22:4040/api',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Control API'), findsWidgets);
+    expect(
+      find.textContaining('http://100.64.10.22:4042/api'),
+      findsAtLeastNWidgets(1),
+    );
+    expect(find.textContaining('/control/api'), findsNothing);
+  });
+
   testWidgets('shows overview shell after onboarding', (tester) async {
     SharedPreferences.setMockInitialValues({
       'onboardingComplete': true,

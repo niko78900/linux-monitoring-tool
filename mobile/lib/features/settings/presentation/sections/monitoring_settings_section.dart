@@ -27,7 +27,13 @@ class MonitoringSettingsSection extends StatelessWidget {
         children: [
           TextField(
             controller: monitoringUrlController,
-            decoration: const InputDecoration(labelText: 'Monitoring API URL'),
+            decoration: const InputDecoration(
+              labelText: 'Monitoring API URL',
+              hintText: 'http://100.64.10.22:4040/api',
+              helperText:
+                  'Real tablet over Tailscale: http://100.64.10.22:4040/api. '
+                  'Emulator only: http://10.0.2.2:4040/api.',
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           PollingField(
