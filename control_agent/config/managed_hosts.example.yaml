@@ -25,3 +25,26 @@ hosts:
       - type: tcp
         port: 22
         label: SSH
+
+  - id: main-pc
+    display_name: Main PC
+    category: desktop
+    description: Primary Windows workstation reachable over Tailscale
+    lan_ip: 192.168.100.50
+    tailscale_ip: 100.64.10.50
+    tailscale_hostname: main-pc
+    enabled: true
+    capabilities:
+      - wake_on_lan
+      - rdp
+      - ssh
+    tags:
+      - windows
+      - workstation
+    probes:
+      - type: tcp
+        port: 3389
+        label: RDP
+      - type: tcp
+        port: 22
+        label: SSH

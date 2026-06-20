@@ -76,7 +76,7 @@ class _DevicesView extends ConsumerWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          'This is a known-device dashboard, not a complete router inventory.',
+          'Known devices and Tailscale peers are shown here. LAN neighbor scans are intentionally omitted.',
         ),
         const SizedBox(height: AppSpacing.lg),
         Wrap(
@@ -86,25 +86,6 @@ class _DevicesView extends ConsumerWidget {
             for (final device in snapshot.devices)
               SizedBox(width: 360, child: _DeviceCard(device: device)),
           ],
-        ),
-        const SizedBox(height: AppSpacing.xl),
-        SectionCard(
-          title: 'Observed LAN Neighbors',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(snapshot.neighborsNotice),
-              const SizedBox(height: AppSpacing.md),
-              if (snapshot.neighbors.isEmpty)
-                const Text('No neighbors reported right now.')
-              else
-                for (final neighbor in snapshot.neighbors) ...[
-                  _NeighborRow(neighbor: neighbor),
-                  if (neighbor != snapshot.neighbors.last)
-                    const Divider(height: AppSpacing.lg),
-                ],
-            ],
-          ),
         ),
       ],
     );
@@ -192,30 +173,6 @@ class _DeviceCard extends StatelessWidget {
       return 'N/A';
     }
     return DateFormat.yMd().add_Hm().format(value.toLocal());
-  }
-}
-
-class _NeighborRow extends StatelessWidget {
-  const _NeighborRow({required this.neighbor});
-
-  final ObservedNeighbor neighbor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(neighbor.ip, style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          [
-            if (neighbor.macAddress != null) neighbor.macAddress,
-            if (neighbor.interfaceName != null) neighbor.interfaceName,
-            if (neighbor.state != null) neighbor.state,
-          ].join('  |  '),
-        ),
-      ],
-    );
   }
 }
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import subprocess
 
 from app.services.device_probe import load_known_devices, probe_ping, probe_tcp
 from app.services.neighbors import read_neighbors
@@ -89,6 +90,34 @@ def test_tailscale_cli_unavailable_fallback() -> None:
     assert read_tailscale_peers(subprocess_runner=_missing) == {}
 
 
+def test_tailscale_json_parser_keeps_peer_metadata() -> None:
+    payload = {
+        "Peer": {
+            "node-key": {
+                "TailscaleIPs": ["100.64.10.50"],
+                "Online": True,
+                "HostName": "main-pc",
+                "OS": "windows",
+                "LastSeen": "2026-06-20T10:15:00Z",
+            }
+        }
+    }
+
+    peers = read_tailscale_peers(
+        subprocess_runner=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            [],
+            0,
+            __import__("json").dumps(payload),
+            "",
+        )
+    )
+
+    assert peers["100.64.10.50"].online is True
+    assert peers["100.64.10.50"].host_name == "main-pc"
+    assert peers["100.64.10.50"].os == "windows"
+    assert peers["100.64.10.50"].last_seen is not None
+
+
 def test_ip_neigh_unavailable_fallback() -> None:
     def _missing(*_args, **_kwargs):
         raise FileNotFoundError
@@ -113,6 +142,30 @@ def test_devices_endpoint_returns_known_devices(client, auth_headers, monkeypatc
     assert len(payload["devices"]) == 2
     assert payload["devices"][0]["name"] == "Debian Server"
     assert payload["devices"][1]["wol_enabled"] is True
+
+
+def test_devices_endpoint_includes_unconfigured_tailscale_peers(
+    client, auth_headers, monkeypatch
+) -> None:
+    from app.services.tailscale_peers import TailscalePeerStatus
+
+    monkeypatch.setattr("app.services.device_probe.probe_tcp", lambda *_args: (False, None))
+    monkeypatch.setattr(
+        "app.api.routes.devices.read_tailscale_peers",
+        lambda: {
+            "100.64.10.99": TailscalePeerStatus(
+                online=True,
+                host_name="tablet-peer",
+                os="android",
+            )
+        },
+    )
+
+    response = client.get("/api/devices", headers=auth_headers)
+
+    assert response.status_code == 200
+    names = [item["name"] for item in response.json()["devices"]]
+    assert "tablet-peer" in names
 
 
 def test_neighbors_endpoint_returns_notice(client, auth_headers, monkeypatch) -> None:

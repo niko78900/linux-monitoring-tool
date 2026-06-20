@@ -44,6 +44,7 @@ async def probe_known_devices(
     devices = await asyncio.gather(
         *[probe_device(config, tailscale_peers=peers) for config in configs]
     )
+    devices.extend(_peer_only_devices(configs, peers))
     return DevicesResponse(devices=devices)
 
 
@@ -95,6 +96,56 @@ async def probe_device(
         probes=probe_results,
         probe_summary="; ".join(summary_parts),
     )
+
+
+def _peer_only_devices(
+    configs: list[KnownDeviceConfig],
+    peers: dict[str, TailscalePeerStatus],
+) -> list[KnownDeviceStatus]:
+    configured_ips = {
+        config.tailscale_ip for config in configs if config.tailscale_ip is not None
+    }
+    configured_names = {
+        _normalize_name(value)
+        for config in configs
+        for value in (config.id, config.name)
+        if value
+    }
+    now = datetime.now(timezone.utc)
+    devices: list[KnownDeviceStatus] = []
+    seen_ids: set[str] = set()
+    for ip_address, peer in sorted(peers.items()):
+        normalized_host = _normalize_name(peer.host_name)
+        if ip_address in configured_ips or normalized_host in configured_names:
+            continue
+        device_id = f"tailscale-{_normalize_name(peer.host_name) or ip_address.replace('.', '-')}"
+        if device_id in seen_ids:
+            continue
+        seen_ids.add(device_id)
+        name = peer.host_name or ip_address
+        devices.append(
+            KnownDeviceStatus(
+                id=device_id,
+                name=name,
+                category="other",
+                lan_ip=None,
+                tailscale_ip=ip_address,
+                online=peer.online,
+                latency_ms=None,
+                last_checked=now,
+                last_seen=peer.last_seen if peer.last_seen is not None else (now if peer.online else None),
+                wol_enabled=False,
+                wake_action=None,
+                notes=f"Tailscale peer{f' ({peer.os})' if peer.os else ''}",
+                probes=[],
+                probe_summary=f"Tailscale peer {'online' if peer.online else 'offline'}",
+            )
+        )
+    return devices
+
+
+def _normalize_name(value: str | None) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (value or "").strip().lower()).strip("-")
 
 
 async def run_probe(

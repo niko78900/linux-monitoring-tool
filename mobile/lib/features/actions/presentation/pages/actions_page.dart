@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/config/app_settings.dart';
 import '../../../../core/errors/app_exception.dart';
@@ -11,6 +13,8 @@ import '../../../../core/widgets/section_card.dart';
 import '../../../../core/widgets/status_badge.dart';
 import '../../../../core/widgets/status_tone.dart';
 import '../../../network/data/control_api_client.dart';
+import '../../../network/domain/models/device_models.dart';
+import '../../../network/presentation/providers/control_providers.dart';
 
 class ActionsPage extends ConsumerStatefulWidget {
   const ActionsPage({super.key});
@@ -76,8 +80,15 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
+        _MainPcQuickActions(
+          testing: _testing,
+          waking: _waking,
+          onTestControl: () => _testControl(settings),
+          onWake: () => _confirmWake(settings),
+        ),
+        const SizedBox(height: AppSpacing.lg),
         SectionCard(
-          title: 'Wake Main PC',
+          title: 'Control Agent',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -91,9 +102,7 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
                 ],
               ),
               const SizedBox(height: AppSpacing.md),
-              const Text(
-                'This action is fixed server-side. The mobile app does not send a MAC address.',
-              ),
+              const Text('Privileged requests are fixed server-side.'),
               const SizedBox(height: AppSpacing.lg),
               Wrap(
                 spacing: AppSpacing.sm,
@@ -243,4 +252,121 @@ enum _ControlStatus {
 
   final String label;
   final StatusTone tone;
+}
+
+class _MainPcQuickActions extends ConsumerWidget {
+  const _MainPcQuickActions({
+    required this.testing,
+    required this.waking,
+    required this.onTestControl,
+    required this.onWake,
+  });
+
+  final bool testing;
+  final bool waking;
+  final VoidCallback onTestControl;
+  final VoidCallback onWake;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final devicesState = ref.watch(devicesDashboardProvider);
+    final mainPc = devicesState.maybeWhen(
+      data: (dashboard) => _findMainPc(dashboard.devices),
+      orElse: () => null,
+    );
+    final ip = mainPc?.preferredIp;
+    return SectionCard(
+      title: 'Main PC quick actions',
+      trailing: StatusBadge(
+        label: mainPc == null
+            ? 'Unknown'
+            : mainPc.online
+            ? 'Online'
+            : 'Offline',
+        tone: mainPc == null
+            ? StatusTone.unknown
+            : mainPc.online
+            ? StatusTone.healthy
+            : StatusTone.offline,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(ip == null ? 'Main PC IP not configured.' : 'Target: $ip'),
+          if (mainPc?.probeSummary case final summary?)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              child: Text(summary),
+            ),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              FilledButton.icon(
+                onPressed: waking ? null : onWake,
+                icon: const Icon(Icons.power_settings_new),
+                label: Text(waking ? 'Sending...' : 'Wake Main PC'),
+              ),
+              OutlinedButton.icon(
+                onPressed: ip == null ? null : () => _openRdp(context, ip),
+                icon: const Icon(Icons.desktop_windows),
+                label: const Text('Open RDP'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => context.go('/terminal'),
+                icon: const Icon(Icons.terminal),
+                label: const Text('SSH to Main PC'),
+              ),
+              OutlinedButton.icon(
+                onPressed: ip == null ? null : () => _copyIp(context, ip),
+                icon: const Icon(Icons.copy),
+                label: const Text('Copy Main PC IP'),
+              ),
+              OutlinedButton.icon(
+                onPressed: testing
+                    ? null
+                    : () {
+                        ref.invalidate(devicesDashboardProvider);
+                        onTestControl();
+                      },
+                icon: const Icon(Icons.network_check),
+                label: Text(testing ? 'Checking...' : 'Check status'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  KnownDevice? _findMainPc(List<KnownDevice> devices) {
+    for (final device in devices) {
+      final id = device.id.toLowerCase();
+      final name = device.name.toLowerCase();
+      if (id == 'main-pc' || name == 'main pc') {
+        return device;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _openRdp(BuildContext context, String host) async {
+    final uri = Uri.parse('ms-rd:connect?full%20address=s:$host');
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No RDP app could open this host.')),
+      );
+    }
+  }
+
+  Future<void> _copyIp(BuildContext context, String ip) async {
+    await Clipboard.setData(ClipboardData(text: ip));
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Main PC IP copied.')));
+    }
+  }
 }

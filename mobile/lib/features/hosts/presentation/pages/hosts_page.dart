@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -159,6 +161,10 @@ class ManagedHostCard extends StatelessWidget {
                 child: const Text('Overview'),
               ),
               TextButton(
+                onPressed: () => context.go('/hardware'),
+                child: const Text('Hardware'),
+              ),
+              TextButton(
                 onPressed: () => context.go('/history'),
                 child: const Text('History'),
               ),
@@ -176,6 +182,26 @@ class ManagedHostCard extends StatelessWidget {
                 onPressed: () => context.go('/files'),
                 child: const Text('Files'),
               ),
+              TextButton(
+                onPressed: host.capabilities.contains('wake_on_lan')
+                    ? () => context.go('/actions')
+                    : null,
+                child: const Text('Wake'),
+              ),
+              TextButton(
+                onPressed:
+                    host.capabilities.contains('rdp') &&
+                        host.preferredIp != null
+                    ? () => _openRdp(context, host.preferredIp!)
+                    : null,
+                child: const Text('RDP'),
+              ),
+              TextButton(
+                onPressed: host.preferredIp == null
+                    ? null
+                    : () => _copyIp(context, host.preferredIp!),
+                child: const Text('Copy IP'),
+              ),
             ],
           ),
         ],
@@ -188,6 +214,25 @@ class ManagedHostCard extends StatelessWidget {
       return 'N/A';
     }
     return DateFormat.yMd().add_Hm().format(value.toLocal());
+  }
+
+  Future<void> _openRdp(BuildContext context, String host) async {
+    final uri = Uri.parse('ms-rd:connect?full%20address=s:$host');
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No RDP app could open this host.')),
+      );
+    }
+  }
+
+  Future<void> _copyIp(BuildContext context, String ip) async {
+    await Clipboard.setData(ClipboardData(text: ip));
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('IP copied.')));
+    }
   }
 }
 

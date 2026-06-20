@@ -33,11 +33,10 @@ class ControlRepository {
   Future<DevicesDashboard> fetchDevicesDashboard() async {
     final client = await _client();
     final devices = await client.getDevices();
-    final neighbors = await client.getNeighbors();
     return DevicesDashboard(
       devices: devices,
-      neighbors: neighbors.neighbors,
-      neighborsNotice: neighbors.notice,
+      neighbors: const [],
+      neighborsNotice: '',
     );
   }
 
