@@ -33,11 +33,7 @@ class ControlRepository {
   Future<DevicesDashboard> fetchDevicesDashboard() async {
     final client = await _client();
     final devices = await client.getDevices();
-    return DevicesDashboard(
-      devices: devices,
-      neighbors: const [],
-      neighborsNotice: '',
-    );
+    return DevicesDashboard(devices: devices);
   }
 
   Future<WakeActionResult> wakeMainPc() async {

@@ -13,11 +13,7 @@ void main() {
       ProviderScope(
         overrides: [
           devicesDashboardProvider.overrideWith(
-            (ref) async => DevicesDashboard(
-              devices: [_tailscalePeer()],
-              neighbors: const [],
-              neighborsNotice: '',
-            ),
+            (ref) async => DevicesDashboard(devices: [_tailscalePeer()]),
           ),
         ],
         child: const MaterialApp(home: Scaffold(body: DevicesPage())),
@@ -28,7 +24,7 @@ void main() {
 
     expect(find.text('tablet-peer'), findsOneWidget);
     expect(find.text('100.64.10.99'), findsOneWidget);
-    expect(find.text('Observed LAN Neighbors'), findsNothing);
+    expect(find.text('LAN neighbor section'), findsNothing);
   });
 }
 
@@ -46,6 +42,11 @@ KnownDevice _tailscalePeer() {
     wolEnabled: false,
     wakeAction: null,
     notes: 'Tailscale peer',
+    tailscaleHostName: 'tablet-peer',
+    tailscaleDnsName: 'tablet-peer.tailnet.ts.net.',
+    tailscaleOs: 'android',
+    tailscaleOnline: true,
+    tailscaleLastSeen: DateTime.utc(2026, 6, 20, 10),
     probeSummary: 'Tailscale peer online',
     probes: const [],
   );

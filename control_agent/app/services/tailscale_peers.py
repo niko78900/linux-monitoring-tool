@@ -7,16 +7,24 @@ from datetime import datetime
 
 
 @dataclass(frozen=True)
-class TailscalePeerStatus:
-    online: bool
+class TailscalePeer:
+    raw_id: str | None = None
     host_name: str | None = None
+    dns_name: str | None = None
+    tailscale_ips: tuple[str, ...] = ()
+    online: bool = False
     os: str | None = None
+    user: str | None = None
     last_seen: datetime | None = None
+    tags: tuple[str, ...] = ()
+
+
+TailscalePeerStatus = TailscalePeer
 
 
 def read_tailscale_peers(
     subprocess_runner=subprocess.run,
-) -> dict[str, TailscalePeerStatus]:
+) -> dict[str, TailscalePeer]:
     try:
         result = subprocess_runner(
             ["tailscale", "status", "--json"],
@@ -33,20 +41,35 @@ def read_tailscale_peers(
     except json.JSONDecodeError:
         return {}
 
-    peers: dict[str, TailscalePeerStatus] = {}
-    for peer in payload.get("Peer", {}).values():
-        tailscale_ips = peer.get("TailscaleIPs") or []
+    raw_peers = payload.get("Peer", {})
+    if not isinstance(raw_peers, dict):
+        return {}
+
+    peers: dict[str, TailscalePeer] = {}
+    for raw_id, peer in raw_peers.items():
+        if not isinstance(peer, dict):
+            continue
+        tailscale_ips = tuple(str(value) for value in (peer.get("TailscaleIPs") or []))
         if not tailscale_ips:
             continue
-        status = TailscalePeerStatus(
+        status = TailscalePeer(
+            raw_id=str(raw_id),
+            host_name=_optional_string(peer.get("HostName")),
+            dns_name=_optional_string(peer.get("DNSName")),
+            tailscale_ips=tailscale_ips,
             online=bool(peer.get("Online", False)),
-            host_name=peer.get("HostName"),
-            os=peer.get("OS"),
+            os=_optional_string(peer.get("OS")),
+            user=_optional_string(peer.get("User")),
             last_seen=_parse_datetime(peer.get("LastSeen")),
+            tags=tuple(str(value) for value in (peer.get("Tags") or [])),
         )
         for ip_address in tailscale_ips:
-            peers[str(ip_address)] = status
+            peers[ip_address] = status
     return peers
+
+
+def _optional_string(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
 
 
 def _parse_datetime(value: object) -> datetime | None:

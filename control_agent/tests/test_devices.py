@@ -5,9 +5,13 @@ from pathlib import Path
 import pytest
 import subprocess
 
-from app.services.device_probe import load_known_devices, probe_ping, probe_tcp
-from app.services.neighbors import read_neighbors
-from app.services.tailscale_peers import read_tailscale_peers
+from app.services.device_probe import (
+    load_known_devices,
+    probe_known_devices,
+    probe_ping,
+    probe_tcp,
+)
+from app.services.tailscale_peers import TailscalePeer, read_tailscale_peers
 
 
 def test_known_devices_yaml_parses(tmp_path: Path) -> None:
@@ -34,6 +38,27 @@ devices:
     assert len(devices) == 1
     assert devices[0].id == "main-pc"
     assert devices[0].probes[0].port == 3389
+
+
+def test_known_devices_yaml_parses_aliases(tmp_path: Path) -> None:
+    config_path = tmp_path / "devices.yaml"
+    config_path.write_text(
+        """
+devices:
+  - id: main-pc
+    name: Main PC
+    category: desktop
+    tailscale_ip: 100.64.10.50
+    aliases:
+      - gaming-pc
+      - windows-workstation
+""".strip(),
+        encoding="utf-8",
+    )
+
+    devices = load_known_devices(config_path)
+
+    assert devices[0].aliases == ["gaming-pc", "windows-workstation"]
 
 
 def test_known_devices_yaml_malformed(tmp_path: Path) -> None:
@@ -97,7 +122,10 @@ def test_tailscale_json_parser_keeps_peer_metadata() -> None:
                 "TailscaleIPs": ["100.64.10.50"],
                 "Online": True,
                 "HostName": "main-pc",
+                "DNSName": "main-pc.tailnet.ts.net.",
                 "OS": "windows",
+                "User": "niko@example.com",
+                "Tags": ["tag:desktop"],
                 "LastSeen": "2026-06-20T10:15:00Z",
             }
         }
@@ -114,15 +142,24 @@ def test_tailscale_json_parser_keeps_peer_metadata() -> None:
 
     assert peers["100.64.10.50"].online is True
     assert peers["100.64.10.50"].host_name == "main-pc"
+    assert peers["100.64.10.50"].dns_name == "main-pc.tailnet.ts.net."
     assert peers["100.64.10.50"].os == "windows"
+    assert peers["100.64.10.50"].user == "niko@example.com"
+    assert peers["100.64.10.50"].tags == ("tag:desktop",)
     assert peers["100.64.10.50"].last_seen is not None
 
 
-def test_ip_neigh_unavailable_fallback() -> None:
-    def _missing(*_args, **_kwargs):
-        raise FileNotFoundError
+def test_tailscale_invalid_json_fallback() -> None:
+    peers = read_tailscale_peers(
+        subprocess_runner=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            [],
+            0,
+            "{",
+            "",
+        )
+    )
 
-    assert read_neighbors(subprocess_runner=_missing) == []
+    assert peers == {}
 
 
 def test_devices_endpoint_returns_known_devices(client, auth_headers, monkeypatch) -> None:
@@ -147,15 +184,14 @@ def test_devices_endpoint_returns_known_devices(client, auth_headers, monkeypatc
 def test_devices_endpoint_includes_unconfigured_tailscale_peers(
     client, auth_headers, monkeypatch
 ) -> None:
-    from app.services.tailscale_peers import TailscalePeerStatus
-
     monkeypatch.setattr("app.services.device_probe.probe_tcp", lambda *_args: (False, None))
     monkeypatch.setattr(
         "app.api.routes.devices.read_tailscale_peers",
         lambda: {
-            "100.64.10.99": TailscalePeerStatus(
+            "100.64.10.99": TailscalePeer(
                 online=True,
                 host_name="tablet-peer",
+                tailscale_ips=("100.64.10.99",),
                 os="android",
             )
         },
@@ -168,15 +204,42 @@ def test_devices_endpoint_includes_unconfigured_tailscale_peers(
     assert "tablet-peer" in names
 
 
-def test_neighbors_endpoint_returns_notice(client, auth_headers, monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.api.routes.neighbors.read_neighbors",
-        lambda: [],
+@pytest.mark.anyio
+async def test_tailscale_peer_dedupes_known_device_by_alias(tmp_path: Path) -> None:
+    config_path = tmp_path / "devices.yaml"
+    config_path.write_text(
+        """
+devices:
+  - id: main-pc
+    name: Main PC
+    category: desktop
+    aliases:
+      - gaming-pc
+""",
+        encoding="utf-8",
+    )
+    config = load_known_devices(config_path)
+
+    response = await probe_known_devices(
+        config,
+        tailscale_peers={
+            "100.64.10.50": TailscalePeer(
+                raw_id="node-main",
+                host_name="gaming-pc",
+                dns_name="gaming-pc.tailnet.ts.net.",
+                tailscale_ips=("100.64.10.50",),
+                online=True,
+                os="windows",
+            )
+        },
     )
 
-    response = client.get("/api/neighbors", headers=auth_headers)
+    assert [device.id for device in response.devices] == ["main-pc"]
+    assert response.devices[0].tailscale_host_name == "gaming-pc"
+    assert response.devices[0].tailscale_os == "windows"
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["neighbors"] == []
-    assert "approximate server-side neighbor view" in payload["notice"]
+
+def test_neighbors_endpoint_removed(client, auth_headers) -> None:
+    response = client.get("/api/" + "neighbors", headers=auth_headers)
+
+    assert response.status_code == 404

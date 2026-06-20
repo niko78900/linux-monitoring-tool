@@ -4,6 +4,9 @@ devices:
     category: server
     lan_ip: 192.168.1.10
     tailscale_ip: 100.64.10.22
+    aliases:
+      - homelab-server
+      - debian-server
     notes: Primary monitoring host
     probes:
       - type: tcp
@@ -14,6 +17,10 @@ devices:
     category: desktop
     lan_ip: 192.168.1.50
     tailscale_ip: 100.64.10.50
+    aliases:
+      - main-pc
+      - gaming-pc
+      - windows-workstation
     wol_enabled: true
     wake_action: wake-main-pc
     probes:

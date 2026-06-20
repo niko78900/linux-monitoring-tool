@@ -18,7 +18,7 @@ from ..models.devices import (
     KnownDevicesConfigDocument,
     KnownDeviceStatus,
 )
-from .tailscale_peers import TailscalePeerStatus
+from .tailscale_peers import TailscalePeer
 
 
 def load_known_devices(path: Path) -> list[KnownDeviceConfig]:
@@ -38,7 +38,7 @@ def load_known_devices(path: Path) -> list[KnownDeviceConfig]:
 
 async def probe_known_devices(
     configs: list[KnownDeviceConfig],
-    tailscale_peers: dict[str, TailscalePeerStatus] | None = None,
+    tailscale_peers: dict[str, TailscalePeer] | None = None,
 ) -> DevicesResponse:
     peers = tailscale_peers or {}
     devices = await asyncio.gather(
@@ -50,7 +50,7 @@ async def probe_known_devices(
 
 async def probe_device(
     config: KnownDeviceConfig,
-    tailscale_peers: dict[str, TailscalePeerStatus] | None = None,
+    tailscale_peers: dict[str, TailscalePeer] | None = None,
 ) -> KnownDeviceStatus:
     peers = tailscale_peers or {}
     probe_tasks = [run_probe(config, probe) for probe in config.probes]
@@ -62,10 +62,9 @@ async def probe_device(
         None,
     )
 
-    peer_status = None
-    if config.tailscale_ip:
-        peer_status = peers.get(config.tailscale_ip)
-        if peer_status and peer_status.online:
+    peer_status = _find_peer_for_config(config, peers)
+    if peer_status is not None:
+        if peer_status.online:
             online = True
 
     checked_at = datetime.now(timezone.utc)
@@ -93,6 +92,11 @@ async def probe_device(
         wol_enabled=config.wol_enabled,
         wake_action=config.wake_action,
         notes=config.notes,
+        tailscale_host_name=peer_status.host_name if peer_status else None,
+        tailscale_dns_name=peer_status.dns_name if peer_status else None,
+        tailscale_os=peer_status.os if peer_status else None,
+        tailscale_online=peer_status.online if peer_status else None,
+        tailscale_last_seen=peer_status.last_seen if peer_status else None,
         probes=probe_results,
         probe_summary="; ".join(summary_parts),
     )
@@ -100,36 +104,34 @@ async def probe_device(
 
 def _peer_only_devices(
     configs: list[KnownDeviceConfig],
-    peers: dict[str, TailscalePeerStatus],
+    peers: dict[str, TailscalePeer],
 ) -> list[KnownDeviceStatus]:
-    configured_ips = {
-        config.tailscale_ip for config in configs if config.tailscale_ip is not None
-    }
-    configured_names = {
-        _normalize_name(value)
+    configured_peer_keys = {
+        _peer_key(peer, fallback_ip=config.tailscale_ip)
         for config in configs
-        for value in (config.id, config.name)
-        if value
+        if (peer := _find_peer_for_config(config, peers)) is not None
     }
     now = datetime.now(timezone.utc)
     devices: list[KnownDeviceStatus] = []
     seen_ids: set[str] = set()
+    seen_peer_keys: set[str] = set()
     for ip_address, peer in sorted(peers.items()):
-        normalized_host = _normalize_name(peer.host_name)
-        if ip_address in configured_ips or normalized_host in configured_names:
+        peer_key = _peer_key(peer, fallback_ip=ip_address)
+        if peer_key in configured_peer_keys or peer_key in seen_peer_keys:
             continue
-        device_id = f"tailscale-{_normalize_name(peer.host_name) or ip_address.replace('.', '-')}"
+        seen_peer_keys.add(peer_key)
+        device_id = f"tailscale-{_normalize_name(peer.host_name or peer.dns_name) or ip_address.replace('.', '-')}"
         if device_id in seen_ids:
             continue
         seen_ids.add(device_id)
-        name = peer.host_name or ip_address
+        name = peer.host_name or peer.dns_name or ip_address
         devices.append(
             KnownDeviceStatus(
                 id=device_id,
                 name=name,
                 category="other",
                 lan_ip=None,
-                tailscale_ip=ip_address,
+                tailscale_ip=peer.tailscale_ips[0] if peer.tailscale_ips else ip_address,
                 online=peer.online,
                 latency_ms=None,
                 last_checked=now,
@@ -137,11 +139,62 @@ def _peer_only_devices(
                 wol_enabled=False,
                 wake_action=None,
                 notes=f"Tailscale peer{f' ({peer.os})' if peer.os else ''}",
+                tailscale_host_name=peer.host_name,
+                tailscale_dns_name=peer.dns_name,
+                tailscale_os=peer.os,
+                tailscale_online=peer.online,
+                tailscale_last_seen=peer.last_seen,
                 probes=[],
                 probe_summary=f"Tailscale peer {'online' if peer.online else 'offline'}",
             )
         )
     return devices
+
+
+def _find_peer_for_config(
+    config: KnownDeviceConfig,
+    peers: dict[str, TailscalePeer],
+) -> TailscalePeer | None:
+    if config.tailscale_ip:
+        peer = peers.get(config.tailscale_ip)
+        if peer is not None:
+            return peer
+
+    config_tokens = _config_identity_tokens(config)
+    for peer in peers.values():
+        if config.tailscale_ip and config.tailscale_ip in peer.tailscale_ips:
+            return peer
+        if config_tokens.intersection(_peer_identity_tokens(peer)):
+            return peer
+    return None
+
+
+def _config_identity_tokens(config: KnownDeviceConfig) -> set[str]:
+    return {
+        normalized
+        for value in (config.id, config.name, *config.aliases)
+        if (normalized := _normalize_name(value))
+    }
+
+
+def _peer_identity_tokens(peer: TailscalePeer) -> set[str]:
+    values = [peer.host_name, peer.dns_name, peer.raw_id]
+    if peer.dns_name and "." in peer.dns_name:
+        values.append(peer.dns_name.split(".", 1)[0])
+    return {
+        normalized for value in values if (normalized := _normalize_name(value))
+    }
+
+
+def _peer_key(peer: TailscalePeer, fallback_ip: str | None) -> str:
+    return (
+        peer.raw_id
+        or peer.dns_name
+        or peer.host_name
+        or (peer.tailscale_ips[0] if peer.tailscale_ips else None)
+        or fallback_ip
+        or "unknown"
+    )
 
 
 def _normalize_name(value: str | None) -> str:
