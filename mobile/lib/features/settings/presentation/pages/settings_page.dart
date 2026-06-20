@@ -385,6 +385,25 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<SftpBackgroundTimeout>(
+                initialValue: settings.sftpBackgroundTimeout,
+                decoration: const InputDecoration(
+                  labelText: 'SFTP background timeout',
+                ),
+                items: [
+                  for (final timeout in SftpBackgroundTimeout.values)
+                    DropdownMenuItem(
+                      value: timeout,
+                      child: Text(timeout.label),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    _save(settings.copyWith(sftpBackgroundTimeout: value));
+                  }
+                },
+              ),
+              const SizedBox(height: AppSpacing.md),
               _InfoLine(
                 label: 'Imported key',
                 value: _sftpKeySummary ?? 'No key imported',

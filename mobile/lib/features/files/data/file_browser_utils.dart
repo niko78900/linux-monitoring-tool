@@ -4,7 +4,7 @@ import '../../../core/config/app_settings.dart';
 import '../../../core/utils/path_safety.dart';
 
 const maxImagePreviewBytes = 25 * 1024 * 1024;
-const maxTextPreviewBytes = 1024 * 1024;
+const maxTextPreviewBytes = 512 * 1024;
 const defaultSearchDepthLimit = 8;
 const defaultSearchResultLimit = 500;
 
@@ -33,6 +33,33 @@ bool isTextPreviewable(String fileName) {
     'conf',
     'ini',
     'csv',
+    'xml',
+    'py',
+    'js',
+    'ts',
+    'dart',
+    'java',
+    'cs',
+    'cpp',
+    'c',
+    'h',
+    'html',
+    'css',
+    'sh',
+    'ps1',
+    'sql',
+  ]);
+}
+
+bool isExternalPreviewable(String fileName) {
+  return _matchesExtension(fileName, const [
+    'pdf',
+    'docx',
+    'doc',
+    'pptx',
+    'ppt',
+    'xlsx',
+    'xls',
   ]);
 }
 

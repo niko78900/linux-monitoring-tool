@@ -54,6 +54,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
   List<RecentDownloadRecord> _recentDownloads = const [];
   final Map<String, DownloadCancellationToken> _tokens =
       <String, DownloadCancellationToken>{};
+  Timer? _backgroundDisconnectTimer;
   String? _activeTransferId;
   _FilesSort _sort = _FilesSort.name;
   bool _searchingRemote = false;
@@ -67,6 +68,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _backgroundDisconnectTimer?.cancel();
     _searchController.dispose();
     _cancelOutstandingTransfers(mutateState: false);
     final connection = _connection;
@@ -83,11 +85,11 @@ class _FilesPageState extends ConsumerState<FilesPage>
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
-      unawaited(
-        _disconnect(
-          message: 'SFTP session closed after the app moved to background.',
-        ),
-      );
+      _handleBackgrounded();
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      _cancelBackgroundDisconnect();
     }
   }
 
@@ -401,6 +403,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
   }
 
   Future<void> _connect(AppSettings settings) async {
+    _backgroundDisconnectTimer?.cancel();
     final profile = settings.sftpProfile;
     final root = normalizeVirtualPath(
       settings.sftpVirtualRoot,
@@ -440,6 +443,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
   }
 
   Future<void> _disconnect({String? message, bool clearMessage = false}) async {
+    _backgroundDisconnectTimer?.cancel();
     _cancelOutstandingTransfers();
     final connection = _connection;
     _connection = null;
@@ -844,9 +848,22 @@ class _FilesPageState extends ConsumerState<FilesPage>
             title: Text(entry.name),
             content: SizedBox(
               width: 720,
-              child: SingleChildScrollView(child: SelectableText(text)),
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  text,
+                  style: const TextStyle(fontFamily: 'monospace'),
+                ),
+              ),
             ),
             actions: [
+              TextButton(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: text));
+                  Navigator.of(context).pop();
+                  _showSnackBar('Preview text copied.');
+                },
+                child: const Text('Copy'),
+              ),
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('Close'),
@@ -854,6 +871,17 @@ class _FilesPageState extends ConsumerState<FilesPage>
             ],
           ),
         );
+        return;
+      }
+
+      if (isExternalPreviewable(entry.name)) {
+        final path = await previewService.cacheRemoteFile(
+          sftp: _connection!.sftp,
+          remotePath: entry.path,
+          fileName: entry.name,
+          sizeBytes: entry.sizeBytes,
+        );
+        await _openLocalPath(path);
         return;
       }
 
@@ -868,10 +896,92 @@ class _FilesPageState extends ConsumerState<FilesPage>
         return;
       }
 
-      _showSnackBar('Preview is unavailable for this file type.');
+      await _showUnsupportedPreviewDialog(entry);
     } catch (error) {
       _showSnackBar(_describeError(error));
     }
+  }
+
+  void _handleBackgrounded() {
+    if (_connection == null) {
+      return;
+    }
+    final timeout = ref.read(settingsControllerProvider).sftpBackgroundTimeout;
+    _backgroundDisconnectTimer?.cancel();
+    if (timeout == SftpBackgroundTimeout.immediate) {
+      unawaited(
+        _disconnect(
+          message: 'SFTP session closed after the app moved to background.',
+        ),
+      );
+      return;
+    }
+    final duration = timeout.duration;
+    if (duration == null) {
+      if (mounted) {
+        setState(() {
+          _message = 'SFTP remains connected in background.';
+        });
+      }
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _status = _FilesStatus.backgroundPending;
+        _message = 'Background disconnect scheduled in ${timeout.label}.';
+      });
+    }
+    _backgroundDisconnectTimer = Timer(duration, () {
+      unawaited(
+        _disconnect(
+          message: 'SFTP disconnected after ${timeout.label} in background.',
+        ),
+      );
+    });
+  }
+
+  void _cancelBackgroundDisconnect() {
+    final hadTimer = _backgroundDisconnectTimer != null;
+    _backgroundDisconnectTimer?.cancel();
+    _backgroundDisconnectTimer = null;
+    if (hadTimer && mounted && _connection != null) {
+      setState(() {
+        _status = _FilesStatus.connected;
+        _message = 'SFTP background timeout cancelled.';
+      });
+    }
+  }
+
+  Future<void> _showUnsupportedPreviewDialog(RemoteFileEntry entry) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(entry.name),
+        content: const Text(
+          'Preview is unavailable for this file type. You can still download it or copy the remote path.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _copyPath(entry.path);
+            },
+            child: const Text('Copy path'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _enqueueDownload(entry);
+            },
+            child: const Text('Download'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _promptRecursiveSearch(String root) async {
@@ -1347,6 +1457,7 @@ enum _FilesStatus {
   disconnected('Disconnected', StatusTone.offline),
   connecting('Connecting', StatusTone.warning),
   connected('Connected', StatusTone.healthy),
+  backgroundPending('Background timeout pending', StatusTone.warning),
   error('Blocked', StatusTone.critical);
 
   const _FilesStatus(this.label, this.tone);

@@ -30,6 +30,7 @@ class AppSettings {
     required this.allowSftpRename,
     required this.allowSftpMove,
     required this.allowSftpSoftDelete,
+    required this.sftpBackgroundTimeout,
     required this.widgetStorageMountpoint,
     required this.widgetStorageLabel,
     required this.widgetSecondaryStorageMountpoint,
@@ -63,6 +64,7 @@ class AppSettings {
       allowSftpRename: false,
       allowSftpMove: false,
       allowSftpSoftDelete: false,
+      sftpBackgroundTimeout: SftpBackgroundTimeout.fiveMinutes,
       widgetStorageMountpoint: '/mnt/storage',
       widgetStorageLabel: 'Cold Storage',
       widgetSecondaryStorageMountpoint: '/mnt/warm',
@@ -95,6 +97,7 @@ class AppSettings {
   final bool allowSftpRename;
   final bool allowSftpMove;
   final bool allowSftpSoftDelete;
+  final SftpBackgroundTimeout sftpBackgroundTimeout;
   final String widgetStorageMountpoint;
   final String widgetStorageLabel;
   final String widgetSecondaryStorageMountpoint;
@@ -126,6 +129,7 @@ class AppSettings {
     bool? allowSftpRename,
     bool? allowSftpMove,
     bool? allowSftpSoftDelete,
+    SftpBackgroundTimeout? sftpBackgroundTimeout,
     String? widgetStorageMountpoint,
     String? widgetStorageLabel,
     String? widgetSecondaryStorageMountpoint,
@@ -160,6 +164,8 @@ class AppSettings {
       allowSftpRename: allowSftpRename ?? this.allowSftpRename,
       allowSftpMove: allowSftpMove ?? this.allowSftpMove,
       allowSftpSoftDelete: allowSftpSoftDelete ?? this.allowSftpSoftDelete,
+      sftpBackgroundTimeout:
+          sftpBackgroundTimeout ?? this.sftpBackgroundTimeout,
       widgetStorageMountpoint:
           widgetStorageMountpoint ?? this.widgetStorageMountpoint,
       widgetStorageLabel: widgetStorageLabel ?? this.widgetStorageLabel,
@@ -201,6 +207,27 @@ enum PrivilegedUnlockTimeout {
     return PrivilegedUnlockTimeout.values.firstWhere(
       (value) => value.name == name,
       orElse: () => PrivilegedUnlockTimeout.fiveMinutes,
+    );
+  }
+}
+
+enum SftpBackgroundTimeout {
+  immediate('Disconnect immediately', null),
+  oneMinute('1 minute', Duration(minutes: 1)),
+  fiveMinutes('5 minutes', Duration(minutes: 5)),
+  fifteenMinutes('15 minutes', Duration(minutes: 15)),
+  thirtyMinutes('30 minutes', Duration(minutes: 30)),
+  manual('Keep until manually disconnected', null);
+
+  const SftpBackgroundTimeout(this.label, this.duration);
+
+  final String label;
+  final Duration? duration;
+
+  static SftpBackgroundTimeout fromName(String? name) {
+    return SftpBackgroundTimeout.values.firstWhere(
+      (value) => value.name == name,
+      orElse: () => SftpBackgroundTimeout.fiveMinutes,
     );
   }
 }
@@ -326,6 +353,10 @@ class SettingsController extends Notifier<AppSettings> {
     _preferences.setBool(
       _Keys.allowSftpSoftDelete,
       settings.allowSftpSoftDelete,
+    );
+    _preferences.setString(
+      _Keys.sftpBackgroundTimeout,
+      settings.sftpBackgroundTimeout.name,
     );
     _preferences.setString(
       _Keys.widgetStorageMountpoint,
@@ -454,6 +485,9 @@ AppSettings loadAppSettings(SharedPreferences preferences) {
     allowSftpSoftDelete:
         preferences.getBool(_Keys.allowSftpSoftDelete) ??
         defaults.allowSftpSoftDelete,
+    sftpBackgroundTimeout: SftpBackgroundTimeout.fromName(
+      preferences.getString(_Keys.sftpBackgroundTimeout),
+    ),
     widgetStorageMountpoint:
         preferences.getString(_Keys.widgetStorageMountpoint) ??
         defaults.widgetStorageMountpoint,
@@ -554,6 +588,7 @@ class _Keys {
   static const allowSftpRename = 'allowSftpRename';
   static const allowSftpMove = 'allowSftpMove';
   static const allowSftpSoftDelete = 'allowSftpSoftDelete';
+  static const sftpBackgroundTimeout = 'sftpBackgroundTimeout';
   static const widgetStorageMountpoint = 'widgetStorageMountpoint';
   static const widgetStorageLabel = 'widgetStorageLabel';
   static const widgetSecondaryStorageMountpoint =

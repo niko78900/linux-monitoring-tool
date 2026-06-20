@@ -21,7 +21,9 @@ class FilePreviewService {
     required int sizeBytes,
   }) async {
     if (sizeBytes > maxTextPreviewBytes) {
-      throw const FilePreviewException('Text preview exceeds the 1 MB limit.');
+      throw const FilePreviewException(
+        'Text preview exceeds the 512 KB limit.',
+      );
     }
     final remoteFile = await sftp.open(remotePath, mode: SftpFileOpenMode.read);
     try {

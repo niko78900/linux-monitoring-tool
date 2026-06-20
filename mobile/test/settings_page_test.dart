@@ -36,6 +36,32 @@ void main() {
     expect(find.text('Send test notification'), findsOneWidget);
   });
 
+  testWidgets('settings renders SFTP background timeout option', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'onboardingComplete': true,
+      'sftpBackgroundTimeout': 'fifteenMinutes',
+    });
+    final preferences = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+        child: const MaterialApp(home: Scaffold(body: SettingsPage())),
+      ),
+    );
+    await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('SFTP background timeout'),
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.text('SFTP background timeout'), findsOneWidget);
+    expect(find.text('15 minutes'), findsOneWidget);
+  });
+
   testWidgets('settings supports one and three second polling intervals', (
     tester,
   ) async {
