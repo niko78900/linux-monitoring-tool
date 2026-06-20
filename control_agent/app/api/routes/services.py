@@ -11,6 +11,7 @@ from ...models.services import (
     ServiceActionResponse,
 )
 from ...services.service_registry import (
+    ServiceActionStateStore,
     execute_service_action,
     get_service_status,
     list_service_statuses,
@@ -27,7 +28,10 @@ router = APIRouter(
 @router.get("", response_model=ManagedServicesResponse)
 def get_services(settings: Settings = Depends(get_settings)) -> ManagedServicesResponse:
     services = _load_services(settings)
-    return list_service_statuses(services)
+    return list_service_statuses(
+        services,
+        action_store=ServiceActionStateStore(settings.service_action_state_path),
+    )
 
 
 @router.get("/{service_id}", response_model=ManagedServiceStatus)
@@ -42,7 +46,10 @@ def get_service(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Service not found",
         )
-    return get_service_status(service)
+    return get_service_status(
+        service,
+        action_store=ServiceActionStateStore(settings.service_action_state_path),
+    )
 
 
 @router.post(
@@ -63,6 +70,7 @@ def post_service_action(
             action=action,
             helper_path=settings.service_control_helper_path,
             timeout_seconds=settings.service_command_timeout_seconds,
+            action_store=ServiceActionStateStore(settings.service_action_state_path),
         )
     except LookupError as error:
         raise HTTPException(
