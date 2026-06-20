@@ -31,6 +31,7 @@ import '../sections/push_alerts_settings_section.dart';
 import '../sections/tablet_settings_section.dart';
 import '../sections/terminal_settings_section.dart';
 import '../sections/widget_settings_section.dart';
+import '../widgets/private_key_paste_dialog.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -881,39 +882,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _pasteSshKey(AppSettings settings) async {
-    final controller = TextEditingController();
-    final contents = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Paste private key'),
-          content: SizedBox(
-            width: 560,
-            child: TextField(
-              controller: controller,
-              autofocus: true,
-              minLines: 12,
-              maxLines: 16,
-              decoration: const InputDecoration(
-                alignLabelWithHint: true,
-                labelText: 'PEM or OpenSSH private key',
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(controller.text),
-              child: const Text('Save key'),
-            ),
-          ],
-        );
-      },
+    final contents = await showPrivateKeyPasteDialog(
+      context,
+      title: 'Paste private key',
+      label: 'PEM or OpenSSH private key',
     );
-    controller.dispose();
     if (contents == null || contents.trim().isEmpty) {
       return;
     }
@@ -975,39 +948,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _pasteSftpKey(AppSettings settings) async {
-    final controller = TextEditingController();
-    final contents = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Paste restricted SFTP key'),
-          content: SizedBox(
-            width: 560,
-            child: TextField(
-              controller: controller,
-              autofocus: true,
-              minLines: 12,
-              maxLines: 16,
-              decoration: const InputDecoration(
-                alignLabelWithHint: true,
-                labelText: 'PEM or OpenSSH private key',
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(controller.text),
-              child: const Text('Save key'),
-            ),
-          ],
-        );
-      },
+    final contents = await showPrivateKeyPasteDialog(
+      context,
+      title: 'Paste restricted SFTP key',
+      label: 'PEM or OpenSSH private key',
     );
-    controller.dispose();
     if (contents == null || contents.trim().isEmpty) {
       return;
     }
