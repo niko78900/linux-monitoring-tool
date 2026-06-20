@@ -14,6 +14,8 @@ class MetricCard extends StatelessWidget {
     this.icon,
     this.progress,
     this.progressColor,
+    this.valueTone,
+    this.valueColor,
     this.maxValueLines = 1,
     this.valueOverflow = TextOverflow.ellipsis,
     this.onTap,
@@ -26,6 +28,8 @@ class MetricCard extends StatelessWidget {
   final IconData? icon;
   final double? progress;
   final Color? progressColor;
+  final StatusTone? valueTone;
+  final Color? valueColor;
   final int maxValueLines;
   final TextOverflow valueOverflow;
   final VoidCallback? onTap;
@@ -34,6 +38,9 @@ class MetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = toneColor(tone);
     final barColor = progressColor ?? color;
+    final effectiveValueColor =
+        valueColor ??
+        (valueTone == null ? Colors.white : toneColor(valueTone!));
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -66,7 +73,7 @@ class MetricCard extends StatelessWidget {
                 maxLines: maxValueLines,
                 overflow: valueOverflow,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Colors.white,
+                  color: effectiveValueColor,
                   fontWeight: FontWeight.w700,
                 ),
               ),

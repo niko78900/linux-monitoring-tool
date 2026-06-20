@@ -118,6 +118,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                 icon: Icons.speed,
                 progress: summary?.cpuPercent,
                 tone: _usageTone(summary?.cpuPercent),
+                valueTone: _usageTone(summary?.cpuPercent),
                 onTap: () => context.go('/hardware'),
               ),
               MetricCard(
@@ -125,6 +126,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                 value: formatTemperature(system?.cpu.temperatureC),
                 icon: Icons.thermostat,
                 tone: _temperatureTone(system?.cpu.temperatureC),
+                valueTone: _temperatureTone(system?.cpu.temperatureC),
                 onTap: () => context.go('/hardware'),
               ),
               MetricCard(
@@ -136,6 +138,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                 icon: Icons.memory,
                 progress: summary?.memoryPercent,
                 tone: _usageTone(summary?.memoryPercent),
+                valueTone: _usageTone(summary?.memoryPercent),
                 onTap: () => context.go('/hardware'),
               ),
               MetricCard(
@@ -147,6 +150,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                 icon: Icons.swap_horiz,
                 progress: system?.swap.percent,
                 tone: _usageTone(system?.swap.percent),
+                valueTone: _usageTone(system?.swap.percent),
                 onTap: () => context.go('/storage'),
               ),
               MetricCard(
@@ -158,6 +162,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                 icon: Icons.storage,
                 progress: summary?.diskPercent,
                 tone: _usageTone(summary?.diskPercent),
+                valueTone: _usageTone(summary?.diskPercent),
                 onTap: () => context.go('/storage'),
               ),
               if (gpu?.available == true)
@@ -167,6 +172,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                   icon: Icons.developer_board,
                   progress: gpu?.utilizationPercent,
                   tone: _usageTone(gpu?.utilizationPercent),
+                  valueTone: _usageTone(gpu?.utilizationPercent),
                   onTap: () => context.go('/gpu'),
                 ),
               if (gpu?.available == true)
@@ -175,6 +181,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                   value: formatTemperature(gpu?.temperatureC),
                   icon: Icons.device_thermostat,
                   tone: _temperatureTone(gpu?.temperatureC),
+                  valueTone: _temperatureTone(gpu?.temperatureC),
                   onTap: () => context.go('/gpu'),
                 ),
               if (gpu?.available == true)
@@ -186,6 +193,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                   icon: Icons.sd_storage,
                   progress: gpu?.memoryUsedPercent,
                   tone: _usageTone(gpu?.memoryUsedPercent),
+                  valueTone: _usageTone(gpu?.memoryUsedPercent),
                   onTap: () => context.go('/gpu'),
                 ),
               MetricCard(
@@ -408,5 +416,5 @@ StatusTone _usageTone(num? value) {
 }
 
 StatusTone _temperatureTone(num? value) {
-  return thresholdTone(value);
+  return temperatureTone(value);
 }

@@ -63,6 +63,7 @@ class GpuPage extends ConsumerWidget {
                   child: MetricCard(
                     title: 'Utilization',
                     value: formatPercent(gpu.utilizationPercent),
+                    valueTone: thresholdTone(gpu.utilizationPercent),
                     progress: gpu.utilizationPercent,
                     progressColor: toneColor(
                       thresholdTone(gpu.utilizationPercent),
@@ -74,6 +75,7 @@ class GpuPage extends ConsumerWidget {
                   child: MetricCard(
                     title: 'Temperature',
                     value: formatTemperature(gpu.temperatureC),
+                    valueTone: temperatureTone(gpu.temperatureC),
                   ),
                 ),
                 SizedBox(
@@ -81,6 +83,7 @@ class GpuPage extends ConsumerWidget {
                   child: MetricCard(
                     title: 'VRAM',
                     value: formatPercent(gpu.memoryUsedPercent),
+                    valueTone: thresholdTone(gpu.memoryUsedPercent),
                     subtitle:
                         '${formatMegabytes(gpu.memoryUsedMb)} / ${formatMegabytes(gpu.memoryTotalMb)}',
                     progress: gpu.memoryUsedPercent,

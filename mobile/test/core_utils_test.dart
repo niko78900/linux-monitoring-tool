@@ -117,4 +117,12 @@ void main() {
     expect(thresholdTone(80), StatusTone.warning);
     expect(thresholdTone(81), StatusTone.critical);
   });
+
+  test('temperature tone follows homelab thermal boundaries', () {
+    expect(temperatureTone(null), StatusTone.neutral);
+    expect(temperatureTone(69), StatusTone.healthy);
+    expect(temperatureTone(70), StatusTone.warning);
+    expect(temperatureTone(84), StatusTone.warning);
+    expect(temperatureTone(85), StatusTone.critical);
+  });
 }

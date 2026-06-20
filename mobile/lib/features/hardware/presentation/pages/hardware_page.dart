@@ -42,7 +42,7 @@ class HardwarePage extends ConsumerWidget {
                   label: 'Chassis Temp',
                   value: formatTemperature(system.chassisTemperatureC),
                   valueColor: toneColor(
-                    thresholdTone(system.chassisTemperatureC),
+                    temperatureTone(system.chassisTemperatureC),
                   ),
                 ),
               ],
@@ -77,7 +77,9 @@ class HardwarePage extends ConsumerWidget {
                 InfoRow(
                   label: 'Temperature',
                   value: formatTemperature(system.cpu.temperatureC),
-                  valueColor: toneColor(thresholdTone(system.cpu.temperatureC)),
+                  valueColor: toneColor(
+                    temperatureTone(system.cpu.temperatureC),
+                  ),
                 ),
                 InfoRow(
                   label: 'Min frequency',
