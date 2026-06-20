@@ -38,7 +38,7 @@ The local repository already contains:
 - an Android-only Flutter tablet app under `mobile/`
 - a restricted SSH terminal and restricted SFTP browser in the mobile app
 - a fixed allowlisted Wake-on-LAN action for Main PC
-- a known-devices dashboard backed by YAML plus optional observed neighbors
+- a known-devices dashboard backed by YAML plus an audit-time optional neighbor concept
 
 At audit time, the codebase did **not** yet contain:
 
@@ -162,11 +162,9 @@ Key files:
 - `control_agent/app/api/routes/health.py`
 - `control_agent/app/api/routes/actions.py`
 - `control_agent/app/api/routes/devices.py`
-- `control_agent/app/api/routes/neighbors.py`
 - `control_agent/app/services/wake_on_lan.py`
 - `control_agent/app/services/device_probe.py`
 - `control_agent/app/services/tailscale_peers.py`
-- `control_agent/app/services/neighbors.py`
 - `control_agent/config/known_devices.example.yaml`
 
 Behavior:
@@ -174,7 +172,7 @@ Behavior:
 - all current control endpoints require bearer-token auth
 - Wake-on-LAN is fixed to one server-side configured MAC address
 - known devices come from YAML, not discovery
-- observed neighbors come only from `ip neigh`
+- audit-time neighbor data came only from `ip neigh`
 
 ## Endpoint Inventory
 
@@ -203,9 +201,10 @@ Base prefix: `/api`
 | `GET` | `/health` | bearer token required | control-agent health |
 | `POST` | `/actions/wake-main-pc` | bearer token required | fixed Wake-on-LAN |
 | `GET` | `/devices` | bearer token required | known-device dashboard data |
-| `GET` | `/neighbors` | bearer token required | approximate neighbor view |
+At audit time there was also an approximate neighbor-view endpoint. That route
+has since been removed from the default control-agent API.
 
-There are no host endpoints and no service-control endpoints yet.
+At audit time there were no host endpoints and no service-control endpoints yet.
 
 ## Existing Data Models
 
@@ -431,7 +430,7 @@ Current device inventory shape:
 - static known devices only
 - categories include `server`, `desktop`, `laptop`, `tablet`, `phone`, `router`, `other`
 - optional `wol_enabled` plus `wake_action`
-- optional observed neighbors section from `ip neigh`
+- audit-time optional neighbor section from `ip neigh`
 
 This is not yet a generic managed-host model.
 

@@ -60,7 +60,7 @@ python mobile\tool\release_audit.py mobile\build\app\outputs\flutter-apk\app-rel
 [ ] Devices page shows configured known devices
 [ ] Devices page shows Tailscale peers from the control agent
 [ ] Known device and Tailscale peer duplicates are merged or clearly handled
-[ ] Devices page does not render Observed LAN Neighbors
+[ ] Devices page does not render a LAN-neighbor section
 [ ] Network page does not render Known Devices or scan sections
 ```
 

@@ -87,8 +87,10 @@ Control-agent endpoints under `/api`:
 - `GET /services/{service_id}`
 - `POST /services/{service_id}/actions/{action}`
 - `POST /actions/wake-main-pc`
-- `GET /neighbors` (legacy/optional; the tablet no longer shows LAN-neighbor
-  inventory)
+
+The old server-side neighbor inventory endpoint has been removed from the
+default control-agent API. Device inventory now comes from configured devices
+and Tailscale peer state.
 
 ## Mobile App
 
@@ -222,6 +224,13 @@ python -m pytest
 
 cd ..\backend
 python -m pytest
+```
+
+Core backend/control-agent/mobile checks can also be run without touching the
+Angular frontend:
+
+```bash
+./scripts/check-core.sh
 ```
 
 Additional checks when those areas change:

@@ -6,7 +6,7 @@ Current tablet behavior:
 
 - Devices shows configured known devices plus Tailscale peers from
   `tailscale status --json`.
-- Observed LAN Neighbors are no longer rendered in the tablet UI.
+- LAN-neighbor scan results are no longer rendered in the tablet UI.
 - The Network page is traffic/history only and does not show scan or inventory
   blocks.
 - The control agent still keeps the neighbor endpoint for compatibility, but it
