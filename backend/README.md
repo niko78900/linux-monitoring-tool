@@ -1,6 +1,18 @@
 # linux-monitor backend (FastAPI)
 
-Monitoring API for local-network dashboards, historical metrics, backend-owned alert evaluation, and mobile FCM delivery.
+Monitoring API for local-network dashboards, historical metrics, backend-owned
+alert evaluation, and mobile FCM delivery.
+
+Current scope:
+
+- read-only telemetry endpoints for system, GPU, Docker, summary, and history
+- backend-owned alert evaluation and alert-event persistence
+- scoped mobile-alert registration/test endpoints
+- Firebase Cloud Messaging delivery for tablet alerts
+- visible mount filtering for storage data shown in apps and widgets
+
+Privileged actions, Wake-on-LAN, managed hosts, Tailscale peers, and service
+controls belong to `control_agent/`, not this backend.
 
 ## Project layout
 
@@ -49,6 +61,8 @@ Adjust `.env` values if needed:
 - `CORS_ORIGINS`: comma-separated frontend origins
 - `CORS_ORIGIN_REGEX`: optional regex for additional frontend origins
 - `DISK_MOUNTPOINT`: disk mount to report (default `/`)
+- `VISIBLE_MOUNTPOINTS`: optional comma-separated exact allowlist, for example `/,/mnt/storage,/mnt/warm`
+- `IGNORED_MOUNT_PREFIXES_EXTRA`: optional comma-separated mount prefixes to hide, default includes `/srv/sftp`
 - `HOST`/`PORT`: bind address and port
 - `DOCKER_TIMEOUT_SECONDS`: Docker SDK timeout for daemon calls (default `3`)
 - `HISTORY_ENABLED`: enable or disable persistent history collection
@@ -127,7 +141,11 @@ curl -H "Authorization: Bearer <mobile-token>" http://localhost:4040/api/mobile-
   - `health.status` and `health.reason`
 - `network.top_speed_mbps`: highest detected link speed from network interfaces (if available)
 
-Disk list intentionally excludes pseudo/system mounts and EFI boot mountpoints such as `/boot/efi`.
+Disk list intentionally excludes pseudo/system mounts, EFI boot mountpoints such
+as `/boot/efi`, and the restricted SFTP bind-mount tree under `/srv/sftp` by
+default. Use `VISIBLE_MOUNTPOINTS=/,/mnt/storage,/mnt/warm` for a strict
+homelab allowlist, or extend `IGNORED_MOUNT_PREFIXES_EXTRA` for additional
+hidden bind-mount trees.
 
 ## Notes on permissions
 

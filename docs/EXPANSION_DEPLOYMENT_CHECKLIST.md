@@ -1,6 +1,8 @@
 # Expansion Deployment Checklist
 
-Use this after Phases B through H to validate the expanded homelab tablet stack before wider testing.
+Use this to validate the expanded homelab tablet stack before wider testing.
+Older phase labels remain in some historical docs, but this checklist is for
+the current repository state.
 
 ## Automated verification
 
@@ -37,6 +39,7 @@ python mobile\tool\release_audit.py mobile\build\app\outputs\flutter-apk\app-rel
 [ ] Retention days match operator expectations
 [ ] Backend restart preserves existing history rows
 [ ] 1h, 24h, 7d, and 30d history views load
+[ ] Network page Live, Day, Week, and Month range buttons load the expected live/history data
 [ ] History failures do not break live summary, system, GPU, or docker endpoints
 ```
 
@@ -48,6 +51,17 @@ python mobile\tool\release_audit.py mobile\build\app\outputs\flutter-apk\app-rel
 [ ] Homelab Server has an explicit `probes` entry for SSH TCP port 22
 [ ] Hosts without usable probes or peer data render as Unknown, not Unreachable
 [ ] Existing known-device Wake-on-LAN behavior still works
+[ ] Main PC RDP/SSH/copy/status actions render only from configured data
+```
+
+## Devices And Network
+
+```text
+[ ] Devices page shows configured known devices
+[ ] Devices page shows Tailscale peers from the control agent
+[ ] Known device and Tailscale peer duplicates are merged or clearly handled
+[ ] Devices page does not render Observed LAN Neighbors
+[ ] Network page does not render Known Devices or scan sections
 ```
 
 ## Services
@@ -59,6 +73,8 @@ python mobile\tool\release_audit.py mobile\build\app\outputs\flutter-apk\app-rel
 [ ] HFS start, stop, and restart work through the reviewed helper path
 [ ] Unknown service IDs are rejected
 [ ] Unknown actions are rejected
+[ ] Service cards show category, target, URL/port where configured
+[ ] Tapping a service opens the service detail dashboard
 [ ] No arbitrary command execution path was introduced
 ```
 
@@ -84,6 +100,9 @@ python mobile\tool\release_audit.py mobile\build\app\outputs\flutter-apk\app-rel
 [ ] Favorites persist across app restart
 [ ] Recent downloads persist across app restart
 [ ] Large text previews are rejected safely
+[ ] Text/code previews open for .txt and .py
+[ ] PDF/Office files use external open/download flow
+[ ] SFTP background timeout preserves or disconnects the session according to Settings
 [ ] Upload, rename, move, and soft delete remain disabled until explicitly enabled
 [ ] Soft delete moves files into `.tablet-trash`
 ```
@@ -103,6 +122,7 @@ python mobile\tool\release_audit.py mobile\build\app\outputs\flutter-apk\app-rel
 
 ```text
 [ ] HISTORY_DB_PATH target directory exists and is writable by the backend service user
+[ ] VISIBLE_MOUNTPOINTS or IGNORED_MOUNT_PREFIXES_EXTRA hides restricted SFTP bind mounts
 [ ] control-agent service-control helper installation and sudoers review are complete
 [ ] Jellyfin runtime target and HFS systemd unit were verified on the real server
 [ ] `/etc/linux-monitor-control-agent/managed_hosts.yaml` contains the Homelab Server SSH probe

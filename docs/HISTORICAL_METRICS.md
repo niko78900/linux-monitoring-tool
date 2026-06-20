@@ -2,6 +2,14 @@
 
 Phase B adds persistent server-side historical telemetry to the monitoring backend.
 
+Current mobile use:
+
+- History page consumes overview history.
+- Network page uses live samples for Live mode and history-backed overview
+  fields for Day, Week, and Month ranges.
+- Historical charts preserve backend window metadata and format throughput as
+  byte rates.
+
 ## Scope
 
 History currently records:
@@ -45,6 +53,8 @@ Behavior:
 - overlapping samples are prevented
 - cleanup removes rows older than the retention window
 - collection failures are logged and swallowed so live endpoints keep working
+- storage samples respect the same visible/ignored mount filtering used by
+  `/api/system` for future samples
 
 ## Endpoints
 
@@ -66,6 +76,10 @@ Supported ranges:
 ```
 
 Responses are bucketed server-side and `max_points` is clamped to `HISTORY_MAX_RESPONSE_POINTS`.
+
+Existing history rows are not rewritten when mount filters change. Hidden bind
+mounts such as `/srv/sftp/tablet_sftp/WarmStorage` disappear from future
+samples after the backend is restarted with the updated filtering code/config.
 
 ## Throughput calculation
 

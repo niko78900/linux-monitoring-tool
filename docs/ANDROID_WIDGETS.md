@@ -2,6 +2,10 @@
 
 The Android app includes a small widget set for home-screen status at a glance. See `docs/ANDROID_WIDGETS_AND_PUSH_ALERTS.md` for the full widget and FCM alert architecture.
 
+Current boundary: widgets consume the same sanitized monitoring snapshot as the
+tablet app. They do not call the control agent, do not expose service actions,
+and do not store SSH/SFTP/control/mobile-alert secrets.
+
 ## Added packages
 
 - `home_widget` `0.9.3`
@@ -63,7 +67,7 @@ The tablet `Settings` page now includes:
 - show or hide the network throughput row
 - Android launcher pin request
 
-Default widget matching still uses `/mnt/storage` in app settings, but the widget snapshot stores the friendly label `Cold Storage`. If that mountpoint is not present in backend storage data, the widget falls back to the backend primary disk and a generic friendly label.
+Default widget matching still uses `/mnt/storage` in app settings, but the widget snapshot stores the friendly label `Cold Storage`. If that mountpoint is not present in backend storage data, the widget falls back to the backend primary disk and a generic friendly label. Backend storage filtering also hides restricted SFTP bind mounts, so widgets should not show duplicate `/srv/sftp/...` storage entries.
 
 ## Limitations
 

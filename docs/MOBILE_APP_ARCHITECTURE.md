@@ -1,6 +1,29 @@
 # Homelab Tablet Mobile Architecture
 
-Phase 0 audit and implementation plan for the Android-only Flutter tablet app and the future restricted control agent.
+Original Phase 0 audit and implementation plan for the Android-only Flutter
+tablet app and the then-future restricted control agent.
+
+Current update: this file started as the Phase 0 architecture plan. The repo now
+contains the implemented Flutter tablet app, restricted control agent, history
+API, service dashboard, managed hosts, Tailscale-aware devices, Android widgets,
+backend-owned mobile alerts, SFTP background timeout, richer file previews, and
+storage mount filtering. Treat unchecked phase checklist items below as
+historical plan text unless a current operational doc says otherwise.
+
+Current tablet responsibilities:
+
+- `Overview`: clickable status chips and metric cards
+- `Hardware`: CPU/memory/chassis threshold coloring where higher is worse
+- `Storage`: visible filesystem view with SFTP bind mounts hidden
+- `GPU`: neutral numeric values with threshold-colored utilization/VRAM bars
+- `Network`: live throughput plus Day/Week/Month history, no device scans
+- `Hosts`: managed hosts and important-machine actions
+- `Devices`: configured known devices plus Tailscale peers
+- `Services`: allowlisted service grid and service detail dashboard
+- `Actions`: Main PC quick actions and Wake-on-LAN
+- `Terminal`: direct SSH with secure storage and host trust
+- `Files`: direct restricted SFTP with configurable background timeout
+- `Settings`: in-place saves and on-device profile/token storage
 
 Working app name: `Homelab Tablet`
 
@@ -1093,7 +1116,7 @@ Deliverable: safe fixed Wake Main PC action.
 
 Deliverable: known-device visibility without router dependency.
 
-### Phase 8: Optional Observed Neighbors
+### Historical Phase 8: Optional Observed Neighbors
 
 ```text
 [ ] Parse ip neigh safely.

@@ -16,8 +16,9 @@ Monitoring backend :4040/api
 
 Control agent :4042/api
 - Wake-on-LAN
-- managed hosts and neighbors
+- managed hosts and Tailscale-aware devices
 - restricted service actions
+- legacy optional neighbors endpoint
 
 Discord bot
 - slash commands and scheduled status posts
@@ -28,6 +29,7 @@ Flutter tablet
 - telemetry client to monitoring backend
 - privileged action client to control agent
 - mobile-alert client directly to monitoring backend
+- Android widgets backed by monitoring snapshots
 ```
 
 ## Backend Environment
@@ -281,24 +283,26 @@ unset ALERT_CONSUMER_API_TOKEN MOBILE_ALERT_API_TOKEN CONTROL_API_TOKEN
 1. Tablet telemetry loads through the monitoring backend.
 2. Hosts, actions, and services remain through the control agent.
 3. Tablet Settings separates monitoring backend URL, control-agent URL, mobile-alert backend token, and control-agent token.
-4. Register tablet while the Discord bot is stopped.
-5. Send round-trip test while the Discord bot is stopped; the mobile notification still arrives.
-6. Send round-trip test while the control agent is stopped; the mobile notification still arrives.
-7. Foreground notification: exactly one visible heads-up pop-up.
-8. Background notification: exactly one pop-up.
-9. App swiped away: exactly one pop-up.
-10. Screen off: prompt notification.
-11. Reboot tablet before reopening app: notification still arrives if Android permits.
-12. Disable Android notification permission: readiness reports blocked.
-13. Mute the urgent channel: readiness reports blocked.
-14. Simulate Firebase outage: backend outbox retains pending delivery.
-15. Restore Firebase: pending notification retries once.
-16. Trigger sustained CPU threshold with bot stopped; mobile alert still arrives.
-17. Start bot afterward; it consumes backend event feed and posts Discord without affecting mobile delivery.
-18. Recovery preference disabled for tablet: active arrives and recovery does not.
-19. Control-agent Wake-on-LAN still works.
-20. Control-agent service-control paths still work.
-21. Home-screen widgets still refresh.
-22. Charts remain clipped and free of spline artifacts.
+4. Devices page uses configured devices plus Tailscale peers and does not depend on LAN neighbor scans.
+5. Network page remains traffic/history only.
+6. Register tablet while the Discord bot is stopped.
+7. Send round-trip test while the Discord bot is stopped; the mobile notification still arrives.
+8. Send round-trip test while the control agent is stopped; the mobile notification still arrives.
+9. Foreground notification: exactly one visible heads-up pop-up.
+10. Background notification: exactly one pop-up.
+11. App swiped away: exactly one pop-up.
+12. Screen off: prompt notification.
+13. Reboot tablet before reopening app: notification still arrives if Android permits.
+14. Disable Android notification permission: readiness reports blocked.
+15. Mute the urgent channel: readiness reports blocked.
+16. Simulate Firebase outage: backend outbox retains pending delivery.
+17. Restore Firebase: pending notification retries once.
+18. Trigger sustained CPU threshold with bot stopped; mobile alert still arrives.
+19. Start bot afterward; it consumes backend event feed and posts Discord without affecting mobile delivery.
+20. Recovery preference disabled for tablet: active arrives and recovery does not.
+21. Control-agent Wake-on-LAN still works.
+22. Control-agent service-control paths still work.
+23. Home-screen widgets still refresh.
+24. Charts remain clipped and free of spline artifacts.
 
 Android limitation: a force-stop from Android system settings can prevent FCM delivery until the app is reopened. Swiping away from recents is not the same as force-stop.

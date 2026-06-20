@@ -7,6 +7,13 @@ This app uses two Android background paths:
 
 WorkManager is intentionally not used for urgent alerts. Android can delay periodic work, and its minimum cadence is not suitable for prompt sustained-resource notifications.
 
+Current boundary:
+
+- Widgets are monitoring snapshots only and never invoke control-agent actions.
+- Push alerts are sent by the monitoring backend, not by the control agent or
+  Discord bot.
+- Tablet Settings owns registration/test UX for mobile alerts.
+
 ## Widgets
 
 - Server Essentials, 4 x 2: hostname, status, CPU, RAM, GPU, storage, health, optional throughput, refresh.
@@ -69,6 +76,14 @@ Set `MOBILE_PUSH_ENABLED=true` only after tablet registration and the round-trip
 8. Send the round-trip test notification.
 9. Open Android notification settings and confirm the `Homelab urgent alerts` channel allows pop-up, sound, and vibration.
 10. Add each widget from Settings or the Android launcher.
+
+If the tablet is used over Tailscale, keep Monitoring and Control API URLs
+separate in Settings:
+
+```text
+Monitoring API: http://100.64.10.22:4040/api
+Control API:    http://100.64.10.22:4042/api
+```
 
 ## Alert Semantics
 

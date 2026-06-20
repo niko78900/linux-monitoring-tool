@@ -2,6 +2,18 @@
 
 Restricted FastAPI control service for private homelab actions.
 
+Current scope:
+
+- Wake-on-LAN for the configured Main PC
+- managed-host status and details
+- configured known devices plus Tailscale peers
+- allowlisted service status and start/stop/restart actions
+- optional legacy neighbor endpoint for diagnostics
+
+The tablet uses the control agent for privileged/control data only. Monitoring
+telemetry, history, widgets, mobile-alert registration, and FCM delivery stay
+with the monitoring backend on `:4040/api`.
+
 ## Scope
 
 ```text
@@ -38,6 +50,31 @@ SERVICE_COMMAND_TIMEOUT_SECONDS
 ```
 
 Prefer binding the service to `127.0.0.1` and exposing it only through a private reverse proxy or Tailscale Serve inside the tailnet.
+
+## Config Files
+
+Default example files:
+
+```text
+control_agent/config/known_devices.example.yaml
+control_agent/config/managed_hosts.example.yaml
+control_agent/config/services.example.yaml
+```
+
+Production should point the environment variables at reviewed files under
+`/etc/linux-monitor-control-agent/`.
+
+Important deployment notes:
+
+- The `homelab-server` managed host should include an explicit SSH TCP probe on
+  port `22`; the local control-agent host may not appear as a normal Tailscale
+  peer.
+- Known devices are merged with `tailscale status --json` peers when identities
+  match by configured IP, hostname, or alias.
+- Unsupported service actions are rejected even if the tablet renders an action
+  button incorrectly.
+- The `GET /api/neighbors` route is retained for compatibility, but the current
+  tablet Devices and Network pages no longer display LAN neighbor scans.
 
 ## Run
 

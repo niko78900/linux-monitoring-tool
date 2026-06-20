@@ -2,6 +2,16 @@
 
 Phase 7 uses a manually curated known-devices file for device visibility without router API access.
 
+Current tablet behavior:
+
+- Devices shows configured known devices plus Tailscale peers from
+  `tailscale status --json`.
+- Observed LAN Neighbors are no longer rendered in the tablet UI.
+- The Network page is traffic/history only and does not show scan or inventory
+  blocks.
+- The control agent still keeps the neighbor endpoint for compatibility, but it
+  is not part of the primary tablet workflow.
+
 ## File location
 
 Default path:
@@ -36,6 +46,7 @@ ping
 ```
 
 Use short probe lists. This is not meant to become a broad network scanner.
+Prefer explicit Tailscale IPs and hostnames for devices that are in the tailnet.
 
 ## Example
 
@@ -70,4 +81,9 @@ devices:
 - `wake_action` should stay allowlisted server-side.
 - `wol_enabled` only controls whether the UI offers the fixed action.
 - `tailscale_ip` is optional and is used only for matching against `tailscale status --json`.
-- Devices absent from this file are not shown in the known-devices dashboard.
+- Devices absent from this file can still appear when they are visible as
+  Tailscale peers.
+- Configured devices and Tailscale peers are merged when they represent the same
+  machine by configured Tailscale IP, hostname/name, or explicit identity.
+- Docker bridge and stale ARP/ip-neighbor entries should not appear in the
+  tablet Devices page.

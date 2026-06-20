@@ -1,134 +1,136 @@
 # Linux Monitoring
 
-Linux homelab monitoring monorepo with a FastAPI monitoring backend, Angular dashboard, Discord bot, restricted control agent, and Flutter tablet app.
+Linux homelab monitoring monorepo with a FastAPI monitoring backend, Angular
+dashboard, Discord bot, restricted control agent, and Flutter Android tablet
+cockpit.
 
-Homelab monitoring stack built as a monorepo:
+## Current Stack
 
-- `backend/`: FastAPI monitoring API, history collector, alert engine, FCM mobile delivery
-- `frontend/`: Angular dashboard UI
-- `bot/`: Discord bot for slash commands, backend alert-event presentation, and scheduled status posts
-- `control_agent/`: restricted privileged homelab actions
-- `mobile/`: Flutter Android tablet app and widgets
+- `backend/`: FastAPI telemetry API, historical metrics, backend-owned alert
+  evaluation, and Firebase Cloud Messaging delivery for the tablet.
+- `frontend/`: read-only Angular dashboard for the monitoring backend.
+- `bot/`: Discord slash-command and alert-event presentation client.
+- `control_agent/`: restricted privileged API for Wake-on-LAN, managed hosts,
+  Tailscale-aware device state, and allowlisted service controls.
+- `mobile/`: Android-only Flutter tablet app with monitoring pages, SSH
+  terminal, restricted SFTP file browser, service dashboard, widgets, and push
+  alert registration.
 
-## Why This Project
-
-This project gives you one monitoring pipeline for local servers:
-
-- **System telemetry**: CPU, memory, swap, uptime, disks, network, temperatures
-- **Storage health context**: mounted disks, RAID arrays, physical disk inventory and health summaries
-- **GPU telemetry**: NVIDIA metrics through NVML (when available)
-- **Docker telemetry**: container inventory and runtime status (when available)
-- **Backend-owned alerts**: sustained threshold evaluation, immutable alert events, FCM delivery, and retry outbox
-- **Discord integration**: chat-accessible status and backend alert-event presentation
-- **Tablet control**: direct monitoring API use plus separate privileged-control API use where needed
-
-Most telemetry endpoints are read-only. Mobile-alert registration/test routes are scoped to the monitoring backend with a dedicated mobile-alert token. Privileged actions are isolated in the control agent.
+Most telemetry endpoints are read-only. Mobile-alert registration and test
+routes are scoped to the monitoring backend with a dedicated mobile-alert
+token. Privileged actions stay isolated in the control agent.
 
 ## Architecture
 
 ```text
-+---------------------+          +-----------------------+
-| Angular Frontend    |  GET     | FastAPI Backend       |
-| :4041               +--------->+ :4040/api/*           |
-| (polling dashboard) |          | telemetry/history     |
-+----------+----------+          +-----+-----------------+
-           |                           |
-           |                           |
-           |                           +--> alert engine + alerts.sqlite3
-           |                           +--> Firebase Admin FCM sender
-           |                           +--> psutil (CPU/RAM/disk/net)
-           |                           +--> Linux sysfs (/sys, /proc)
-           |                           +--> smartctl (optional disk temps)
-           |                           +--> Docker SDK (optional)
-           |                           +--> NVML (optional NVIDIA)
-           |
-           | alert event feed + slash commands
-           v
-+---------------------+      GET      +-----------------------+
-| Discord Bot         +-------------->+ FastAPI Backend       |
-| (discord.py)        |               | :4040/api/alerts/*    |
-+---------------------+               +-----------------------+
-
-+---------------------+      POST     +-----------------------+
-| Flutter Tablet      +-------------->+ FastAPI Backend       |
-| mobile alerts       |               | :4040/api/mobile-*    |
-+----------+----------+               +-----------------------+
-           |
-           | privileged actions only
-           v
-+---------------------+
-| Control Agent       |
-| :4042/api/*         |
-+---------------------+
+Angular frontend                 Discord bot
+frontend/ :4041                  bot/
+       | GET /api/*                 | GET /api/alerts/*
+       v                            v
++--------------------------------------------------+
+| FastAPI monitoring backend                       |
+| backend/ :4040/api                               |
+| telemetry, history, alerts, mobile FCM delivery  |
++--------------------------------------------------+
+       ^
+       | GET telemetry/history, POST mobile-alert registration
+       |
+Flutter Android tablet
+mobile/
+       |
+       | privileged actions only
+       v
++--------------------------------------------------+
+| FastAPI control agent                            |
+| control_agent/ :4042/api                         |
+| Wake-on-LAN, hosts, devices, services            |
++--------------------------------------------------+
 ```
 
-## Repository Layout
+The production tablet deployment is expected to communicate over Tailscale or a
+private reverse-proxy boundary. The live testing URLs are:
 
 ```text
-linux-monitoring/
-  README.md
-  backend/
-    app/
-      api/routes/
-      core/
-      models/
-      services/
-    tests/
-    run.py
-  control_agent/
-    app/
-    config/
-    tests/
-  frontend/
-    src/app/
-      core/
-      features/dashboard/
-      shared/
-    proxy.conf.json
-  bot/
-    src/
-    tests/
-  mobile/
-    lib/
-    android/
-    test/
+Monitoring API: http://100.64.10.22:4040/api
+Control API:    http://100.64.10.22:4042/api
 ```
 
-## API Endpoints
+## Backend API
 
-Backend exposes these endpoints under `/api`:
+Monitoring backend endpoints under `/api`:
 
-- `GET /api/health` - service health and version metadata
-- `GET /api/system` - full system snapshot (host/OS, CPU, memory, swap, disk list, RAID, physical disks, network, specs)
-- `GET /api/gpu` - live NVIDIA GPU metrics (or unavailable reason)
-- `GET /api/docker` - Docker container inventory (or unavailable reason)
-- `GET /api/summary` - compact dashboard KPIs
-- `GET /api/history/*` - historical metrics
-- `GET /api/alerts/events` - scoped alert event feed for consumers
-- `GET /api/alerts/active` - scoped active backend alerts
-- `GET /api/alerts/status` - scoped alert engine status
-- `GET /api/mobile-alerts/status` - scoped tablet registration status
-- `POST /api/mobile-alerts/register` - scoped tablet FCM registration
-- `DELETE /api/mobile-alerts/register/{installation_id}` - scoped tablet disable/unregister
-- `POST /api/mobile-alerts/test` - scoped backend-to-FCM round-trip test
+- `GET /health`
+- `GET /system`
+- `GET /gpu`
+- `GET /docker`
+- `GET /summary`
+- `GET /history/ranges`
+- `GET /history/overview`
+- `GET /history/storage`
+- `GET /history/disks`
+- `GET /history/raid`
+- `GET /alerts/events`
+- `GET /alerts/active`
+- `GET /alerts/status`
+- `GET /mobile-alerts/status`
+- `POST /mobile-alerts/register`
+- `DELETE /mobile-alerts/register/{installation_id}`
+- `POST /mobile-alerts/test`
 
-Interactive docs:
+Control-agent endpoints under `/api`:
 
-- `http://localhost:4040/api/docs`
+- `GET /health`
+- `GET /devices`
+- `GET /hosts`
+- `GET /hosts/{host_id}`
+- `GET /services`
+- `GET /services/{service_id}`
+- `POST /services/{service_id}/actions/{action}`
+- `POST /actions/wake-main-pc`
+- `GET /neighbors` (legacy/optional; the tablet no longer shows LAN-neighbor
+  inventory)
 
-## Quick Start (Development)
+## Mobile App
 
-### Prerequisites
+The Flutter app is tablet-first and Android-only. Current routes include:
 
-- Python 3.11+
-- Node.js 20+ and npm
-- Linux host for full hardware/RAID temperature fidelity
-- Optional for extended telemetry:
-  - Docker daemon access
-  - NVIDIA drivers + NVML
-  - `smartctl` and `dmidecode`
+```text
+/overview
+/hardware
+/storage
+/gpu
+/network
+/history
+/hosts
+/hosts/:hostId
+/devices
+/devices/:deviceId
+/actions
+/terminal
+/files
+/services
+/services/:serviceId
+/settings
+```
 
-### 1) Run Backend
+Notable current behavior:
+
+- Overview status chips and metric cards route to the relevant pages.
+- Network focuses on traffic and history ranges, not LAN scanning.
+- Devices shows configured devices plus Tailscale peers, with duplicate merge
+  behavior in the control agent.
+- Hosts shows managed hosts and useful host actions.
+- Services shows configured allowlisted services and a service detail dashboard.
+- Files uses direct restricted SFTP with configurable background disconnect
+  timing and capped previews.
+- GPU numbers stay neutral; utilization and VRAM bars carry threshold color.
+- Hardware and Storage apply shared threshold colors for values where higher is
+  worse.
+- Android widgets store non-sensitive flattened telemetry only.
+
+## Quick Start
+
+Backend:
 
 ```powershell
 cd backend
@@ -139,11 +141,27 @@ python -m venv .venv
 .\.venv\Scripts\python.exe run.py
 ```
 
-Default backend URL: `http://localhost:4040`
+Control agent:
 
-### 2) Run Frontend
+```powershell
+cd control_agent
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 4042
+```
 
-Open another terminal:
+Mobile:
+
+```powershell
+cd mobile
+flutter pub get
+flutter analyze
+flutter test
+flutter run
+```
+
+Frontend:
 
 ```powershell
 cd frontend
@@ -151,11 +169,7 @@ npm.cmd install
 npm.cmd start
 ```
 
-Default frontend URL: `http://localhost:4041`
-
-In development, frontend requests to `/api/*` are proxied to `http://127.0.0.1:4040` via `frontend/proxy.conf.json`.
-
-### 3) Run Discord Bot (Optional)
+Bot:
 
 ```powershell
 cd bot
@@ -163,91 +177,84 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 Copy-Item .env.example .env
-# fill .env values
 .\.venv\Scripts\python.exe src\bot.py
 ```
 
-## Configuration
-
-### Backend (`backend/.env`)
-
-Key variables:
-
-- `API_PREFIX` (default `/api`)
-- `HOST` (default `0.0.0.0`)
-- `PORT` (default `4040`)
-- `CORS_ORIGINS` (default `http://localhost:4041,http://127.0.0.1:4041`)
-- `CORS_ORIGIN_REGEX` (optional)
-- `DISK_MOUNTPOINT` (default `/`)
-- `DOCKER_TIMEOUT_SECONDS` (default `3`)
-- `HISTORY_DB_PATH` (default `/var/lib/linux-monitoring/history.sqlite3`)
-- `ALERTS_ENABLED` (default `true`)
-- `ALERT_DB_PATH` (default `/var/lib/linux-monitoring/alerts.sqlite3`)
-- `ALERT_GRACE_SECONDS` (default `300`)
-- `MOBILE_PUSH_ENABLED` (default `false`)
-- `FIREBASE_SERVICE_ACCOUNT_FILE` (default `/etc/linux-monitor-mobile-alerts/firebase-service-account.json`)
-- `MOBILE_ALERT_API_TOKEN` (dedicated tablet registration/test token)
-- `ALERT_CONSUMER_API_TOKEN` (dedicated Discord/event-consumer token)
-
-### Frontend (`frontend/src/environments/environment.shared.ts`)
-
-- `backendBaseUrl` (default empty for same-origin)
-- `apiPrefix` (default `/api`)
-- `polling.summaryMs` (default `5000`)
-- `polling.detailsMs` (default `5000`)
-- `polling.healthMs` (default `15000`)
-
-### Bot (`bot/.env`)
-
-- `DISCORD_BOT_TOKEN` (required)
-- `DISCORD_CHANNEL_ID` (required)
-- `MONITORING_API_BASE_URL` (required, example `http://127.0.0.1:4040/api`)
-- `ALERT_CONSUMER_API_TOKEN` (required, matches backend)
-- `DISCORD_ALERT_CURSOR_FILE` (default `/var/lib/linux-monitoring/discord_alert_cursor.json`)
-- `DISCORD_ALERT_REPLAY_ON_FIRST_START` (default `false`)
-- `POLL_INTERVAL_SECONDS` (default `30`)
-
-## Production Shape
-
-Recommended deployment pattern:
-
-1. Build frontend: `cd frontend && npm run build`
-2. Serve frontend static assets + reverse proxy `/api` to backend (`127.0.0.1:4040`)
-3. Keep backend non-public if proxying from same host
-4. Restrict CORS to known origins if cross-origin access is needed
-5. Run Discord bot as a separate event-consumer process/service
-6. Run control agent separately on `:4042` for privileged actions only
-
-## Testing
+## Configuration Highlights
 
 Backend:
 
+- `DISK_MOUNTPOINT=/`
+- `VISIBLE_MOUNTPOINTS=/,/mnt/storage,/mnt/warm` to allow only specific mounts
+- `IGNORED_MOUNT_PREFIXES_EXTRA=/srv/sftp` to hide bind-mount trees
+- `HISTORY_*` for SQLite history collection
+- `ALERT_*`, `MOBILE_PUSH_*`, `MOBILE_ALERT_API_TOKEN`, and
+  `ALERT_CONSUMER_API_TOKEN` for backend-owned alert delivery
+
+Control agent:
+
+- `CONTROL_API_TOKEN`
+- `KNOWN_DEVICES_CONFIG_PATH`
+- `MANAGED_HOSTS_CONFIG_PATH`
+- `SERVICES_CONFIG_PATH`
+- `SERVICE_CONTROL_HELPER_PATH`
+- `MAIN_PC_MAC`, `WAKE_BROADCAST_HOST`, `WAKE_PORT`
+
+Mobile:
+
+- Monitoring API URL and Control API URL are stored on-device.
+- SSH/SFTP private keys and passphrases are stored through secure storage.
+- SFTP background timeout is configurable in Settings.
+- Widget refresh interval is limited to 15, 30, or 60 minutes.
+
+## Verification
+
+Run before shipping changes:
+
 ```powershell
-cd backend
-.\.venv\Scripts\python.exe -m pytest -v
+cd mobile
+flutter pub get
+flutter analyze
+flutter test
+
+cd ..\control_agent
+python -m pytest
+
+cd ..\backend
+python -m pytest
 ```
 
-Bot:
-
-```powershell
-cd bot
-python -m unittest discover tests -v
-```
-
-Frontend:
+Additional checks when those areas change:
 
 ```powershell
 cd frontend
 npm.cmd test
+npm.cmd run build
+
+cd ..\bot
+python -m unittest discover tests -v
 ```
 
-## Detailed Documentation
+## Documentation Map
 
-For deeper implementation and architecture details, see:
-
-- [`docs/EXTENSIVE_DOCUMENTATION.md`](docs/EXTENSIVE_DOCUMENTATION.md)
 - [`backend/README.md`](backend/README.md)
+- [`control_agent/README.md`](control_agent/README.md)
+- [`mobile/README.md`](mobile/README.md)
 - [`frontend/README.md`](frontend/README.md)
 - [`bot/README.md`](bot/README.md)
-- [`control_agent/README.md`](control_agent/README.md)
+- [`docs/EXTENSIVE_DOCUMENTATION.md`](docs/EXTENSIVE_DOCUMENTATION.md)
+- [`docs/MOBILE_APP_ARCHITECTURE.md`](docs/MOBILE_APP_ARCHITECTURE.md)
+- [`docs/HISTORICAL_METRICS.md`](docs/HISTORICAL_METRICS.md)
 - [`docs/BACKEND_OWNED_MOBILE_ALERTS.md`](docs/BACKEND_OWNED_MOBILE_ALERTS.md)
+- [`docs/ANDROID_WIDGETS_AND_PUSH_ALERTS.md`](docs/ANDROID_WIDGETS_AND_PUSH_ALERTS.md)
+- [`docs/ANDROID_WIDGETS.md`](docs/ANDROID_WIDGETS.md)
+- [`docs/SERVICE_CONTROLS.md`](docs/SERVICE_CONTROLS.md)
+- [`docs/MANAGED_HOSTS.md`](docs/MANAGED_HOSTS.md)
+- [`docs/KNOWN_DEVICES_CONFIG.md`](docs/KNOWN_DEVICES_CONFIG.md)
+- [`docs/CONTROL_AGENT_DEPLOYMENT.md`](docs/CONTROL_AGENT_DEPLOYMENT.md)
+- [`docs/HOMELAB_HOST_PROBE_DEPLOYMENT_NOTE.md`](docs/HOMELAB_HOST_PROBE_DEPLOYMENT_NOTE.md)
+- [`docs/RESTRICTED_SFTP_SETUP.md`](docs/RESTRICTED_SFTP_SETUP.md)
+- [`docs/FILE_EXPLORER_ADVANCED.md`](docs/FILE_EXPLORER_ADVANCED.md)
+- [`docs/ANDROID_RELEASE_GUIDE.md`](docs/ANDROID_RELEASE_GUIDE.md)
+- [`docs/EXPANSION_DEPLOYMENT_CHECKLIST.md`](docs/EXPANSION_DEPLOYMENT_CHECKLIST.md)
+- [`docs/EXPANSION_AUDIT.md`](docs/EXPANSION_AUDIT.md)

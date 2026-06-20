@@ -1,20 +1,59 @@
 # Homelab Tablet
 
-Android-only Flutter tablet application for the private Linux monitoring stack.
+Android-only Flutter tablet cockpit for the private Linux monitoring stack.
 
-Current implementation covers Phases 1-9:
+The app consumes:
+
+- Monitoring API: telemetry, history, alerts, mobile push registration, widget
+  snapshots.
+- Control API: Wake-on-LAN, managed hosts, known devices/Tailscale peers, and
+  allowlisted service controls.
+- Direct SSH/SFTP over Tailscale for terminal and file browsing.
+
+## Current Features
+
+- Tablet-first dark Material 3 shell with responsive navigation.
+- Overview status chips and metric cards that route to the relevant pages.
+- Hardware, Storage, GPU, Network, History, Hosts, Devices, Services, Actions,
+  Terminal, Files, and Settings pages.
+- Network live charts plus history ranges for Live, Day, Week, and Month.
+- Devices page focused on configured devices plus Tailscale peers; LAN neighbor
+  scan blocks are not shown.
+- Hosts page for managed hosts and important machines, with SSH/SFTP/RDP/copy
+  actions where configured.
+- Services page with configured service cards and a service detail dashboard.
+- Direct SSH terminal using `dartssh2`, secure key storage, and host-fingerprint
+  trust.
+- Restricted SFTP browser with configurable background timeout, capped text/code
+  previews, image previews, download/open support, and external open support for
+  PDF/Office files.
+- Android home-screen widgets backed by non-sensitive flattened telemetry.
+- Backend-owned Firebase mobile alert registration and test push flow.
+
+## Routes
 
 ```text
-Phase 1: Flutter scaffold, Material 3 dark theme, Riverpod, go_router, responsive navigation, base utilities and tests.
-Phase 2: Monitoring API models, Dio client, polling controller, stale-data handling, overview, hardware, storage, GPU, and network screens.
-Phase 3: Onboarding, shared preferences, secure storage wrapper, settings screen, local-auth privileged-tab gate, and overview wakelock preference.
-Phase 4: Direct SSH terminal with private-key import, trusted host fingerprints, SSH connection testing, xterm terminal view, copy or paste, and touch accessory keys.
-Phase 5: Restricted SFTP browser with separate key handling, directory listing clamped to the configured virtual root, streaming downloads, cancellation, local file open, and a transfer queue.
-Phase 6: Separate FastAPI control agent with bearer auth, rate-limited Wake Main PC, and a privileged mobile Actions page.
-Phase 7: Known devices dashboard.
-Phase 8: Optional observed LAN neighbors panel backed by server-side ip neigh parsing.
-Phase 9: Release hardening, Android release guide, optional release signing config, and APK audit tooling.
+/onboarding
+/overview
+/hardware
+/storage
+/gpu
+/network
+/history
+/hosts
+/hosts/:hostId
+/devices
+/devices/:deviceId
+/actions
+/terminal
+/files
+/services
+/services/:serviceId
+/settings
 ```
+
+Actions, Terminal, Files, and Services are privileged routes when local unlock
+is enabled.
 
 ## Run
 
@@ -26,6 +65,25 @@ flutter test
 flutter run
 ```
 
+## Build
+
+Debug APK:
+
+```powershell
+cd mobile
+flutter build apk --debug
+```
+
+Release APK:
+
+```powershell
+cd mobile
+flutter build apk --release
+```
+
+See [`../docs/ANDROID_RELEASE_GUIDE.md`](../docs/ANDROID_RELEASE_GUIDE.md) for
+release signing and APK audit steps.
+
 ## Configuration
 
 First launch opens onboarding. Configure:
@@ -33,30 +91,44 @@ First launch opens onboarding. Configure:
 ```text
 Monitoring API URL
 Control API URL and bearer token
-SSH profile metadata, key import, host trust, and connection testing
-SFTP profile metadata, restricted key import, host trust, and connection testing
-Tablet security and polling preferences
+Mobile-alert backend token
+SSH profile metadata, private key, passphrase preference, and host trust
+SFTP profile metadata, private key, passphrase preference, virtual root, and host trust
+SFTP background timeout
+Polling intervals
+Widget storage labels and background refresh interval
+Tablet security and debug preferences
 ```
 
-Debug builds allow cleartext HTTP through the debug Android manifest. Release builds do not globally enable cleartext traffic.
-
-## Release
-
-Use the Android release guide:
+Current default development URLs are emulator-friendly. On the production
+tablet, configure the Tailscale URLs:
 
 ```text
-docs/ANDROID_RELEASE_GUIDE.md
+Monitoring API: http://100.64.10.22:4040/api
+Control API:    http://100.64.10.22:4042/api
 ```
 
-Release signing supports `mobile/android/key.properties`. Without that file, local release builds fall back to the debug signing key and should not be distributed.
+Debug builds allow cleartext HTTP through the debug Android manifest. Release
+builds do not globally enable cleartext traffic.
 
-## Dependency Note
+## Storage And Threshold Behavior
 
-The latest `file_picker` and latest `wakelock_plus` currently conflict through incompatible `win32` constraints. This app uses:
+- Storage hides `/srv/sftp/...` bind mounts defensively if they appear in the
+  backend payload.
+- Hardware and Storage values use shared threshold colors where higher values
+  are worse: `0-60` healthy, `61-80` warning, `81+` critical.
+- Available RAM stays neutral because higher available memory is not bad.
+- GPU numeric values stay neutral; only utilization and VRAM bars use threshold
+  coloring.
+
+## Dependency Notes
+
+The app currently pins:
 
 ```text
 file_picker 11.0.2
 wakelock_plus 1.5.0
 ```
 
-This keeps the requested file picker current while retaining a compatible wakelock implementation.
+This keeps file picking stable while retaining compatible transitive `win32`
+constraints. The app also uses `url_launcher` for service links and RDP intents.

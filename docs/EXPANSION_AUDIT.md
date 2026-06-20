@@ -4,6 +4,13 @@ Date: 2026-06-11
 Branch audited: `codex/mobile-architecture-phase-0`
 Working tree state at audit time: clean
 
+Current update: this document is a historical Phase A audit. It intentionally
+describes the repository as it existed on 2026-06-11. Since then, the repo has
+added backend history, backend-owned mobile alerts, Android widgets, managed
+hosts, service controls, Tailscale-aware devices, richer file previews, SFTP
+background timeout, and storage mount filtering. Use the root `README.md` and
+focused docs for current operational behavior.
+
 ## Scope
 
 This document audits the actual local repository before any Expansion Pack work beyond Phase A.
@@ -33,7 +40,7 @@ The local repository already contains:
 - a fixed allowlisted Wake-on-LAN action for Main PC
 - a known-devices dashboard backed by YAML plus optional observed neighbors
 
-The codebase does **not** yet contain:
+At audit time, the codebase did **not** yet contain:
 
 - persistent historical metrics storage
 - history API endpoints
@@ -185,7 +192,7 @@ Base prefix: `/api`
 | `GET` | `/docs` | none | Swagger UI |
 | `GET` | `/openapi.json` | none | OpenAPI schema |
 
-There are no history endpoints yet.
+At audit time, there were no history endpoints yet.
 
 ### Control-agent endpoints
 

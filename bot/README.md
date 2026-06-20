@@ -2,6 +2,11 @@
 
 Separate Python service that consumes the monitoring backend and posts to Discord.
 
+Current boundary: the bot is a presentation client only. The monitoring backend
+owns threshold evaluation, alert state, mobile push delivery, and FCM
+credentials. The control agent owns privileged host/device/service actions. The
+bot does not call the control agent.
+
 ## What It Does
 
 - Slash commands:
@@ -100,5 +105,7 @@ python -m unittest discover tests -v
 - The backend sends mobile FCM notifications directly.
 - The bot does not import Firebase Admin SDK.
 - The bot does not read backend SQLite files or mobile registry JSON files.
+- The bot does not call control-agent host, device, service, Wake-on-LAN, SSH,
+  or SFTP APIs.
 - Scheduled status settings are persisted to disk and restored after bot restart.
 - Changing scheduled status settings requires Discord `Manage Server` permission.

@@ -1,14 +1,34 @@
 # Linux Monitoring: Extensive Documentation
 
+Current update: the repository is now a five-part homelab stack, not only the
+original backend/frontend/bot trio. Current operational ownership is:
+
+- `backend/`: read-only telemetry, history, backend-owned alerts, mobile FCM
+  delivery, and storage mount filtering.
+- `frontend/`: read-only Angular dashboard for live telemetry.
+- `bot/`: Discord presentation client for slash commands and backend alert
+  events.
+- `control_agent/`: restricted privileged API for Wake-on-LAN, managed hosts,
+  Tailscale-aware devices, and allowlisted service controls.
+- `mobile/`: Android Flutter tablet cockpit, widgets, direct SSH terminal, and
+  restricted SFTP browser.
+
+Sections below that describe the original "three-service" design are retained
+for historical context and should be read with this current ownership model in
+mind.
+
 ## 1. Project Overview
 
-`linux-monitoring` is a three-service monorepo for read-only infrastructure monitoring:
+`linux-monitoring` began as a three-service monorepo for read-only
+infrastructure monitoring:
 
 - **Backend (`backend/`)**: FastAPI service that collects and normalizes telemetry.
 - **Frontend (`frontend/`)**: Angular dashboard that polls backend endpoints and renders operator-friendly views.
 - **Discord Bot (`bot/`)**: Discord slash-command and alerting service that consumes the same API contract.
 
-The design goal is operational visibility without control-plane risk: no write endpoints, no remote mutation operations.
+The current design goal is still to avoid unnecessary control-plane risk:
+telemetry remains read-only in the monitoring backend, while privileged
+operations are restricted to allowlisted control-agent routes.
 
 ## 2. End-to-End Architecture
 
@@ -48,6 +68,31 @@ All endpoints are mounted under `API_PREFIX` (default `/api`):
 - `GET /gpu`
 - `GET /docker`
 - `GET /summary`
+- `GET /history/ranges`
+- `GET /history/overview`
+- `GET /history/storage`
+- `GET /history/disks`
+- `GET /history/raid`
+- `GET /alerts/events`
+- `GET /alerts/active`
+- `GET /alerts/status`
+- `GET /mobile-alerts/status`
+- `POST /mobile-alerts/register`
+- `DELETE /mobile-alerts/register/{installation_id}`
+- `POST /mobile-alerts/test`
+
+Control-agent endpoints are mounted separately under its own `API_PREFIX`
+(default `/api`):
+
+- `GET /health`
+- `GET /devices`
+- `GET /hosts`
+- `GET /hosts/{host_id}`
+- `GET /services`
+- `GET /services/{service_id}`
+- `POST /services/{service_id}/actions/{action}`
+- `POST /actions/wake-main-pc`
+- `GET /neighbors` (legacy/optional; not shown in the current tablet UI)
 
 OpenAPI and docs:
 

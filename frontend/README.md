@@ -2,6 +2,11 @@
 
 Read-only homelab dashboard for the FastAPI monitoring backend.
 
+Current boundary: this Angular app is a read-only dashboard. It does not call
+the control agent, does not register mobile-alert devices, and does not expose
+Wake-on-LAN, SSH/SFTP, service-control, or Tailscale device actions. Those
+operator workflows live in the Flutter tablet app and `control_agent/`.
+
 ## Features
 
 - Dark-theme dashboard with summary cards and detail panels
@@ -111,7 +116,9 @@ The frontend reads only these endpoints:
 - `GET /api/docker`
 - `GET /api/summary`
 
-No write/admin/control actions are implemented.
+No write/admin/control actions are implemented. Newer backend endpoints for
+history, alerts, and mobile alerts are intentionally not used by this Angular
+dashboard unless that feature is added explicitly.
 
 ## Notes about response shape assumptions
 

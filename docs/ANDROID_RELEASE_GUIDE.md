@@ -1,6 +1,6 @@
 # Android Release Guide
 
-Use this guide for Phase 9 release validation and APK generation.
+Use this guide for Android tablet release validation and APK generation.
 
 ## 1. Validate the repo state
 
@@ -51,6 +51,12 @@ Verify these items before distribution:
 [ ] Host fingerprint mismatch tells the operator to reset trust before reconnecting
 [ ] Restricted SFTP stays clamped to the configured virtual root
 [ ] Server-side SFTP chroot is still enforced per docs/RESTRICTED_SFTP_SETUP.md
+[ ] SFTP background timeout behaves as configured after app background/resume
+[ ] Services page shows configured services and service details
+[ ] Network page shows Live, Day, Week, and Month ranges without device scans
+[ ] Devices page shows Tailscale peers without Observed LAN Neighbors
+[ ] Storage page hides restricted SFTP bind mounts such as /srv/sftp/...
+[ ] GPU numeric values stay neutral while utilization/VRAM bars use thresholds
 ```
 
 Notes:
@@ -83,6 +89,12 @@ python mobile/tool/release_audit.py mobile/build/app/outputs/flutter-apk/app-rel
 ```
 
 The audit checks for obvious private-key markers and suspicious embedded keystore or environment files.
+
+Debug APKs for tablet testing are produced at:
+
+```text
+mobile/build/app/outputs/flutter-apk/app-debug.apk
+```
 
 ## 6. Final operator checklist
 

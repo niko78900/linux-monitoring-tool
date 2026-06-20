@@ -2,6 +2,18 @@
 
 This repository does not apply server changes automatically. Use this document to review and manually configure the restricted SFTP account required by the Android tablet app.
 
+Current mobile behavior:
+
+- The app connects directly with `dartssh2`; file contents are not proxied
+  through either FastAPI service.
+- The Settings page includes an `SFTP background timeout` option: disconnect
+  immediately, 1 minute, 5 minutes, 15 minutes, 30 minutes, or keep until manual
+  disconnect.
+- Text/code previews are capped client-side. PDF and Office files are downloaded
+  to app cache and opened through Android external-app intents.
+- Server-side chroot or equivalent restrictions remain mandatory. The mobile
+  virtual root is a usability guard, not a security boundary.
+
 ## Goal
 
 Expose only warm storage to the mobile app:
@@ -129,3 +141,9 @@ Virtual root:  /warm
 ```
 
 Import the dedicated restricted private key through the Settings screen.
+
+## Storage display note
+
+The monitoring backend and mobile Storage page hide restricted SFTP bind-mount
+paths such as `/srv/sftp/tablet_sftp/WarmStorage` from normal disk displays.
+This avoids duplicate storage cards for `/mnt/warm` and its SFTP bind mount.

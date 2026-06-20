@@ -2,9 +2,17 @@
 
 The control agent is a separate FastAPI service for a narrow set of privileged actions. Keep it private.
 
+Current tablet use:
+
+- Hosts page reads managed hosts from `/api/hosts`.
+- Devices page reads known devices and Tailscale peers from `/api/devices`.
+- Services page reads allowlisted services from `/api/services`.
+- Actions page uses Wake Main PC and Main PC quick actions.
+- Network page does not display control-agent neighbor scans.
+
 ## Scope
 
-Current phase exposes only:
+Current API surface:
 
 ```text
 GET  /api/health
@@ -99,6 +107,8 @@ Confirm:
 [ ] /api/actions/wake-main-pc rejects missing and invalid bearer tokens
 [ ] /api/hosts returns Homelab Server with status `online`, `unreachable`, or `unknown`
 [ ] Homelab Server has a configured SSH TCP probe on port 22
+[ ] /api/devices includes configured devices and Tailscale peers without relying on LAN-neighbor scans
+[ ] /api/services includes metadata for configured services and rejects unsupported actions
 [ ] Wake requests are rate-limited
 [ ] The configured MAC is used even if the client sends a different value
 [ ] The service is reachable only inside the tailnet or local reverse-proxy boundary
@@ -133,6 +143,13 @@ MANAGED_HOSTS_CONFIG_PATH="$(
 MANAGED_HOSTS_CONFIG_PATH="${MANAGED_HOSTS_CONFIG_PATH:-/etc/linux-monitor-control-agent/managed_hosts.yaml}"
 sudo grep -A3 -B2 'label: SSH' "$MANAGED_HOSTS_CONFIG_PATH"
 
+SERVICES_CONFIG_PATH="$(
+  sudo awk '/^SERVICES_CONFIG_PATH=/ {sub(/^SERVICES_CONFIG_PATH=/, ""); print; exit}' "$ENV_FILE"
+)"
+SERVICES_CONFIG_PATH="${SERVICES_CONFIG_PATH:-/etc/linux-monitor-control-agent/services.yaml}"
+sudo test -r "$SERVICES_CONFIG_PATH"
+sudo grep -E 'id: (jellyfin|hfs|uptime-kuma|linux-monitor-backend|linux-monitor-control-agent)' "$SERVICES_CONFIG_PATH" || true
+
 REPO_DIR="$(
   systemctl show linux-monitor-control-agent.service --property=WorkingDirectory |
     sed 's/^WorkingDirectory=//'
@@ -151,6 +168,14 @@ curl -fsS \
   -H "Authorization: Bearer ${CONTROL_API_TOKEN}" \
   http://100.64.10.22:4042/api/hosts \
   | python3 -c 'import json,sys; hosts=json.load(sys.stdin)["hosts"]; host=next(item for item in hosts if item["id"]=="homelab-server"); print("homelab-server status={status} online={online} probe_summary={summary}".format(status=host["status"], online=host["online"], summary=host.get("probe_summary", "")))'
+curl -fsS \
+  -H "Authorization: Bearer ${CONTROL_API_TOKEN}" \
+  http://100.64.10.22:4042/api/devices \
+  | python3 -c 'import json,sys; payload=json.load(sys.stdin); print("devices=" + str(len(payload.get("devices", []))))'
+curl -fsS \
+  -H "Authorization: Bearer ${CONTROL_API_TOKEN}" \
+  http://100.64.10.22:4042/api/services \
+  | python3 -c 'import json,sys; payload=json.load(sys.stdin); print("services=" + str(len(payload.get("services", []))))'
 unset CONTROL_API_TOKEN
 
 sudo python3 - "$REPO_DIR" <<'PY'
