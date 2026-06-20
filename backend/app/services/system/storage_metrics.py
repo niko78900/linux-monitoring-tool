@@ -19,6 +19,7 @@ from app.models.system import (
 )
 from app.services.system.base_metrics import fallback_mountpoint
 from app.services.system.common import (
+    MountFilterConfig,
     is_physical_block_device_name,
     is_relevant_partition,
     normalize_block_device_name,
@@ -38,7 +39,12 @@ _disk_temperature_cache: dict[str, tuple[float, float | None]] = {}
 _disk_temperature_cache_lock = Lock()
 
 
-def get_disks_metrics(mountpoint: str, primary_disk: DiskMetrics, raid_arrays: list[RaidArrayMetrics]) -> list[DiskDeviceMetrics]:
+def get_disks_metrics(
+    mountpoint: str,
+    primary_disk: DiskMetrics,
+    raid_arrays: list[RaidArrayMetrics],
+    mount_filter: MountFilterConfig | None = None,
+) -> list[DiskDeviceMetrics]:
     primary_mountpoint = primary_disk.mountpoint or mountpoint or fallback_mountpoint()
 
     if psutil is None:
@@ -57,7 +63,7 @@ def get_disks_metrics(mountpoint: str, primary_disk: DiskMetrics, raid_arrays: l
             )
         ]
 
-    disks = _collect_partition_disk_metrics(raid_arrays)
+    disks = _collect_partition_disk_metrics(raid_arrays, mount_filter=mount_filter)
     has_primary = any(disk.mountpoint == primary_mountpoint for disk in disks)
     if not has_primary:
         primary_available = primary_disk.total > 0
@@ -143,7 +149,10 @@ def get_raid_arrays_metrics() -> list[RaidArrayMetrics]:
     return arrays
 
 
-def get_physical_disks_metrics(raid_arrays: list[RaidArrayMetrics]) -> list[PhysicalDiskMetrics]:
+def get_physical_disks_metrics(
+    raid_arrays: list[RaidArrayMetrics],
+    mount_filter: MountFilterConfig | None = None,
+) -> list[PhysicalDiskMetrics]:
     if os.name == "nt":
         return []
 
@@ -157,7 +166,7 @@ def get_physical_disks_metrics(raid_arrays: list[RaidArrayMetrics]) -> list[Phys
         logger.warning("Could not list physical block devices: %s", exc)
         return []
 
-    mounts_by_disk = _collect_mountpoints_by_physical_disk()
+    mounts_by_disk = _collect_mountpoints_by_physical_disk(mount_filter=mount_filter)
     raid_membership = _build_raid_membership_by_physical_disk(raid_arrays)
 
     physical_disks: list[PhysicalDiskMetrics] = []
@@ -306,7 +315,10 @@ def _build_raid_array_device_map(raid_arrays: list[RaidArrayMetrics]) -> dict[st
     return raid_arrays_by_device
 
 
-def _collect_partition_disk_metrics(raid_arrays: list[RaidArrayMetrics]) -> list[DiskDeviceMetrics]:
+def _collect_partition_disk_metrics(
+    raid_arrays: list[RaidArrayMetrics],
+    mount_filter: MountFilterConfig | None = None,
+) -> list[DiskDeviceMetrics]:
     if psutil is None:
         return []
 
@@ -321,7 +333,7 @@ def _collect_partition_disk_metrics(raid_arrays: list[RaidArrayMetrics]) -> list
     for partition in partitions:
         mountpoint = str(getattr(partition, "mountpoint", "") or "")
         fstype = str(getattr(partition, "fstype", "") or "unknown")
-        if not is_relevant_partition(mountpoint, fstype):
+        if not is_relevant_partition(mountpoint, fstype, mount_filter):
             continue
 
         device = str(getattr(partition, "device", "") or "unknown")
@@ -397,7 +409,9 @@ def _build_raid_health(level: str, state: str, degraded_devices: int, sync_actio
     return RaidHealth(status="healthy", reason="RAID array reports healthy state.")
 
 
-def _collect_mountpoints_by_physical_disk() -> dict[str, list[str]]:
+def _collect_mountpoints_by_physical_disk(
+    mount_filter: MountFilterConfig | None = None,
+) -> dict[str, list[str]]:
     mounts_by_disk: dict[str, set[str]] = {}
     if psutil is None:
         return {}
@@ -414,7 +428,7 @@ def _collect_mountpoints_by_physical_disk() -> dict[str, list[str]]:
         device = str(getattr(partition, "device", "") or "").strip()
         if not mountpoint or not device:
             continue
-        if not is_relevant_partition(mountpoint, fstype):
+        if not is_relevant_partition(mountpoint, fstype, mount_filter):
             continue
 
         disk_name = normalize_block_device_name(device)

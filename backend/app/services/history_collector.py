@@ -21,6 +21,7 @@ from app.services.history_store import (
     PhysicalDiskSampleRecord,
     RaidSampleRecord,
 )
+from app.services.system.common import MountFilterConfig
 from app.services.system_service import get_system_metrics
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ class HistoryCollector:
         *,
         settings: Settings,
         store: HistoryStore,
-        get_system_metrics_fn: Callable[[str], SystemResponse],
+        get_system_metrics_fn: Callable[..., SystemResponse],
         get_gpu_metrics_fn: Callable[[], GPUResponse],
         get_docker_summary_fn: Callable[[], DockerSummaryResponse],
         initial_delay_seconds: float = 1.0,
@@ -80,6 +81,10 @@ class HistoryCollector:
                 system_metrics = await asyncio.to_thread(
                     self._get_system_metrics,
                     self._settings.disk_mountpoint,
+                    mount_filter=MountFilterConfig(
+                        visible_mountpoints=self._settings.visible_mountpoints,
+                        ignored_mount_prefixes_extra=self._settings.ignored_mount_prefixes_extra,
+                    ),
                 )
                 gpu_metrics = await asyncio.to_thread(self._get_gpu_metrics)
                 docker_summary = await asyncio.to_thread(self._get_docker_summary)

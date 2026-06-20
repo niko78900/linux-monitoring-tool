@@ -20,10 +20,14 @@ from app.services.system.storage_metrics import (
     get_physical_disks_metrics,
     get_raid_arrays_metrics,
 )
+from app.services.system.common import MountFilterConfig
 from app.services.system.temperature_metrics import get_chassis_temperature_c, get_cpu_temperature_c
 
 
-def get_system_metrics(mountpoint: str) -> SystemResponse:
+def get_system_metrics(
+    mountpoint: str,
+    mount_filter: MountFilterConfig | None = None,
+) -> SystemResponse:
     now = utc_now()
     boot_time = get_boot_time(now)
     uptime_seconds = max(0, int((now - boot_time).total_seconds()))
@@ -47,8 +51,16 @@ def get_system_metrics(mountpoint: str) -> SystemResponse:
         memory=memory_metrics,
         swap=swap_metrics,
         disk=primary_disk,
-        disks=get_disks_metrics(mountpoint, primary_disk, raid_arrays),
+        disks=get_disks_metrics(
+            mountpoint,
+            primary_disk,
+            raid_arrays,
+            mount_filter=mount_filter,
+        ),
         raid_arrays=raid_arrays,
-        physical_disks=get_physical_disks_metrics(raid_arrays),
+        physical_disks=get_physical_disks_metrics(
+            raid_arrays,
+            mount_filter=mount_filter,
+        ),
         network=get_network_metrics(),
     )

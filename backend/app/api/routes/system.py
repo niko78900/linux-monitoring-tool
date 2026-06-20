@@ -5,10 +5,17 @@ from fastapi import APIRouter, Depends
 from app.core.config import Settings, get_settings
 from app.models.system import SystemResponse
 from app.services.system_service import get_system_metrics
+from app.services.system.common import MountFilterConfig
 
 router = APIRouter()
 
 
 @router.get("/system", response_model=SystemResponse)
 def system_metrics(settings: Settings = Depends(get_settings)) -> SystemResponse:
-    return get_system_metrics(settings.disk_mountpoint)
+    return get_system_metrics(
+        settings.disk_mountpoint,
+        mount_filter=MountFilterConfig(
+            visible_mountpoints=settings.visible_mountpoints,
+            ignored_mount_prefixes_extra=settings.ignored_mount_prefixes_extra,
+        ),
+    )
