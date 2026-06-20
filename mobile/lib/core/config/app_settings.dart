@@ -13,105 +13,109 @@ final settingsControllerProvider =
 class AppSettings {
   const AppSettings({
     required this.onboardingComplete,
-    required this.monitoringApiUrl,
-    required this.controlApiUrl,
-    required this.summaryPollingMs,
-    required this.detailsPollingMs,
-    required this.healthPollingMs,
-    required this.dockerPollingMs,
-    required this.keepScreenAwakeOnOverview,
-    required this.requirePrivilegedUnlock,
-    required this.unlockTimeout,
+    required this.monitoring,
+    required this.control,
+    required this.tablet,
     required this.sshProfile,
-    required this.sftpProfile,
-    required this.sftpVirtualRoot,
-    required this.allowSftpUpload,
-    required this.allowSftpCreateDirectory,
-    required this.allowSftpRename,
-    required this.allowSftpMove,
-    required this.allowSftpSoftDelete,
-    required this.sftpBackgroundTimeout,
-    required this.widgetStorageMountpoint,
-    required this.widgetStorageLabel,
-    required this.widgetSecondaryStorageMountpoint,
-    required this.widgetSecondaryStorageLabel,
-    required this.widgetShowSecondaryStorage,
-    required this.widgetBackgroundRefreshMinutes,
-    required this.widgetShowNetworkThroughput,
-    required this.mobilePushAlertsEnabled,
-    required this.mobilePushIncludeRecovery,
-    required this.showRawApiErrors,
-    required this.showRequestTiming,
+    required this.sftp,
+    required this.widgets,
+    required this.mobileAlerts,
+    required this.debug,
   });
 
   factory AppSettings.defaults() {
     return const AppSettings(
       onboardingComplete: false,
-      monitoringApiUrl: AppConfig.defaultMonitoringApiUrl,
-      controlApiUrl: AppConfig.defaultControlApiUrl,
-      summaryPollingMs: 5000,
-      detailsPollingMs: 15000,
-      healthPollingMs: 15000,
-      dockerPollingMs: 30000,
-      keepScreenAwakeOnOverview: false,
-      requirePrivilegedUnlock: true,
-      unlockTimeout: PrivilegedUnlockTimeout.fiveMinutes,
+      monitoring: MonitoringSettings(
+        apiUrl: AppConfig.defaultMonitoringApiUrl,
+        summaryPollingMs: 5000,
+        detailsPollingMs: 15000,
+        healthPollingMs: 15000,
+        dockerPollingMs: 30000,
+      ),
+      control: ControlSettings(apiUrl: AppConfig.defaultControlApiUrl),
+      tablet: TabletSettings(
+        keepScreenAwakeOnOverview: false,
+        requirePrivilegedUnlock: true,
+        unlockTimeout: PrivilegedUnlockTimeout.fiveMinutes,
+      ),
       sshProfile: ConnectionProfile.empty(kind: ConnectionProfileKind.ssh),
-      sftpProfile: ConnectionProfile.empty(kind: ConnectionProfileKind.sftp),
-      sftpVirtualRoot: '/warm',
-      allowSftpUpload: false,
-      allowSftpCreateDirectory: false,
-      allowSftpRename: false,
-      allowSftpMove: false,
-      allowSftpSoftDelete: false,
-      sftpBackgroundTimeout: SftpBackgroundTimeout.fiveMinutes,
-      widgetStorageMountpoint: '/mnt/storage',
-      widgetStorageLabel: 'Cold Storage',
-      widgetSecondaryStorageMountpoint: '/mnt/warm',
-      widgetSecondaryStorageLabel: 'Warm Storage',
-      widgetShowSecondaryStorage: false,
-      widgetBackgroundRefreshMinutes: 15,
-      widgetShowNetworkThroughput: false,
-      mobilePushAlertsEnabled: false,
-      mobilePushIncludeRecovery: true,
-      showRawApiErrors: false,
-      showRequestTiming: false,
+      sftp: SftpSettings(
+        profile: ConnectionProfile.empty(kind: ConnectionProfileKind.sftp),
+        virtualRoot: '/warm',
+        allowUpload: false,
+        allowCreateDirectory: false,
+        allowRename: false,
+        allowMove: false,
+        allowSoftDelete: false,
+        backgroundTimeout: SftpBackgroundTimeout.fiveMinutes,
+      ),
+      widgets: WidgetSettings(
+        storageMountpoint: '/mnt/storage',
+        storageLabel: 'Cold Storage',
+        secondaryStorageMountpoint: '/mnt/warm',
+        secondaryStorageLabel: 'Warm Storage',
+        showSecondaryStorage: false,
+        backgroundRefreshMinutes: 15,
+        showNetworkThroughput: false,
+      ),
+      mobileAlerts: MobileAlertSettings(
+        pushAlertsEnabled: false,
+        pushIncludeRecovery: true,
+      ),
+      debug: DebugSettings(showRawApiErrors: false, showRequestTiming: false),
     );
   }
 
   final bool onboardingComplete;
-  final String monitoringApiUrl;
-  final String controlApiUrl;
-  final int summaryPollingMs;
-  final int detailsPollingMs;
-  final int healthPollingMs;
-  final int dockerPollingMs;
-  final bool keepScreenAwakeOnOverview;
-  final bool requirePrivilegedUnlock;
-  final PrivilegedUnlockTimeout unlockTimeout;
+  final MonitoringSettings monitoring;
+  final ControlSettings control;
+  final TabletSettings tablet;
   final ConnectionProfile sshProfile;
-  final ConnectionProfile sftpProfile;
-  final String sftpVirtualRoot;
-  final bool allowSftpUpload;
-  final bool allowSftpCreateDirectory;
-  final bool allowSftpRename;
-  final bool allowSftpMove;
-  final bool allowSftpSoftDelete;
-  final SftpBackgroundTimeout sftpBackgroundTimeout;
-  final String widgetStorageMountpoint;
-  final String widgetStorageLabel;
-  final String widgetSecondaryStorageMountpoint;
-  final String widgetSecondaryStorageLabel;
-  final bool widgetShowSecondaryStorage;
-  final int widgetBackgroundRefreshMinutes;
-  final bool widgetShowNetworkThroughput;
-  final bool mobilePushAlertsEnabled;
-  final bool mobilePushIncludeRecovery;
-  final bool showRawApiErrors;
-  final bool showRequestTiming;
+  final SftpSettings sftp;
+  final WidgetSettings widgets;
+  final MobileAlertSettings mobileAlerts;
+  final DebugSettings debug;
+
+  String get monitoringApiUrl => monitoring.apiUrl;
+  String get controlApiUrl => control.apiUrl;
+  int get summaryPollingMs => monitoring.summaryPollingMs;
+  int get detailsPollingMs => monitoring.detailsPollingMs;
+  int get healthPollingMs => monitoring.healthPollingMs;
+  int get dockerPollingMs => monitoring.dockerPollingMs;
+  bool get keepScreenAwakeOnOverview => tablet.keepScreenAwakeOnOverview;
+  bool get requirePrivilegedUnlock => tablet.requirePrivilegedUnlock;
+  PrivilegedUnlockTimeout get unlockTimeout => tablet.unlockTimeout;
+  ConnectionProfile get sftpProfile => sftp.profile;
+  String get sftpVirtualRoot => sftp.virtualRoot;
+  bool get allowSftpUpload => sftp.allowUpload;
+  bool get allowSftpCreateDirectory => sftp.allowCreateDirectory;
+  bool get allowSftpRename => sftp.allowRename;
+  bool get allowSftpMove => sftp.allowMove;
+  bool get allowSftpSoftDelete => sftp.allowSoftDelete;
+  SftpBackgroundTimeout get sftpBackgroundTimeout => sftp.backgroundTimeout;
+  String get widgetStorageMountpoint => widgets.storageMountpoint;
+  String get widgetStorageLabel => widgets.storageLabel;
+  String get widgetSecondaryStorageMountpoint =>
+      widgets.secondaryStorageMountpoint;
+  String get widgetSecondaryStorageLabel => widgets.secondaryStorageLabel;
+  bool get widgetShowSecondaryStorage => widgets.showSecondaryStorage;
+  int get widgetBackgroundRefreshMinutes => widgets.backgroundRefreshMinutes;
+  bool get widgetShowNetworkThroughput => widgets.showNetworkThroughput;
+  bool get mobilePushAlertsEnabled => mobileAlerts.pushAlertsEnabled;
+  bool get mobilePushIncludeRecovery => mobileAlerts.pushIncludeRecovery;
+  bool get showRawApiErrors => debug.showRawApiErrors;
+  bool get showRequestTiming => debug.showRequestTiming;
 
   AppSettings copyWith({
     bool? onboardingComplete,
+    MonitoringSettings? monitoring,
+    ControlSettings? control,
+    TabletSettings? tablet,
+    SftpSettings? sftp,
+    WidgetSettings? widgets,
+    MobileAlertSettings? mobileAlerts,
+    DebugSettings? debug,
     String? monitoringApiUrl,
     String? controlApiUrl,
     int? summaryPollingMs,
@@ -144,46 +148,250 @@ class AppSettings {
   }) {
     return AppSettings(
       onboardingComplete: onboardingComplete ?? this.onboardingComplete,
-      monitoringApiUrl: monitoringApiUrl ?? this.monitoringApiUrl,
-      controlApiUrl: controlApiUrl ?? this.controlApiUrl,
+      monitoring:
+          monitoring ??
+          this.monitoring.copyWith(
+            apiUrl: monitoringApiUrl,
+            summaryPollingMs: summaryPollingMs,
+            detailsPollingMs: detailsPollingMs,
+            healthPollingMs: healthPollingMs,
+            dockerPollingMs: dockerPollingMs,
+          ),
+      control: control ?? this.control.copyWith(apiUrl: controlApiUrl),
+      tablet:
+          tablet ??
+          this.tablet.copyWith(
+            keepScreenAwakeOnOverview: keepScreenAwakeOnOverview,
+            requirePrivilegedUnlock: requirePrivilegedUnlock,
+            unlockTimeout: unlockTimeout,
+          ),
+      sshProfile: sshProfile ?? this.sshProfile,
+      sftp:
+          sftp ??
+          this.sftp.copyWith(
+            profile: sftpProfile,
+            virtualRoot: sftpVirtualRoot,
+            allowUpload: allowSftpUpload,
+            allowCreateDirectory: allowSftpCreateDirectory,
+            allowRename: allowSftpRename,
+            allowMove: allowSftpMove,
+            allowSoftDelete: allowSftpSoftDelete,
+            backgroundTimeout: sftpBackgroundTimeout,
+          ),
+      widgets:
+          widgets ??
+          this.widgets.copyWith(
+            storageMountpoint: widgetStorageMountpoint,
+            storageLabel: widgetStorageLabel,
+            secondaryStorageMountpoint: widgetSecondaryStorageMountpoint,
+            secondaryStorageLabel: widgetSecondaryStorageLabel,
+            showSecondaryStorage: widgetShowSecondaryStorage,
+            backgroundRefreshMinutes: widgetBackgroundRefreshMinutes,
+            showNetworkThroughput: widgetShowNetworkThroughput,
+          ),
+      mobileAlerts:
+          mobileAlerts ??
+          this.mobileAlerts.copyWith(
+            pushAlertsEnabled: mobilePushAlertsEnabled,
+            pushIncludeRecovery: mobilePushIncludeRecovery,
+          ),
+      debug:
+          debug ??
+          this.debug.copyWith(
+            showRawApiErrors: showRawApiErrors,
+            showRequestTiming: showRequestTiming,
+          ),
+    );
+  }
+}
+
+class MonitoringSettings {
+  const MonitoringSettings({
+    required this.apiUrl,
+    required this.summaryPollingMs,
+    required this.detailsPollingMs,
+    required this.healthPollingMs,
+    required this.dockerPollingMs,
+  });
+
+  final String apiUrl;
+  final int summaryPollingMs;
+  final int detailsPollingMs;
+  final int healthPollingMs;
+  final int dockerPollingMs;
+
+  MonitoringSettings copyWith({
+    String? apiUrl,
+    int? summaryPollingMs,
+    int? detailsPollingMs,
+    int? healthPollingMs,
+    int? dockerPollingMs,
+  }) {
+    return MonitoringSettings(
+      apiUrl: apiUrl ?? this.apiUrl,
       summaryPollingMs: summaryPollingMs ?? this.summaryPollingMs,
       detailsPollingMs: detailsPollingMs ?? this.detailsPollingMs,
       healthPollingMs: healthPollingMs ?? this.healthPollingMs,
       dockerPollingMs: dockerPollingMs ?? this.dockerPollingMs,
+    );
+  }
+}
+
+class ControlSettings {
+  const ControlSettings({required this.apiUrl});
+
+  final String apiUrl;
+
+  ControlSettings copyWith({String? apiUrl}) {
+    return ControlSettings(apiUrl: apiUrl ?? this.apiUrl);
+  }
+}
+
+class TabletSettings {
+  const TabletSettings({
+    required this.keepScreenAwakeOnOverview,
+    required this.requirePrivilegedUnlock,
+    required this.unlockTimeout,
+  });
+
+  final bool keepScreenAwakeOnOverview;
+  final bool requirePrivilegedUnlock;
+  final PrivilegedUnlockTimeout unlockTimeout;
+
+  TabletSettings copyWith({
+    bool? keepScreenAwakeOnOverview,
+    bool? requirePrivilegedUnlock,
+    PrivilegedUnlockTimeout? unlockTimeout,
+  }) {
+    return TabletSettings(
       keepScreenAwakeOnOverview:
           keepScreenAwakeOnOverview ?? this.keepScreenAwakeOnOverview,
       requirePrivilegedUnlock:
           requirePrivilegedUnlock ?? this.requirePrivilegedUnlock,
       unlockTimeout: unlockTimeout ?? this.unlockTimeout,
-      sshProfile: sshProfile ?? this.sshProfile,
-      sftpProfile: sftpProfile ?? this.sftpProfile,
-      sftpVirtualRoot: sftpVirtualRoot ?? this.sftpVirtualRoot,
-      allowSftpUpload: allowSftpUpload ?? this.allowSftpUpload,
-      allowSftpCreateDirectory:
-          allowSftpCreateDirectory ?? this.allowSftpCreateDirectory,
-      allowSftpRename: allowSftpRename ?? this.allowSftpRename,
-      allowSftpMove: allowSftpMove ?? this.allowSftpMove,
-      allowSftpSoftDelete: allowSftpSoftDelete ?? this.allowSftpSoftDelete,
-      sftpBackgroundTimeout:
-          sftpBackgroundTimeout ?? this.sftpBackgroundTimeout,
-      widgetStorageMountpoint:
-          widgetStorageMountpoint ?? this.widgetStorageMountpoint,
-      widgetStorageLabel: widgetStorageLabel ?? this.widgetStorageLabel,
-      widgetSecondaryStorageMountpoint:
-          widgetSecondaryStorageMountpoint ??
-          this.widgetSecondaryStorageMountpoint,
-      widgetSecondaryStorageLabel:
-          widgetSecondaryStorageLabel ?? this.widgetSecondaryStorageLabel,
-      widgetShowSecondaryStorage:
-          widgetShowSecondaryStorage ?? this.widgetShowSecondaryStorage,
-      widgetBackgroundRefreshMinutes:
-          widgetBackgroundRefreshMinutes ?? this.widgetBackgroundRefreshMinutes,
-      widgetShowNetworkThroughput:
-          widgetShowNetworkThroughput ?? this.widgetShowNetworkThroughput,
-      mobilePushAlertsEnabled:
-          mobilePushAlertsEnabled ?? this.mobilePushAlertsEnabled,
-      mobilePushIncludeRecovery:
-          mobilePushIncludeRecovery ?? this.mobilePushIncludeRecovery,
+    );
+  }
+}
+
+class SftpSettings {
+  const SftpSettings({
+    required this.profile,
+    required this.virtualRoot,
+    required this.allowUpload,
+    required this.allowCreateDirectory,
+    required this.allowRename,
+    required this.allowMove,
+    required this.allowSoftDelete,
+    required this.backgroundTimeout,
+  });
+
+  final ConnectionProfile profile;
+  final String virtualRoot;
+  final bool allowUpload;
+  final bool allowCreateDirectory;
+  final bool allowRename;
+  final bool allowMove;
+  final bool allowSoftDelete;
+  final SftpBackgroundTimeout backgroundTimeout;
+
+  SftpSettings copyWith({
+    ConnectionProfile? profile,
+    String? virtualRoot,
+    bool? allowUpload,
+    bool? allowCreateDirectory,
+    bool? allowRename,
+    bool? allowMove,
+    bool? allowSoftDelete,
+    SftpBackgroundTimeout? backgroundTimeout,
+  }) {
+    return SftpSettings(
+      profile: profile ?? this.profile,
+      virtualRoot: virtualRoot ?? this.virtualRoot,
+      allowUpload: allowUpload ?? this.allowUpload,
+      allowCreateDirectory: allowCreateDirectory ?? this.allowCreateDirectory,
+      allowRename: allowRename ?? this.allowRename,
+      allowMove: allowMove ?? this.allowMove,
+      allowSoftDelete: allowSoftDelete ?? this.allowSoftDelete,
+      backgroundTimeout: backgroundTimeout ?? this.backgroundTimeout,
+    );
+  }
+}
+
+class WidgetSettings {
+  const WidgetSettings({
+    required this.storageMountpoint,
+    required this.storageLabel,
+    required this.secondaryStorageMountpoint,
+    required this.secondaryStorageLabel,
+    required this.showSecondaryStorage,
+    required this.backgroundRefreshMinutes,
+    required this.showNetworkThroughput,
+  });
+
+  final String storageMountpoint;
+  final String storageLabel;
+  final String secondaryStorageMountpoint;
+  final String secondaryStorageLabel;
+  final bool showSecondaryStorage;
+  final int backgroundRefreshMinutes;
+  final bool showNetworkThroughput;
+
+  WidgetSettings copyWith({
+    String? storageMountpoint,
+    String? storageLabel,
+    String? secondaryStorageMountpoint,
+    String? secondaryStorageLabel,
+    bool? showSecondaryStorage,
+    int? backgroundRefreshMinutes,
+    bool? showNetworkThroughput,
+  }) {
+    return WidgetSettings(
+      storageMountpoint: storageMountpoint ?? this.storageMountpoint,
+      storageLabel: storageLabel ?? this.storageLabel,
+      secondaryStorageMountpoint:
+          secondaryStorageMountpoint ?? this.secondaryStorageMountpoint,
+      secondaryStorageLabel:
+          secondaryStorageLabel ?? this.secondaryStorageLabel,
+      showSecondaryStorage: showSecondaryStorage ?? this.showSecondaryStorage,
+      backgroundRefreshMinutes:
+          backgroundRefreshMinutes ?? this.backgroundRefreshMinutes,
+      showNetworkThroughput:
+          showNetworkThroughput ?? this.showNetworkThroughput,
+    );
+  }
+}
+
+class MobileAlertSettings {
+  const MobileAlertSettings({
+    required this.pushAlertsEnabled,
+    required this.pushIncludeRecovery,
+  });
+
+  final bool pushAlertsEnabled;
+  final bool pushIncludeRecovery;
+
+  MobileAlertSettings copyWith({
+    bool? pushAlertsEnabled,
+    bool? pushIncludeRecovery,
+  }) {
+    return MobileAlertSettings(
+      pushAlertsEnabled: pushAlertsEnabled ?? this.pushAlertsEnabled,
+      pushIncludeRecovery: pushIncludeRecovery ?? this.pushIncludeRecovery,
+    );
+  }
+}
+
+class DebugSettings {
+  const DebugSettings({
+    required this.showRawApiErrors,
+    required this.showRequestTiming,
+  });
+
+  final bool showRawApiErrors;
+  final bool showRequestTiming;
+
+  DebugSettings copyWith({bool? showRawApiErrors, bool? showRequestTiming}) {
+    return DebugSettings(
       showRawApiErrors: showRawApiErrors ?? this.showRawApiErrors,
       showRequestTiming: showRequestTiming ?? this.showRequestTiming,
     );
