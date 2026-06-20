@@ -65,4 +65,39 @@ void main() {
       expect(find.text('docker ps'), findsOneWidget);
     },
   );
+
+  testWidgets('uses compact layout in constrained landscape height', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1180, 460);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    SharedPreferences.setMockInitialValues({
+      'onboardingComplete': true,
+      'ssh.displayName': 'Homelab SSH',
+      'ssh.host': 'server.tailnet.ts.net',
+      'ssh.port': 22,
+      'ssh.username': 'tablet_shell',
+      'ssh.hasImportedKey': true,
+    });
+    final preferences = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+        child: const MaterialApp(home: Scaffold(body: TerminalPage())),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('Homelab SSH'), findsOneWidget);
+    expect(find.text('Quick input'), findsNothing);
+    expect(find.text('Ctrl'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
