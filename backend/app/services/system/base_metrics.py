@@ -5,6 +5,7 @@ import os
 import platform
 import socket
 from datetime import datetime
+from pathlib import Path
 
 from app.core.utils import to_utc_datetime
 from app.models.system import CpuMetrics, DiskMetrics, LoadAverage, MemoryMetrics, PlatformInfo, SwapMetrics
@@ -100,7 +101,7 @@ def get_swap_metrics() -> SwapMetrics:
 
 def fallback_mountpoint() -> str:
     if os.name == "nt":
-        return f"{os.getenv('SystemDrive', 'C:')}\\"
+        return Path.cwd().anchor or "C:\\"
     return "/"
 
 
