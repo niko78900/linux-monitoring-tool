@@ -11,14 +11,32 @@ import '../../terminal/domain/models/ssh_connection_models.dart';
 typedef SftpHostTrustPrompt = Future<bool> Function(SshHostFingerprint hostKey);
 typedef SftpPassphrasePrompt = Future<PassphrasePromptResult?> Function();
 
-final sftpConnectionServiceProvider = Provider<SftpConnectionService>(
+final sftpConnectionServiceProvider = Provider<SftpConnectionClient>(
   (ref) => SftpConnectionService(
     storage: ref.watch(secureStorageServiceProvider),
     fingerprints: ref.watch(hostFingerprintStoreProvider),
   ),
 );
 
-class SftpConnectionService {
+abstract interface class SftpConnectionClient {
+  Future<void> testConnection({
+    required ConnectionProfile profile,
+    required SftpHostTrustPrompt onTrustHost,
+    SftpPassphrasePrompt? onPassphraseRequired,
+  });
+
+  Future<SftpSessionConnection> open({
+    required ConnectionProfile profile,
+    required SftpHostTrustPrompt onTrustHost,
+    SftpPassphrasePrompt? onPassphraseRequired,
+  });
+
+  Future<String?> readTrustedFingerprint(ConnectionProfile profile);
+
+  Future<void> resetTrustedFingerprint(ConnectionProfile profile);
+}
+
+class SftpConnectionService implements SftpConnectionClient {
   SftpConnectionService({
     required SecureStorageService storage,
     required HostFingerprintStore fingerprints,
@@ -28,6 +46,7 @@ class SftpConnectionService {
   final SecureStorageService _storage;
   final HostFingerprintStore _fingerprints;
 
+  @override
   Future<void> testConnection({
     required ConnectionProfile profile,
     required SftpHostTrustPrompt onTrustHost,
@@ -41,6 +60,7 @@ class SftpConnectionService {
     await connection.close();
   }
 
+  @override
   Future<SftpSessionConnection> open({
     required ConnectionProfile profile,
     required SftpHostTrustPrompt onTrustHost,
@@ -110,7 +130,7 @@ class SftpConnectionService {
     try {
       await client.authenticated;
       final sftp = await client.sftp();
-      return SftpSessionConnection(client: client, sftp: sftp);
+      return DartSftpSessionConnection(client: client, sftp: sftp);
     } catch (_) {
       client.close();
       if (fingerprintMismatch != null) {
@@ -123,6 +143,7 @@ class SftpConnectionService {
     }
   }
 
+  @override
   Future<String?> readTrustedFingerprint(ConnectionProfile profile) {
     if (!profile.isConfigured) {
       return Future.value(null);
@@ -130,6 +151,7 @@ class SftpConnectionService {
     return _fingerprints.readTrustedFingerprint(profile.host, profile.port);
   }
 
+  @override
   Future<void> resetTrustedFingerprint(ConnectionProfile profile) {
     if (!profile.isConfigured) {
       return Future.value();
@@ -188,12 +210,21 @@ class SftpConnectionService {
   }
 }
 
-class SftpSessionConnection {
-  SftpSessionConnection({required this.client, required this.sftp});
+abstract interface class SftpSessionConnection {
+  SftpClient get sftp;
+
+  Future<void> close();
+}
+
+class DartSftpSessionConnection implements SftpSessionConnection {
+  DartSftpSessionConnection({required this.client, required this.sftp});
 
   final SSHClient client;
+
+  @override
   final SftpClient sftp;
 
+  @override
   Future<void> close() async {
     sftp.close();
     client.close();

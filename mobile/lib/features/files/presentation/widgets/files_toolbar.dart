@@ -14,6 +14,7 @@ class FilesToolbar extends StatelessWidget {
     required this.message,
     required this.isConnecting,
     required this.isConnected,
+    required this.canDisconnect,
     required this.isFavorite,
     required this.isSearchingRemote,
     required this.canUpload,
@@ -38,6 +39,7 @@ class FilesToolbar extends StatelessWidget {
   final String? message;
   final bool isConnecting;
   final bool isConnected;
+  final bool canDisconnect;
   final bool isFavorite;
   final bool isSearchingRemote;
   final bool canUpload;
@@ -81,9 +83,9 @@ class FilesToolbar extends StatelessWidget {
               label: Text(isConnected ? 'Reconnect' : 'Connect'),
             ),
             OutlinedButton.icon(
-              onPressed: isConnected ? onDisconnect : null,
+              onPressed: canDisconnect ? onDisconnect : null,
               icon: const Icon(Icons.link_off),
-              label: const Text('Disconnect'),
+              label: Text(isConnecting ? 'Cancel' : 'Disconnect'),
             ),
             OutlinedButton.icon(
               onPressed: isConnected ? onRoot : null,

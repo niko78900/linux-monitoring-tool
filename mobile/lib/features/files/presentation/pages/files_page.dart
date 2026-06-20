@@ -63,6 +63,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
   String? _activeTransferId;
   FilesSort _sort = FilesSort.name;
   bool _searchingRemote = false;
+  int _connectAttemptId = 0;
 
   @override
   void initState() {
@@ -72,6 +73,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
 
   @override
   void dispose() {
+    _connectAttemptId += 1;
     WidgetsBinding.instance.removeObserver(this);
     _backgroundDisconnectTimer?.cancel();
     _searchController.dispose();
@@ -155,6 +157,8 @@ class _FilesPageState extends ConsumerState<FilesPage>
             message: _message,
             isConnecting: _status == _FilesStatus.connecting,
             isConnected: _connection != null,
+            canDisconnect:
+                _connection != null || _status == _FilesStatus.connecting,
             isFavorite: _isCurrentPathFavorite(hostProfileId),
             isSearchingRemote: _searchingRemote,
             canUpload: settings.allowSftpUpload,
@@ -256,6 +260,10 @@ class _FilesPageState extends ConsumerState<FilesPage>
       settings.sftpVirtualRoot,
     );
     await _disconnect(clearMessage: true);
+    final attemptId = ++_connectAttemptId;
+    if (!mounted || attemptId != _connectAttemptId) {
+      return;
+    }
     setState(() {
       _status = _FilesStatus.connecting;
       _message = 'Connecting to ${profile.host}:${profile.port}';
@@ -270,14 +278,26 @@ class _FilesPageState extends ConsumerState<FilesPage>
             onTrustHost: (hostKey) => showHostTrustDialog(context, hostKey),
             onPassphraseRequired: _promptPassphrase,
           );
+      if (!mounted || attemptId != _connectAttemptId) {
+        await connection.close();
+        return;
+      }
       _connection = connection;
       setState(() {
         _status = _FilesStatus.connected;
         _message = 'Connected to restricted SFTP root.';
       });
       await _refreshMetadata();
+      if (!mounted ||
+          attemptId != _connectAttemptId ||
+          !identical(_connection, connection)) {
+        return;
+      }
       await _loadDirectory(root);
     } catch (error) {
+      if (!mounted || attemptId != _connectAttemptId) {
+        return;
+      }
       setState(() {
         _status = _FilesStatus.error;
         _message = _describeError(error);
@@ -286,6 +306,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
   }
 
   Future<void> _disconnect({String? message, bool clearMessage = false}) async {
+    _connectAttemptId += 1;
     _backgroundDisconnectTimer?.cancel();
     _cancelOutstandingTransfers();
     final connection = _connection;
@@ -308,6 +329,9 @@ class _FilesPageState extends ConsumerState<FilesPage>
   }
 
   Future<PassphrasePromptResult?> _promptPassphrase() async {
+    if (!mounted) {
+      return null;
+    }
     final settings = ref.read(settingsControllerProvider);
     final result = await showPassphrasePromptDialog(
       context,
@@ -315,6 +339,9 @@ class _FilesPageState extends ConsumerState<FilesPage>
       rememberInitially: settings.sftpProfile.storePassphrase,
     );
     if (result == null) {
+      return null;
+    }
+    if (!mounted) {
       return null;
     }
 
@@ -771,6 +798,15 @@ class _FilesPageState extends ConsumerState<FilesPage>
 
   void _handleBackgrounded() {
     if (_connection == null) {
+      if (_status == _FilesStatus.connecting) {
+        _connectAttemptId += 1;
+        if (mounted) {
+          setState(() {
+            _status = _FilesStatus.disconnected;
+            _message = 'SFTP connection cancelled in background.';
+          });
+        }
+      }
       return;
     }
     final timeout = ref.read(settingsControllerProvider).sftpBackgroundTimeout;
