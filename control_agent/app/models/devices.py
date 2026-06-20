@@ -21,6 +21,7 @@ class KnownDeviceConfig(BaseModel):
     category: DeviceCategory
     lan_ip: str | None = None
     tailscale_ip: str | None = None
+    aliases: list[str] = Field(default_factory=list)
     wol_enabled: bool = False
     wake_action: str | None = None
     notes: str | None = None
@@ -53,6 +54,11 @@ class KnownDeviceStatus(BaseModel):
     wol_enabled: bool
     wake_action: str | None = None
     notes: str | None = None
+    tailscale_host_name: str | None = None
+    tailscale_dns_name: str | None = None
+    tailscale_os: str | None = None
+    tailscale_online: bool | None = None
+    tailscale_last_seen: datetime | None = None
     probes: list[DeviceProbeStatus] = Field(default_factory=list)
     probe_summary: str
 

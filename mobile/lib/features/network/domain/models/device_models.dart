@@ -1,13 +1,7 @@
 class DevicesDashboard {
-  const DevicesDashboard({
-    required this.devices,
-    required this.neighbors,
-    required this.neighborsNotice,
-  });
+  const DevicesDashboard({required this.devices});
 
   final List<KnownDevice> devices;
-  final List<ObservedNeighbor> neighbors;
-  final String neighborsNotice;
 }
 
 class KnownDevice {
@@ -24,6 +18,11 @@ class KnownDevice {
     required this.wolEnabled,
     required this.wakeAction,
     required this.notes,
+    required this.tailscaleHostName,
+    required this.tailscaleDnsName,
+    required this.tailscaleOs,
+    required this.tailscaleOnline,
+    required this.tailscaleLastSeen,
     required this.probeSummary,
     required this.probes,
   });
@@ -40,6 +39,11 @@ class KnownDevice {
   final bool wolEnabled;
   final String? wakeAction;
   final String? notes;
+  final String? tailscaleHostName;
+  final String? tailscaleDnsName;
+  final String? tailscaleOs;
+  final bool? tailscaleOnline;
+  final DateTime? tailscaleLastSeen;
   final String probeSummary;
   final List<DeviceProbeResult> probes;
 
@@ -57,6 +61,11 @@ class KnownDevice {
       wolEnabled: json['wol_enabled'] as bool? ?? false,
       wakeAction: json['wake_action'] as String?,
       notes: json['notes'] as String?,
+      tailscaleHostName: json['tailscale_host_name'] as String?,
+      tailscaleDnsName: json['tailscale_dns_name'] as String?,
+      tailscaleOs: json['tailscale_os'] as String?,
+      tailscaleOnline: json['tailscale_online'] as bool?,
+      tailscaleLastSeen: _parseDateTime(json['tailscale_last_seen']),
       probeSummary: json['probe_summary'] as String? ?? 'No probes',
       probes: [
         for (final probe in (json['probes'] as List<dynamic>? ?? const []))
@@ -93,32 +102,6 @@ class DeviceProbeResult {
       reachable: json['reachable'] as bool? ?? false,
       latencyMs: (json['latency_ms'] as num?)?.toDouble(),
       summary: json['summary'] as String? ?? '',
-    );
-  }
-}
-
-class ObservedNeighbor {
-  const ObservedNeighbor({
-    required this.ip,
-    required this.macAddress,
-    required this.interfaceName,
-    required this.state,
-    required this.hostname,
-  });
-
-  final String ip;
-  final String? macAddress;
-  final String? interfaceName;
-  final String? state;
-  final String? hostname;
-
-  factory ObservedNeighbor.fromJson(Map<String, dynamic> json) {
-    return ObservedNeighbor(
-      ip: json['ip'] as String? ?? 'unknown',
-      macAddress: json['mac_address'] as String?,
-      interfaceName: json['interface_name'] as String?,
-      state: json['state'] as String?,
-      hostname: json['hostname'] as String?,
     );
   }
 }

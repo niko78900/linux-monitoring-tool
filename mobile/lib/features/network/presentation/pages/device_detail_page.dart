@@ -69,6 +69,17 @@ class _DeviceDetailPageState extends ConsumerState<DeviceDetailPage> {
                   label: 'Tailscale IP',
                   value: device.tailscaleIp ?? 'N/A',
                 ),
+                if (device.tailscaleHostName != null)
+                  _InfoLine(label: 'TS Host', value: device.tailscaleHostName!),
+                if (device.tailscaleDnsName != null)
+                  _InfoLine(label: 'TS DNS', value: device.tailscaleDnsName!),
+                if (device.tailscaleOs != null)
+                  _InfoLine(label: 'TS OS', value: device.tailscaleOs!),
+                if (device.tailscaleOnline != null)
+                  _InfoLine(
+                    label: 'TS Status',
+                    value: device.tailscaleOnline! ? 'Online' : 'Offline',
+                  ),
                 _InfoLine(
                   label: 'Latency',
                   value: device.latencyMs == null
@@ -81,7 +92,9 @@ class _DeviceDetailPageState extends ConsumerState<DeviceDetailPage> {
                 ),
                 _InfoLine(
                   label: 'Last Seen',
-                  value: _formatTime(device.lastSeen),
+                  value: _formatTime(
+                    device.lastSeen ?? device.tailscaleLastSeen,
+                  ),
                 ),
                 if (device.notes != null &&
                     device.notes!.trim().isNotEmpty) ...[
