@@ -33,6 +33,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
   SshShellConnection? _connection;
   _TerminalStatus _status = _TerminalStatus.disconnected;
   String? _message;
+  DateTime? _connectedAt;
   bool _ctrlEnabled = false;
   bool _altEnabled = false;
 
@@ -98,51 +99,50 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              StatusBadge(label: _status.label, tone: _status.tone),
-              if (_message != null)
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: Text(_message!),
-                ),
-              FilledButton.icon(
-                onPressed: _status == _TerminalStatus.connecting
-                    ? null
-                    : _connect,
-                icon: const Icon(Icons.link),
-                label: Text(
-                  _status == _TerminalStatus.connected
-                      ? 'Reconnect'
-                      : 'Connect',
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: _connection == null ? null : _disconnect,
-                icon: const Icon(Icons.link_off),
-                label: const Text('Disconnect'),
-              ),
-              IconButton(
-                tooltip: 'Copy selected text',
-                onPressed: _copySelection,
-                icon: const Icon(Icons.copy_all),
-              ),
-              IconButton(
-                tooltip: 'Paste clipboard',
-                onPressed: _pasteClipboard,
-                icon: const Icon(Icons.content_paste),
-              ),
-              IconButton(
-                tooltip: 'Clear terminal',
-                onPressed: _clearTerminal,
-                icon: const Icon(Icons.cleaning_services),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final header = _TerminalHeader(
+                profile: profile,
+                status: _status,
+                message: _message,
+                connectedAt: _connectedAt,
+              );
+              final actions = _TerminalActions(
+                connected: _connection != null,
+                connecting: _status == _TerminalStatus.connecting,
+                onConnect: _connect,
+                onDisconnect: _disconnect,
+                onCopySelection: _copySelection,
+                onCopyBuffer: _copyBuffer,
+                onPaste: _pasteClipboard,
+                onClear: _clearTerminal,
+              );
+              if (constraints.maxWidth < 760) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    header,
+                    const SizedBox(height: AppSpacing.sm),
+                    actions,
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: header),
+                  const SizedBox(width: AppSpacing.md),
+                  actions,
+                ],
+              );
+            },
           ),
           const SizedBox(height: AppSpacing.md),
+          _QuickCommandBar(
+            enabled: _connection != null,
+            onCommand: _sendQuickCommand,
+          ),
+          const SizedBox(height: AppSpacing.sm),
           Expanded(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -222,8 +222,12 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
         connection.session.done.whenComplete(() {
           if (mounted) {
             setState(() {
+              if (identical(_connection, connection)) {
+                _connection = null;
+              }
               _status = _TerminalStatus.disconnected;
               _message = 'Session disconnected.';
+              _connectedAt = null;
             });
           }
         }),
@@ -231,6 +235,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
 
       setState(() {
         _status = _TerminalStatus.connected;
+        _connectedAt = DateTime.now();
         _message =
             'Connected to ${profile.displayName.isEmpty ? profile.host : profile.displayName}';
       });
@@ -238,6 +243,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
       setState(() {
         _status = _TerminalStatus.error;
         _message = _describeError(error);
+        _connectedAt = null;
       });
     }
   }
@@ -261,6 +267,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
     }
     setState(() {
       _status = _TerminalStatus.disconnected;
+      _connectedAt = null;
       if (clearMessage) {
         _message = null;
       } else if (message != null) {
@@ -285,6 +292,16 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
     _showSnackBar('Selection copied.');
   }
 
+  Future<void> _copyBuffer() async {
+    final text = _terminal.buffer.getText().trimRight();
+    if (text.trim().isEmpty) {
+      _showSnackBar('Terminal buffer is empty.');
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: text));
+    _showSnackBar('Terminal buffer copied.');
+  }
+
   Future<void> _pasteClipboard() async {
     if (_connection == null) {
       _showSnackBar('Connect before pasting.');
@@ -299,9 +316,38 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
     _terminal.paste(text);
   }
 
-  void _clearTerminal() {
+  Future<void> _clearTerminal() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear terminal?'),
+        content: const Text('This clears the local terminal buffer only.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
     _terminal.buffer.clear();
     _terminal.buffer.setCursor(0, 0);
+  }
+
+  void _sendQuickCommand(String command) {
+    if (_connection == null) {
+      _showSnackBar('Connect before sending quick commands.');
+      return;
+    }
+    _terminal.textInput(command);
+    _terminal.keyInput(TerminalKey.enter);
   }
 
   void _sendAccessoryKey(String key) {
@@ -412,6 +458,216 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
   }
 }
 
+class _TerminalHeader extends StatelessWidget {
+  const _TerminalHeader({
+    required this.profile,
+    required this.status,
+    required this.message,
+    required this.connectedAt,
+  });
+
+  final ConnectionProfile profile;
+  final _TerminalStatus status;
+  final String? message;
+  final DateTime? connectedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final displayName = profile.displayName.trim().isEmpty
+        ? profile.host
+        : profile.displayName.trim();
+    final connectedSince = connectedAt == null
+        ? null
+        : 'Connected since ${_formatClock(connectedAt!)}';
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.35,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                const Icon(Icons.terminal, size: 20),
+                Text(displayName, style: theme.textTheme.titleMedium),
+                StatusBadge(label: status.label, tone: status.tone),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.xs,
+              children: [
+                _HeaderDetail(
+                  icon: Icons.dns,
+                  label: '${profile.host}:${profile.port}',
+                ),
+                _HeaderDetail(
+                  icon: Icons.person_outline,
+                  label: profile.username,
+                ),
+                if (connectedSince != null)
+                  _HeaderDetail(icon: Icons.schedule, label: connectedSince),
+              ],
+            ),
+            if (message != null && message!.trim().isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(message!, style: theme.textTheme.bodyMedium),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderDetail extends StatelessWidget {
+  const _HeaderDetail({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: Theme.of(context).colorScheme.secondary),
+        const SizedBox(width: AppSpacing.xs),
+        Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+      ],
+    );
+  }
+}
+
+class _TerminalActions extends StatelessWidget {
+  const _TerminalActions({
+    required this.connected,
+    required this.connecting,
+    required this.onConnect,
+    required this.onDisconnect,
+    required this.onCopySelection,
+    required this.onCopyBuffer,
+    required this.onPaste,
+    required this.onClear,
+  });
+
+  final bool connected;
+  final bool connecting;
+  final VoidCallback onConnect;
+  final VoidCallback onDisconnect;
+  final VoidCallback onCopySelection;
+  final VoidCallback onCopyBuffer;
+  final VoidCallback onPaste;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      alignment: WrapAlignment.end,
+      children: [
+        FilledButton.icon(
+          onPressed: connecting ? null : onConnect,
+          icon: const Icon(Icons.link),
+          label: Text(connected ? 'Reconnect' : 'Connect'),
+        ),
+        OutlinedButton.icon(
+          onPressed: connected ? onDisconnect : null,
+          icon: const Icon(Icons.link_off),
+          label: const Text('Disconnect'),
+        ),
+        IconButton(
+          tooltip: 'Copy selected text',
+          onPressed: onCopySelection,
+          icon: const Icon(Icons.copy_all),
+        ),
+        IconButton(
+          tooltip: 'Copy terminal buffer',
+          onPressed: onCopyBuffer,
+          icon: const Icon(Icons.library_books),
+        ),
+        IconButton(
+          tooltip: 'Paste clipboard',
+          onPressed: onPaste,
+          icon: const Icon(Icons.content_paste),
+        ),
+        IconButton(
+          tooltip: 'Clear terminal',
+          onPressed: onClear,
+          icon: const Icon(Icons.cleaning_services),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickCommandBar extends StatelessWidget {
+  const _QuickCommandBar({required this.enabled, required this.onCommand});
+
+  final bool enabled;
+  final ValueChanged<String> onCommand;
+
+  static const _commands = [
+    _QuickCommand('clear', 'clear'),
+    _QuickCommand('uptime', 'uptime'),
+    _QuickCommand('htop', 'htop'),
+    _QuickCommand('docker ps', 'docker ps'),
+    _QuickCommand('df -h', 'df -h'),
+    _QuickCommand('free -h', 'free -h'),
+    _QuickCommand('failed units', 'systemctl --failed'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          Center(
+            child: Text(
+              'Quick input',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.secondary,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          for (final command in _commands) ...[
+            ActionChip(
+              avatar: const Icon(Icons.keyboard_return, size: 16),
+              label: Text(command.label),
+              onPressed: enabled ? () => onCommand(command.command) : null,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickCommand {
+  const _QuickCommand(this.label, this.command);
+
+  final String label;
+  final String command;
+}
+
 class _TerminalSetupState extends StatelessWidget {
   const _TerminalSetupState({
     required this.title,
@@ -496,4 +752,11 @@ enum _TerminalStatus {
 
   final String label;
   final StatusTone tone;
+}
+
+String _formatClock(DateTime value) {
+  final local = value.toLocal();
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '$hour:$minute';
 }
