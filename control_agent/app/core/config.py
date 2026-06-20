@@ -56,6 +56,7 @@ class Settings:
     services_config_path: Path
     service_control_helper_path: Path
     service_command_timeout_seconds: int
+    service_action_state_path: Path
     main_pc_mac: str
     wake_broadcast_host: str
     wake_port: int
@@ -100,6 +101,12 @@ def get_settings() -> Settings:
         ),
         service_command_timeout_seconds=_parse_int(
             os.getenv("SERVICE_COMMAND_TIMEOUT_SECONDS"), 5, minimum=1
+        ),
+        service_action_state_path=Path(
+            os.getenv(
+                "SERVICE_ACTION_STATE_PATH",
+                "/var/lib/linux-monitor-control-agent/service_actions.json",
+            )
         ),
         main_pc_mac=os.getenv("MAIN_PC_MAC", "AA:BB:CC:DD:EE:FF").strip(),
         wake_broadcast_host=os.getenv("WAKE_BROADCAST_HOST", "255.255.255.255").strip(),

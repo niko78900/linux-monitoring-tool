@@ -7,19 +7,15 @@ from urllib import error
 import pytest
 
 from app.services.service_registry import (
+    ServiceActionStateStore,
     execute_service_action,
     get_service_status,
     load_service_registry,
-    reset_service_action_records,
 )
 
 
 class _HttpOkResponse:
     status = 200
-
-
-def setup_function() -> None:
-    reset_service_action_records()
 
 
 def test_service_registry_parses(tmp_path: Path) -> None:
@@ -95,6 +91,73 @@ services:
                 [], 0, "", ""
             ),
         )
+
+
+def test_action_result_persists_to_json(tmp_path: Path) -> None:
+    services = load_service_registry(_write_services_config(tmp_path))
+    state_store = ServiceActionStateStore(tmp_path / "service_actions.json")
+
+    record = execute_service_action(
+        services,
+        service_id="jellyfin",
+        action="restart",
+        helper_path=Path("/tmp/helper"),
+        timeout_seconds=5,
+        subprocess_runner=lambda args, **_kwargs: subprocess.CompletedProcess(
+            args,
+            0,
+            "accepted",
+            "",
+        ),
+        action_store=state_store,
+    )
+
+    assert record.status == "accepted"
+    reloaded_store = ServiceActionStateStore(tmp_path / "service_actions.json")
+    status = get_service_status(
+        services[0],
+        subprocess_runner=lambda args, **_kwargs: subprocess.CompletedProcess(
+            args,
+            0,
+            "running",
+            "",
+        ),
+        url_opener=lambda *_args, **_kwargs: _HttpOkResponse(),
+        action_store=reloaded_store,
+    )
+    assert status.last_action is not None
+    assert status.last_action.action == "restart"
+
+
+def test_invalid_action_state_json_is_ignored(tmp_path: Path) -> None:
+    state_path = tmp_path / "service_actions.json"
+    state_path.write_text("{", encoding="utf-8")
+
+    store = ServiceActionStateStore(state_path)
+
+    assert store.get("jellyfin") is None
+
+
+def test_action_state_write_failure_does_not_block_success(tmp_path: Path) -> None:
+    services = load_service_registry(_write_services_config(tmp_path))
+    state_store = ServiceActionStateStore(tmp_path)
+
+    record = execute_service_action(
+        services,
+        service_id="jellyfin",
+        action="restart",
+        helper_path=Path("/tmp/helper"),
+        timeout_seconds=5,
+        subprocess_runner=lambda args, **_kwargs: subprocess.CompletedProcess(
+            args,
+            0,
+            "accepted",
+            "",
+        ),
+        action_store=state_store,
+    )
+
+    assert record.status == "accepted"
 
 
 def test_auth_required_for_services(client) -> None:

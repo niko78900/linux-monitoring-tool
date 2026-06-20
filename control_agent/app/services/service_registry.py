@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 import subprocess
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -19,7 +21,54 @@ from ..models.services import (
 
 SubprocessRunner = Callable[..., subprocess.CompletedProcess[str]]
 
-_last_actions: dict[str, ServiceActionRecord] = {}
+logger = logging.getLogger(__name__)
+
+
+class ServiceActionStateStore:
+    def __init__(self, path: Path):
+        self.path = path
+
+    def get(self, service_id: str) -> ServiceActionRecord | None:
+        return self.load_all().get(service_id)
+
+    def set(self, service_id: str, record: ServiceActionRecord) -> None:
+        records = self.load_all()
+        records[service_id] = record
+        self._write(records)
+
+    def load_all(self) -> dict[str, ServiceActionRecord]:
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        if not isinstance(raw, dict):
+            return {}
+
+        records: dict[str, ServiceActionRecord] = {}
+        for service_id, payload in raw.items():
+            if not isinstance(service_id, str) or not isinstance(payload, dict):
+                continue
+            try:
+                records[service_id] = ServiceActionRecord.model_validate(payload)
+            except ValueError:
+                continue
+        return records
+
+    def _write(self, records: dict[str, ServiceActionRecord]) -> None:
+        payload = {
+            service_id: record.model_dump(mode="json")
+            for service_id, record in records.items()
+        }
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            temporary_path = self.path.with_name(f"{self.path.name}.tmp")
+            temporary_path.write_text(
+                json.dumps(payload, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+            temporary_path.replace(self.path)
+        except OSError as error:
+            logger.warning("Could not persist service action state: %s", error)
 
 
 def load_service_registry(path: Path) -> list[ServiceConfig]:
@@ -47,6 +96,7 @@ def list_service_statuses(
     *,
     subprocess_runner: SubprocessRunner | None = None,
     url_opener: Callable[..., object] | None = None,
+    action_store: ServiceActionStateStore | None = None,
 ) -> ManagedServicesResponse:
     runner = subprocess_runner or subprocess.run
     opener = url_opener or request.urlopen
@@ -56,6 +106,7 @@ def list_service_statuses(
                 service,
                 subprocess_runner=runner,
                 url_opener=opener,
+                action_store=action_store,
             )
             for service in services
         ]
@@ -67,6 +118,7 @@ def get_service_status(
     *,
     subprocess_runner: SubprocessRunner | None = None,
     url_opener: Callable[..., object] | None = None,
+    action_store: ServiceActionStateStore | None = None,
 ) -> ManagedServiceStatus:
     runner = subprocess_runner or subprocess.run
     opener = url_opener or request.urlopen
@@ -87,7 +139,7 @@ def get_service_status(
         image=service.image,
         last_checked=datetime.now(timezone.utc),
         allowed_actions=list(service.allowed_actions),
-        last_action=_last_actions.get(service.id),
+        last_action=action_store.get(service.id) if action_store else None,
     )
 
 
@@ -99,6 +151,7 @@ def execute_service_action(
     helper_path: Path,
     timeout_seconds: int,
     subprocess_runner: SubprocessRunner | None = None,
+    action_store: ServiceActionStateStore | None = None,
 ) -> ServiceActionRecord:
     runner = subprocess_runner or subprocess.run
     service = next((item for item in services if item.id == service_id), None)
@@ -124,7 +177,7 @@ def execute_service_action(
             requested_at=requested_at,
             detail="Service control helper is not installed.",
         )
-        _last_actions[service.id] = record
+        _store_action(action_store, service.id, record)
         raise RuntimeError(record.detail) from err
     except subprocess.TimeoutExpired as err:
         record = ServiceActionRecord(
@@ -133,7 +186,7 @@ def execute_service_action(
             requested_at=requested_at,
             detail="Service control helper timed out.",
         )
-        _last_actions[service.id] = record
+        _store_action(action_store, service.id, record)
         raise RuntimeError(record.detail) from err
 
     if result.returncode != 0:
@@ -143,7 +196,7 @@ def execute_service_action(
             requested_at=requested_at,
             detail=(result.stderr or result.stdout or "Service action failed").strip(),
         )
-        _last_actions[service.id] = record
+        _store_action(action_store, service.id, record)
         raise RuntimeError(record.detail or "Service action failed")
 
     record = ServiceActionRecord(
@@ -152,12 +205,17 @@ def execute_service_action(
         requested_at=requested_at,
         detail=(result.stdout or "accepted").strip(),
     )
-    _last_actions[service.id] = record
+    _store_action(action_store, service.id, record)
     return record
 
 
-def reset_service_action_records() -> None:
-    _last_actions.clear()
+def _store_action(
+    action_store: ServiceActionStateStore | None,
+    service_id: str,
+    record: ServiceActionRecord,
+) -> None:
+    if action_store is not None:
+        action_store.set(service_id, record)
 
 
 def _read_runtime_state(

@@ -109,6 +109,10 @@ services:
         "SERVICE_CONTROL_HELPER_PATH",
         str(tmp_path / "homelab-service-control"),
     )
+    monkeypatch.setenv(
+        "SERVICE_ACTION_STATE_PATH",
+        str(tmp_path / "service_actions.json"),
+    )
 
     import app.core.config as config_module
 
