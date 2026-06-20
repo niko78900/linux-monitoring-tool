@@ -28,6 +28,7 @@ IGNORED_FSTYPES = {
 }
 
 IGNORED_MOUNT_PREFIXES = ("/proc", "/sys", "/dev", "/run", "/snap")
+DEFAULT_IGNORED_MOUNT_PREFIXES_EXTRA = ("/srv/sftp",)
 IGNORED_EXACT_MOUNTPOINTS = {"/boot/efi"}
 IGNORED_PHYSICAL_DEVICE_PREFIXES = ("loop", "ram", "zram", "dm-", "md", "fd", "sr")
 
@@ -89,10 +90,32 @@ def is_relevant_partition(partition_mountpoint: str, partition_fstype: str) -> b
     if not mountpoint:
         return False
     normalized_mountpoint = mountpoint.rstrip("/") or "/"
+    visible_mountpoints = _csv_env_set("VISIBLE_MOUNTPOINTS")
+    if visible_mountpoints and normalized_mountpoint not in visible_mountpoints:
+        return False
     if normalized_mountpoint in IGNORED_EXACT_MOUNTPOINTS:
         return False
     if fstype in IGNORED_FSTYPES:
         return False
+    extra_ignored_prefixes = tuple(
+        _csv_env_values(
+            "IGNORED_MOUNT_PREFIXES_EXTRA",
+            DEFAULT_IGNORED_MOUNT_PREFIXES_EXTRA,
+        )
+    )
+    if mountpoint != "/" and mountpoint.startswith(extra_ignored_prefixes):
+        return False
     if os.name != "nt" and mountpoint != "/" and mountpoint.startswith(IGNORED_MOUNT_PREFIXES):
         return False
     return True
+
+
+def _csv_env_values(name: str, default: tuple[str, ...] = ()) -> list[str]:
+    raw = os.getenv(name)
+    if raw is None:
+        return list(default)
+    return [item.strip().rstrip("/") for item in raw.split(",") if item.strip()]
+
+
+def _csv_env_set(name: str) -> set[str]:
+    return {item or "/" for item in _csv_env_values(name)}
