@@ -40,6 +40,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
   DateTime? _connectedAt;
   bool _ctrlEnabled = false;
   bool _altEnabled = false;
+  int _connectAttemptId = 0;
 
   @override
   void initState() {
@@ -53,6 +54,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
 
   @override
   void dispose() {
+    _connectAttemptId += 1;
     WidgetsBinding.instance.removeObserver(this);
     _terminal.onOutput = null;
     _terminal.onResize = null;
@@ -123,6 +125,9 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
                   connectedAt: _connectedAt,
                   compact: compact,
                   connected: _connection != null,
+                  canDisconnect:
+                      _connection != null ||
+                      _status == _TerminalStatus.connecting,
                   connecting: _status == _TerminalStatus.connecting,
                   onConnect: _connect,
                   onDisconnect: _disconnect,
@@ -183,6 +188,10 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
   Future<void> _connect() async {
     final profile = ref.read(settingsControllerProvider).sshProfile;
     await _disconnect(clearMessage: true);
+    final attemptId = ++_connectAttemptId;
+    if (!mounted || attemptId != _connectAttemptId) {
+      return;
+    }
     setState(() {
       _status = _TerminalStatus.connecting;
       _message = 'Connecting to ${profile.host}:${profile.port}';
@@ -198,30 +207,30 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
         onPassphraseRequired: _promptPassphrase,
       );
 
+      if (!mounted || attemptId != _connectAttemptId) {
+        await connection.close();
+        return;
+      }
+
       _connection = connection;
       _terminal.buffer.clear();
       _terminal.buffer.setCursor(0, 0);
       _terminal.onResize = (width, height, pixelWidth, pixelHeight) {
-        connection.session.resizeTerminal(
-          width,
-          height,
-          pixelWidth,
-          pixelHeight,
-        );
+        connection.resizeTerminal(width, height, pixelWidth, pixelHeight);
       };
       _terminal.onOutput = (data) {
-        connection.session.write(Uint8List.fromList(utf8.encode(data)));
+        connection.write(Uint8List.fromList(utf8.encode(data)));
       };
 
-      _stdoutSubscription = connection.session.stdout
+      _stdoutSubscription = connection.stdout
           .map((chunk) => utf8.decode(chunk, allowMalformed: true))
           .listen(_terminal.write);
-      _stderrSubscription = connection.session.stderr
+      _stderrSubscription = connection.stderr
           .map((chunk) => utf8.decode(chunk, allowMalformed: true))
           .listen(_terminal.write);
       unawaited(
-        connection.session.done.whenComplete(() {
-          if (mounted) {
+        connection.done.whenComplete(() {
+          if (mounted && attemptId == _connectAttemptId) {
             setState(() {
               if (identical(_connection, connection)) {
                 _connection = null;
@@ -241,6 +250,9 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
             'Connected to ${profile.displayName.isEmpty ? profile.host : profile.displayName}';
       });
     } catch (error) {
+      if (!mounted || attemptId != _connectAttemptId) {
+        return;
+      }
       setState(() {
         _status = _TerminalStatus.error;
         _message = _describeError(error);
@@ -250,6 +262,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
   }
 
   Future<void> _disconnect({String? message, bool clearMessage = false}) async {
+    _connectAttemptId += 1;
     _terminal.onOutput = null;
     _terminal.onResize = null;
     await _stdoutSubscription?.cancel();
@@ -462,6 +475,9 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
   }
 
   Future<PassphrasePromptResult?> _promptPassphrase() async {
+    if (!mounted) {
+      return null;
+    }
     final settings = ref.read(settingsControllerProvider);
     final result = await showPassphrasePromptDialog(
       context,
@@ -469,6 +485,9 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
       rememberInitially: settings.sshProfile.storePassphrase,
     );
     if (result == null) {
+      return null;
+    }
+    if (!mounted) {
       return null;
     }
 
@@ -524,6 +543,7 @@ class _TerminalHeaderAndActions extends StatelessWidget {
     required this.connectedAt,
     required this.compact,
     required this.connected,
+    required this.canDisconnect,
     required this.connecting,
     required this.onConnect,
     required this.onDisconnect,
@@ -539,6 +559,7 @@ class _TerminalHeaderAndActions extends StatelessWidget {
   final DateTime? connectedAt;
   final bool compact;
   final bool connected;
+  final bool canDisconnect;
   final bool connecting;
   final VoidCallback onConnect;
   final VoidCallback onDisconnect;
@@ -558,6 +579,7 @@ class _TerminalHeaderAndActions extends StatelessWidget {
     );
     final actions = _TerminalActions(
       connected: connected,
+      canDisconnect: canDisconnect,
       connecting: connecting,
       compact: compact,
       onConnect: onConnect,
@@ -695,6 +717,7 @@ class _HeaderDetail extends StatelessWidget {
 class _TerminalActions extends StatelessWidget {
   const _TerminalActions({
     required this.connected,
+    required this.canDisconnect,
     required this.connecting,
     required this.compact,
     required this.onConnect,
@@ -706,6 +729,7 @@ class _TerminalActions extends StatelessWidget {
   });
 
   final bool connected;
+  final bool canDisconnect;
   final bool connecting;
   final bool compact;
   final VoidCallback onConnect;
@@ -728,9 +752,11 @@ class _TerminalActions extends StatelessWidget {
           label: Text(connected ? 'Reconnect' : 'Connect'),
         ),
         OutlinedButton.icon(
-          onPressed: connected ? onDisconnect : null,
+          onPressed: canDisconnect ? onDisconnect : null,
           icon: const Icon(Icons.link_off),
-          label: Text(compact ? 'Close' : 'Disconnect'),
+          label: Text(
+            connecting ? 'Cancel' : (compact ? 'Close' : 'Disconnect'),
+          ),
         ),
         IconButton(
           tooltip: 'Copy selected text',

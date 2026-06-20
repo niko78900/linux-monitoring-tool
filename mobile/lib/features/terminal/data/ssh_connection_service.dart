@@ -12,14 +12,34 @@ import '../domain/models/ssh_connection_models.dart';
 typedef SshHostTrustPrompt = Future<bool> Function(SshHostFingerprint hostKey);
 typedef SshPassphrasePrompt = Future<PassphrasePromptResult?> Function();
 
-final sshConnectionServiceProvider = Provider<SshConnectionService>(
+final sshConnectionServiceProvider = Provider<SshConnectionClient>(
   (ref) => SshConnectionService(
     storage: ref.watch(secureStorageServiceProvider),
     fingerprints: ref.watch(hostFingerprintStoreProvider),
   ),
 );
 
-class SshConnectionService {
+abstract interface class SshConnectionClient {
+  Future<void> testConnection({
+    required ConnectionProfile profile,
+    required SshHostTrustPrompt onTrustHost,
+    SshPassphrasePrompt? onPassphraseRequired,
+  });
+
+  Future<SshShellConnection> openShell({
+    required ConnectionProfile profile,
+    required int width,
+    required int height,
+    required SshHostTrustPrompt onTrustHost,
+    SshPassphrasePrompt? onPassphraseRequired,
+  });
+
+  Future<String?> readTrustedFingerprint(ConnectionProfile profile);
+
+  Future<void> resetTrustedFingerprint(ConnectionProfile profile);
+}
+
+class SshConnectionService implements SshConnectionClient {
   SshConnectionService({
     required SecureStorageService storage,
     required HostFingerprintStore fingerprints,
@@ -29,6 +49,7 @@ class SshConnectionService {
   final SecureStorageService _storage;
   final HostFingerprintStore _fingerprints;
 
+  @override
   Future<void> testConnection({
     required ConnectionProfile profile,
     required SshHostTrustPrompt onTrustHost,
@@ -49,6 +70,7 @@ class SshConnectionService {
     }
   }
 
+  @override
   Future<SshShellConnection> openShell({
     required ConnectionProfile profile,
     required int width,
@@ -70,13 +92,14 @@ class SshConnectionService {
       final session = await client.shell(
         pty: SSHPtyConfig(width: width, height: height),
       );
-      return SshShellConnection(client: client, session: session);
+      return DartSshShellConnection(client: client, session: session);
     } catch (_) {
       client.close();
       rethrow;
     }
   }
 
+  @override
   Future<String?> readTrustedFingerprint(ConnectionProfile profile) {
     if (!profile.isConfigured) {
       return Future.value(null);
@@ -84,6 +107,7 @@ class SshConnectionService {
     return _fingerprints.readTrustedFingerprint(profile.host, profile.port);
   }
 
+  @override
   Future<void> resetTrustedFingerprint(ConnectionProfile profile) {
     if (!profile.isConfigured) {
       return Future.value();
@@ -223,12 +247,46 @@ class SshConnectionService {
   }
 }
 
-class SshShellConnection {
-  SshShellConnection({required this.client, required this.session});
+abstract interface class SshShellConnection {
+  Stream<Uint8List> get stdout;
+
+  Stream<Uint8List> get stderr;
+
+  Future<void> get done;
+
+  void resizeTerminal(int width, int height, int pixelWidth, int pixelHeight);
+
+  void write(Uint8List data);
+
+  Future<void> close();
+}
+
+class DartSshShellConnection implements SshShellConnection {
+  DartSshShellConnection({required this.client, required this.session});
 
   final SSHClient client;
   final SSHSession session;
 
+  @override
+  Stream<Uint8List> get stdout => session.stdout;
+
+  @override
+  Stream<Uint8List> get stderr => session.stderr;
+
+  @override
+  Future<void> get done => session.done;
+
+  @override
+  void resizeTerminal(int width, int height, int pixelWidth, int pixelHeight) {
+    session.resizeTerminal(width, height, pixelWidth, pixelHeight);
+  }
+
+  @override
+  void write(Uint8List data) {
+    session.write(data);
+  }
+
+  @override
   Future<void> close() async {
     session.close();
     client.close();
