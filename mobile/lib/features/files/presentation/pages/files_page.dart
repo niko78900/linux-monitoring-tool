@@ -574,6 +574,31 @@ class _FilesPageState extends ConsumerState<FilesPage>
     }
   }
 
+  Future<void> _openEntryExternally(RemoteFileEntry entry) async {
+    if (entry.isDirectory || entry.isSymbolicLink) {
+      _showSnackBar('External open is only available for regular files.');
+      return;
+    }
+    final connection = _connection;
+    if (connection == null) {
+      _showSnackBar('Connect before opening files.');
+      return;
+    }
+    final previewService = ref.read(filePreviewServiceProvider);
+    try {
+      _showSnackBar('Opening ${entry.name} with a system app...');
+      final path = await previewService.cacheRemoteFile(
+        sftp: connection.sftp,
+        remotePath: entry.path,
+        fileName: entry.name,
+        sizeBytes: entry.sizeBytes,
+      );
+      await _openLocalPath(path);
+    } catch (error) {
+      _showSnackBar(_describeError(error));
+    }
+  }
+
   void _cancelOutstandingTransfers({bool mutateState = true}) {
     for (final token in _tokens.values) {
       token.cancel();
@@ -692,24 +717,12 @@ class _FilesPageState extends ConsumerState<FilesPage>
       }
 
       if (isExternalPreviewable(entry.name)) {
-        final path = await previewService.cacheRemoteFile(
-          sftp: _connection!.sftp,
-          remotePath: entry.path,
-          fileName: entry.name,
-          sizeBytes: entry.sizeBytes,
-        );
-        await _openLocalPath(path);
+        await _openEntryExternally(entry);
         return;
       }
 
       if (isVideoPreviewable(entry.name)) {
-        final path = await previewService.cacheRemoteFile(
-          sftp: _connection!.sftp,
-          remotePath: entry.path,
-          fileName: entry.name,
-          sizeBytes: entry.sizeBytes,
-        );
-        await _openLocalPath(path);
+        await _openEntryExternally(entry);
         return;
       }
 
@@ -775,6 +788,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
       entry: entry,
       onCopyPath: () => _copyPath(entry.path),
       onDownload: () => _enqueueDownload(entry),
+      onOpenExternally: () => _openEntryExternally(entry),
     );
   }
 
@@ -895,6 +909,8 @@ class _FilesPageState extends ConsumerState<FilesPage>
     switch (action) {
       case FileEntryAction.preview:
         await _previewEntry(entry);
+      case FileEntryAction.openExternal:
+        await _openEntryExternally(entry);
       case FileEntryAction.download:
         _enqueueDownload(entry);
       case FileEntryAction.rename:

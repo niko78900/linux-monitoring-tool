@@ -12,8 +12,22 @@ Future<void> showImagePreviewDialog(
 }) {
   return showDialog<void>(
     context: context,
-    builder: (context) =>
-        Dialog(child: InteractiveViewer(child: Image.file(File(localPath)))),
+    builder: (context) => Dialog(
+      child: Stack(
+        children: [
+          InteractiveViewer(child: Image.file(File(localPath))),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: IconButton.filledTonal(
+              tooltip: 'Close preview',
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close),
+            ),
+          ),
+        ],
+      ),
+    ),
   );
 }
 
@@ -59,15 +73,23 @@ Future<void> showUnsupportedPreviewDialog(
   required RemoteFileEntry entry,
   required VoidCallback onCopyPath,
   required VoidCallback onDownload,
+  required VoidCallback onOpenExternally,
 }) {
   return showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
       title: Text(entry.name),
       content: const Text(
-        'Preview is unavailable for this file type. You can still download it or copy the remote path.',
+        'Preview is unavailable for this file type. You can try a system app, download it, or copy the remote path.',
       ),
       actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            onOpenExternally();
+          },
+          child: const Text('Try open externally'),
+        ),
         TextButton(
           onPressed: () {
             Navigator.of(context).pop();

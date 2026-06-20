@@ -1,3 +1,10 @@
 enum FilesSort { name, modified, size }
 
-enum FileEntryAction { preview, download, rename, move, softDelete }
+enum FileEntryAction {
+  preview,
+  openExternal,
+  download,
+  rename,
+  move,
+  softDelete,
+}

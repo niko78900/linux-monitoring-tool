@@ -83,6 +83,13 @@ class RemoteFileList extends StatelessWidget {
                 ),
               if (!entry.isDirectory && !entry.isSymbolicLink)
                 IconButton(
+                  tooltip: 'Open externally',
+                  onPressed: () =>
+                      onEntryAction(entry, FileEntryAction.openExternal),
+                  icon: const Icon(Icons.open_in_new),
+                ),
+              if (!entry.isDirectory && !entry.isSymbolicLink)
+                IconButton(
                   tooltip: 'Download file',
                   onPressed: () => onDownload(entry),
                   icon: const Icon(Icons.download),
@@ -94,6 +101,16 @@ class RemoteFileList extends StatelessWidget {
                     const PopupMenuItem(
                       value: FileEntryAction.preview,
                       child: Text('Preview'),
+                    ),
+                  if (!entry.isDirectory && !entry.isSymbolicLink)
+                    const PopupMenuItem(
+                      value: FileEntryAction.openExternal,
+                      child: Text('Open externally'),
+                    ),
+                  if (!entry.isDirectory && !entry.isSymbolicLink)
+                    const PopupMenuItem(
+                      value: FileEntryAction.download,
+                      child: Text('Download'),
                     ),
                   const PopupMenuItem(
                     value: FileEntryAction.rename,
