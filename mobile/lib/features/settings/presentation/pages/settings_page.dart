@@ -13,16 +13,22 @@ import '../../../../core/networking/dio_factory.dart';
 import '../../../../core/security/app_lock_service.dart';
 import '../../../../core/security/secure_storage_service.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/widgets/section_card.dart';
 import '../../../dashboard/data/monitoring_api_client.dart';
 import '../../../files/data/sftp_connection_service.dart';
-import '../../../network/data/control_api_client.dart';
 import '../../../mobile_alerts/data/mobile_alert_service.dart';
 import '../../../mobile_alerts/domain/models/mobile_alert_models.dart';
-import '../../../server_widget/data/server_widget_catalog.dart';
+import '../../../network/data/control_api_client.dart';
 import '../../../server_widget/data/server_widget_service.dart';
 import '../../../terminal/data/ssh_connection_service.dart';
 import '../../../terminal/presentation/widgets/terminal_connection_dialogs.dart';
+import '../sections/control_agent_settings_section.dart';
+import '../sections/debug_settings_section.dart';
+import '../sections/files_settings_section.dart';
+import '../sections/monitoring_settings_section.dart';
+import '../sections/push_alerts_settings_section.dart';
+import '../sections/tablet_settings_section.dart';
+import '../sections/terminal_settings_section.dart';
+import '../sections/widget_settings_section.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -99,671 +105,102 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
-        SectionCard(
-          title: 'Monitoring',
-          child: Column(
-            children: [
-              TextField(
-                controller: _monitoringUrl,
-                decoration: const InputDecoration(
-                  labelText: 'Monitoring API URL',
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              _PollingField(
-                label: 'Summary polling ms',
-                value: settings.summaryPollingMs,
-                onChanged: (value) =>
-                    _save(settings.copyWith(summaryPollingMs: value)),
-              ),
-              _PollingField(
-                label: 'Details polling ms',
-                value: settings.detailsPollingMs,
-                onChanged: (value) =>
-                    _save(settings.copyWith(detailsPollingMs: value)),
-              ),
-              _PollingField(
-                label: 'Health polling ms',
-                value: settings.healthPollingMs,
-                onChanged: (value) =>
-                    _save(settings.copyWith(healthPollingMs: value)),
-              ),
-              _PollingField(
-                label: 'Docker polling ms',
-                value: settings.dockerPollingMs,
-                onChanged: (value) =>
-                    _save(settings.copyWith(dockerPollingMs: value)),
-              ),
-              Row(
-                children: [
-                  FilledButton(
-                    onPressed: () => _save(
-                      settings.copyWith(monitoringApiUrl: _monitoringUrl.text),
-                    ),
-                    child: const Text('Save monitoring'),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  OutlinedButton(
-                    onPressed: _testMonitoring,
-                    child: const Text('Test monitoring API'),
-                  ),
-                ],
-              ),
-            ],
+        MonitoringSettingsSection(
+          settings: settings,
+          monitoringUrlController: _monitoringUrl,
+          onSave: _save,
+          onTest: _testMonitoring,
+        ),
+        ControlAgentSettingsSection(
+          settings: settings,
+          controlUrlController: _controlUrl,
+          controlTokenController: _controlToken,
+          onSave: _saveControl,
+          onTest: _testControl,
+          onClearToken: _clearToken,
+        ),
+        TerminalSettingsSection(
+          settings: settings,
+          nameController: _sshName,
+          hostController: _sshHost,
+          portController: _sshPort,
+          userController: _sshUser,
+          passphraseController: _sshPassphrase,
+          keySummary: _sshKeySummary,
+          trustedFingerprint: _sshTrustedFingerprint,
+          testing: _testingSsh,
+          onSaveProfiles: _saveProfiles,
+          onSetPassphraseStorage: _setSshPassphraseStorage,
+          onImportKey: _importSshKey,
+          onPasteKey: _pasteSshKey,
+          onRemoveKey: _removeSshKey,
+          onTest: _testSsh,
+          onResetTrustedFingerprint: _resetTrustedFingerprint,
+          onSave: _save,
+        ),
+        FilesSettingsSection(
+          settings: settings,
+          nameController: _sftpName,
+          hostController: _sftpHost,
+          portController: _sftpPort,
+          userController: _sftpUser,
+          passphraseController: _sftpPassphrase,
+          rootController: _sftpRoot,
+          keySummary: _sftpKeySummary,
+          trustedFingerprint: _sftpTrustedFingerprint,
+          testing: _testingSftp,
+          onSaveProfiles: _saveProfiles,
+          onSave: _save,
+          onSetPassphraseStorage: _setSftpPassphraseStorage,
+          onImportKey: _importSftpKey,
+          onPasteKey: _pasteSftpKey,
+          onRemoveKey: _removeSftpKey,
+          onTest: _testSftp,
+          onResetTrustedFingerprint: _resetSftpTrustedFingerprint,
+        ),
+        WidgetSettingsSection(
+          settings: settings,
+          mountpointController: _widgetMountpoint,
+          labelController: _widgetLabel,
+          secondaryMountpointController: _widgetSecondaryMountpoint,
+          secondaryLabelController: _widgetSecondaryLabel,
+          requestingWidgetPinProvider: _requestingWidgetPinProvider,
+          onSave: _save,
+          onRefreshSnapshots: _refreshWidgetSnapshots,
+          onRequestPinWidget: _requestPinWidget,
+        ),
+        PushAlertsSettingsSection(
+          settings: settings,
+          tokenController: _mobileAlertToken,
+          busy: _mobileAlertBusy,
+          notificationPermission: _notificationPermission,
+          readiness: _mobileAlertReadiness,
+          registrationLabel: _registrationLabel(),
+          channelReadinessLabel: _channelReadinessLabel(),
+          statusText: _mobileAlertStatusText,
+          onSaveToken: _saveMobileAlertToken,
+          onClearToken: _clearMobileAlertToken,
+          onEnable: _enablePushAlerts,
+          onDisable: _disablePushAlerts,
+          onSave: _save,
+          onRefreshStatus: _refreshMobileAlertStatus,
+          onRegister: _enablePushAlerts,
+          onSendTest: _sendTestPush,
+          onOpenAndroidNotificationSettings: () => unawaited(
+            MobileAlertService.instance.openAndroidNotificationSettings(),
           ),
         ),
-        SectionCard(
-          title: 'Control Agent',
-          child: Column(
-            children: [
-              TextField(
-                controller: _controlUrl,
-                decoration: const InputDecoration(labelText: 'Control API URL'),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _controlToken,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Control API token',
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Row(
-                children: [
-                  FilledButton(
-                    onPressed: () => _saveControl(settings),
-                    child: const Text('Save control'),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  OutlinedButton(
-                    onPressed: _testControl,
-                    child: const Text('Test control API'),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  TextButton(
-                    onPressed: _clearToken,
-                    child: const Text('Clear token'),
-                  ),
-                ],
-              ),
-            ],
-          ),
+        TabletSettingsSection(
+          settings: settings,
+          onSave: _save,
+          onManualLock: () =>
+              ref.read(appLockControllerProvider.notifier).lock(),
         ),
-        SectionCard(
-          title: 'Terminal',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: _sshName,
-                decoration: const InputDecoration(
-                  labelText: 'SSH profile name',
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _sshHost,
-                decoration: const InputDecoration(labelText: 'SSH host'),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _sshPort,
-                decoration: const InputDecoration(labelText: 'SSH port'),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _sshUser,
-                decoration: const InputDecoration(labelText: 'SSH username'),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: settings.sshProfile.storePassphrase,
-                onChanged: (value) => _setSshPassphraseStorage(settings, value),
-                title: const Text('Store passphrase in secure storage'),
-              ),
-              if (settings.sshProfile.storePassphrase) ...[
-                TextField(
-                  controller: _sshPassphrase,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'SSH key passphrase',
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-              ],
-              _InfoLine(
-                label: 'Imported key',
-                value: _sshKeySummary ?? 'No key imported',
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              _InfoLine(
-                label: 'Trusted host fingerprint',
-                value:
-                    _sshTrustedFingerprint ?? 'No trusted fingerprint stored',
-                selectable: true,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  FilledButton(
-                    onPressed: () => _saveProfiles(settings),
-                    child: const Text('Save terminal'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => _importSshKey(settings),
-                    icon: const Icon(Icons.upload_file),
-                    label: Text(
-                      settings.sshProfile.hasImportedKey
-                          ? 'Replace key'
-                          : 'Import private key',
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => _pasteSshKey(settings),
-                    icon: const Icon(Icons.content_paste),
-                    label: const Text('Paste private key'),
-                  ),
-                  TextButton(
-                    onPressed: settings.sshProfile.hasImportedKey
-                        ? () => _removeSshKey(settings)
-                        : null,
-                    child: const Text('Remove key'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  OutlinedButton(
-                    onPressed: _testingSsh ? null : () => _testSsh(settings),
-                    child: Text(
-                      _testingSsh ? 'Testing...' : 'Test SSH connection',
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _sshTrustedFingerprint == null
-                        ? null
-                        : () => _resetTrustedFingerprint(settings.sshProfile),
-                    child: const Text('Reset trusted fingerprint'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: settings.allowSftpUpload,
-                onChanged: (value) =>
-                    _save(settings.copyWith(allowSftpUpload: value)),
-                title: const Text('Allow uploads'),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: settings.allowSftpCreateDirectory,
-                onChanged: (value) =>
-                    _save(settings.copyWith(allowSftpCreateDirectory: value)),
-                title: const Text('Allow create directory'),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: settings.allowSftpRename,
-                onChanged: (value) =>
-                    _save(settings.copyWith(allowSftpRename: value)),
-                title: const Text('Allow rename'),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: settings.allowSftpMove,
-                onChanged: (value) =>
-                    _save(settings.copyWith(allowSftpMove: value)),
-                title: const Text('Allow move'),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: settings.allowSftpSoftDelete,
-                onChanged: (value) =>
-                    _save(settings.copyWith(allowSftpSoftDelete: value)),
-                title: const Text('Allow soft delete'),
-              ),
-            ],
-          ),
-        ),
-        SectionCard(
-          title: 'Files',
-          child: Column(
-            children: [
-              TextField(
-                controller: _sftpName,
-                decoration: const InputDecoration(
-                  labelText: 'SFTP profile name',
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _sftpHost,
-                decoration: const InputDecoration(labelText: 'SFTP host'),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _sftpPort,
-                decoration: const InputDecoration(labelText: 'SFTP port'),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _sftpUser,
-                decoration: const InputDecoration(labelText: 'SFTP username'),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: settings.sftpProfile.storePassphrase,
-                onChanged: (value) =>
-                    _setSftpPassphraseStorage(settings, value),
-                title: const Text('Store passphrase in secure storage'),
-              ),
-              if (settings.sftpProfile.storePassphrase) ...[
-                TextField(
-                  controller: _sftpPassphrase,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'SFTP key passphrase',
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-              ],
-              TextField(
-                controller: _sftpRoot,
-                decoration: const InputDecoration(
-                  labelText: 'Configured virtual root',
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              DropdownButtonFormField<SftpBackgroundTimeout>(
-                initialValue: settings.sftpBackgroundTimeout,
-                decoration: const InputDecoration(
-                  labelText: 'SFTP background timeout',
-                ),
-                items: [
-                  for (final timeout in SftpBackgroundTimeout.values)
-                    DropdownMenuItem(
-                      value: timeout,
-                      child: Text(timeout.label),
-                    ),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    _save(settings.copyWith(sftpBackgroundTimeout: value));
-                  }
-                },
-              ),
-              const SizedBox(height: AppSpacing.md),
-              _InfoLine(
-                label: 'Imported key',
-                value: _sftpKeySummary ?? 'No key imported',
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              _InfoLine(
-                label: 'Trusted host fingerprint',
-                value:
-                    _sftpTrustedFingerprint ?? 'No trusted fingerprint stored',
-                selectable: true,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  FilledButton(
-                    onPressed: () => _saveProfiles(settings),
-                    child: const Text('Save files'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => _importSftpKey(settings),
-                    icon: const Icon(Icons.upload_file),
-                    label: Text(
-                      settings.sftpProfile.hasImportedKey
-                          ? 'Replace key'
-                          : 'Import restricted key',
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => _pasteSftpKey(settings),
-                    icon: const Icon(Icons.content_paste),
-                    label: const Text('Paste restricted key'),
-                  ),
-                  TextButton(
-                    onPressed: settings.sftpProfile.hasImportedKey
-                        ? () => _removeSftpKey(settings)
-                        : null,
-                    child: const Text('Remove key'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  OutlinedButton(
-                    onPressed: _testingSftp ? null : () => _testSftp(settings),
-                    child: Text(
-                      _testingSftp ? 'Testing...' : 'Test SFTP connection',
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _sftpTrustedFingerprint == null
-                        ? null
-                        : () => _resetSftpTrustedFingerprint(
-                            settings.sftpProfile,
-                          ),
-                    child: const Text('Reset trusted fingerprint'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        SectionCard(
-          title: 'Widgets & Alerts',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Home-screen widgets',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _widgetMountpoint,
-                decoration: const InputDecoration(
-                  labelText: 'Primary storage mountpoint',
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _widgetLabel,
-                decoration: const InputDecoration(
-                  labelText: 'Primary widget label',
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _widgetSecondaryMountpoint,
-                decoration: const InputDecoration(
-                  labelText: 'Secondary storage mountpoint',
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _widgetSecondaryLabel,
-                decoration: const InputDecoration(
-                  labelText: 'Secondary widget label',
-                ),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: settings.widgetShowSecondaryStorage,
-                onChanged: (value) =>
-                    _save(settings.copyWith(widgetShowSecondaryStorage: value)),
-                title: const Text('Show secondary storage row'),
-              ),
-              DropdownButtonFormField<int>(
-                initialValue: settings.widgetBackgroundRefreshMinutes,
-                decoration: const InputDecoration(
-                  labelText: 'Background refresh interval',
-                ),
-                items: const [
-                  DropdownMenuItem(value: 15, child: Text('15 minutes')),
-                  DropdownMenuItem(value: 30, child: Text('30 minutes')),
-                  DropdownMenuItem(value: 60, child: Text('60 minutes')),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    _save(
-                      settings.copyWith(widgetBackgroundRefreshMinutes: value),
-                    );
-                  }
-                },
-              ),
-              const SizedBox(height: AppSpacing.md),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: settings.widgetShowNetworkThroughput,
-                onChanged: (value) => _save(
-                  settings.copyWith(widgetShowNetworkThroughput: value),
-                ),
-                title: const Text('Show network throughput row'),
-              ),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  FilledButton(
-                    onPressed: () => _save(
-                      settings.copyWith(
-                        widgetStorageMountpoint: _widgetMountpoint.text,
-                        widgetStorageLabel: _widgetLabel.text,
-                        widgetSecondaryStorageMountpoint:
-                            _widgetSecondaryMountpoint.text,
-                        widgetSecondaryStorageLabel: _widgetSecondaryLabel.text,
-                      ),
-                    ),
-                    child: const Text('Save widget settings'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _refreshWidgetSnapshots,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Refresh widget data now'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final columns = constraints.maxWidth >= 900 ? 2 : 1;
-                  return GridView.count(
-                    crossAxisCount: columns,
-                    crossAxisSpacing: AppSpacing.md,
-                    mainAxisSpacing: AppSpacing.md,
-                    childAspectRatio: columns == 1 ? 4.2 : 3.2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      for (final widget in homeScreenWidgets)
-                        _WidgetCatalogCard(
-                          widget: widget,
-                          requesting:
-                              _requestingWidgetPinProvider ==
-                              widget.providerName,
-                          onAdd: () => _requestPinWidget(widget.providerName),
-                        ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              const Divider(),
-              const SizedBox(height: AppSpacing.md),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Push notifications',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              TextField(
-                controller: _mobileAlertToken,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Mobile-alert backend token',
-                  helperText:
-                      'Limited token for backend alert registration and tests.',
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  OutlinedButton(
-                    onPressed: _saveMobileAlertToken,
-                    child: const Text('Save alert token'),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  TextButton(
-                    onPressed: _clearMobileAlertToken,
-                    child: const Text('Clear alert token'),
-                  ),
-                ],
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: settings.mobilePushAlertsEnabled,
-                onChanged: _mobileAlertBusy
-                    ? null
-                    : (value) => value
-                          ? _enablePushAlerts(settings)
-                          : _disablePushAlerts(settings),
-                title: const Text('Enable push alerts'),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: settings.mobilePushIncludeRecovery,
-                onChanged: (value) =>
-                    _save(settings.copyWith(mobilePushIncludeRecovery: value)),
-                title: const Text('Include recovery notifications'),
-              ),
-              _InfoLine(
-                label: 'Permission',
-                value: _notificationPermission?.label ?? 'Not checked',
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              _InfoLine(label: 'Registration', value: _registrationLabel()),
-              const SizedBox(height: AppSpacing.sm),
-              _InfoLine(label: 'Channel', value: _channelReadinessLabel()),
-              const SizedBox(height: AppSpacing.sm),
-              _InfoLine(
-                label: 'Readiness',
-                value: _mobileAlertReadiness?.readinessMessage ?? 'Not checked',
-              ),
-              if (_mobileAlertStatusText != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                _InfoLine(label: 'Last action', value: _mobileAlertStatusText!),
-              ],
-              const SizedBox(height: AppSpacing.md),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _mobileAlertBusy
-                        ? null
-                        : () => _refreshMobileAlertStatus(settings),
-                    icon: const Icon(Icons.sync),
-                    label: const Text('Refresh push status'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _mobileAlertBusy
-                        ? null
-                        : () => _enablePushAlerts(settings),
-                    icon: const Icon(Icons.app_registration),
-                    label: const Text('Re-register this tablet'),
-                  ),
-                  FilledButton.icon(
-                    onPressed: _mobileAlertBusy
-                        ? null
-                        : () => _sendTestPush(settings),
-                    icon: const Icon(Icons.notifications_active),
-                    label: const Text('Send test notification'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => unawaited(
-                      MobileAlertService.instance
-                          .openAndroidNotificationSettings(),
-                    ),
-                    icon: const Icon(Icons.settings),
-                    label: const Text('Android notification settings'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        SectionCard(
-          title: 'Tablet',
-          child: Column(
-            children: [
-              SwitchListTile(
-                value: settings.keepScreenAwakeOnOverview,
-                onChanged: (value) =>
-                    _save(settings.copyWith(keepScreenAwakeOnOverview: value)),
-                title: const Text('Keep screen awake on Overview'),
-              ),
-              SwitchListTile(
-                value: settings.requirePrivilegedUnlock,
-                onChanged: (value) =>
-                    _save(settings.copyWith(requirePrivilegedUnlock: value)),
-                title: const Text('Privileged-tab lock'),
-              ),
-              DropdownButtonFormField<PrivilegedUnlockTimeout>(
-                initialValue: settings.unlockTimeout,
-                decoration: const InputDecoration(labelText: 'Unlock timeout'),
-                items: [
-                  for (final option in PrivilegedUnlockTimeout.values)
-                    DropdownMenuItem(value: option, child: Text(option.label)),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    _save(settings.copyWith(unlockTimeout: value));
-                  }
-                },
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
-                  onPressed: () =>
-                      ref.read(appLockControllerProvider.notifier).lock(),
-                  icon: const Icon(Icons.lock),
-                  label: const Text('Manually lock now'),
-                ),
-              ),
-            ],
-          ),
-        ),
-        SectionCard(
-          title: 'Debug',
-          child: Column(
-            children: [
-              SwitchListTile(
-                value: settings.showRawApiErrors,
-                onChanged: (value) =>
-                    _save(settings.copyWith(showRawApiErrors: value)),
-                title: const Text('Show raw API errors'),
-              ),
-              SwitchListTile(
-                value: settings.showRequestTiming,
-                onChanged: (value) =>
-                    _save(settings.copyWith(showRequestTiming: value)),
-                title: const Text('Show request timing'),
-              ),
-              TextButton(
-                onPressed: () => ref
-                    .read(settingsControllerProvider.notifier)
-                    .resetOnboarding(),
-                child: const Text('Run onboarding again'),
-              ),
-            ],
-          ),
+        DebugSettingsSection(
+          settings: settings,
+          onSave: _save,
+          onResetOnboarding: () =>
+              ref.read(settingsControllerProvider.notifier).resetOnboarding(),
         ),
       ],
     );
@@ -1598,131 +1035,5 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       return error.message;
     }
     return error.toString();
-  }
-}
-
-class _PollingField extends StatelessWidget {
-  const _PollingField({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String label;
-  final int value;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: DropdownButtonFormField<int>(
-        initialValue: value,
-        decoration: InputDecoration(labelText: label),
-        items: const [
-          DropdownMenuItem(value: 1000, child: Text('1 second')),
-          DropdownMenuItem(value: 3000, child: Text('3 seconds')),
-          DropdownMenuItem(value: 5000, child: Text('5 seconds')),
-          DropdownMenuItem(value: 10000, child: Text('10 seconds')),
-          DropdownMenuItem(value: 15000, child: Text('15 seconds')),
-          DropdownMenuItem(value: 30000, child: Text('30 seconds')),
-          DropdownMenuItem(value: 60000, child: Text('1 minute')),
-        ],
-        onChanged: (next) {
-          if (next != null) {
-            onChanged(next);
-          }
-        },
-      ),
-    );
-  }
-}
-
-class _WidgetCatalogCard extends StatelessWidget {
-  const _WidgetCatalogCard({
-    required this.widget,
-    required this.requesting,
-    required this.onAdd,
-  });
-
-  final HomeScreenWidgetDescriptor widget;
-  final bool requesting;
-  final VoidCallback onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).dividerColor),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          children: [
-            const Icon(Icons.widgets),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    widget.displayName,
-                    style: Theme.of(context).textTheme.titleSmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    '${widget.recommendedSize} | ${widget.purpose}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            OutlinedButton.icon(
-              onPressed: requesting ? null : onAdd,
-              icon: const Icon(Icons.add),
-              label: Text(requesting ? 'Adding...' : 'Add'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoLine extends StatelessWidget {
-  const _InfoLine({
-    required this.label,
-    required this.value,
-    this.selectable = false,
-  });
-
-  final String label;
-  final String value;
-  final bool selectable;
-
-  @override
-  Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.bodyMedium;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 180,
-          child: Text(
-            label,
-            style: style?.copyWith(fontWeight: FontWeight.w600),
-          ),
-        ),
-        Expanded(
-          child: selectable ? SelectableText(value) : Text(value, style: style),
-        ),
-      ],
-    );
   }
 }
