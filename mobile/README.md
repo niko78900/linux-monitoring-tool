@@ -111,6 +111,18 @@ Control API:    http://100.64.10.22:4042/api
 Debug builds allow cleartext HTTP through the debug Android manifest. Release
 builds do not globally enable cleartext traffic.
 
+## Structure Notes
+
+- `FilesPage` remains the SFTP orchestration layer. Toolbar controls, current
+  directory search/sort, file lists, recent downloads, and preview dialogs live
+  under `features/files/presentation/widgets/`.
+- `SettingsPage` owns controllers and secure-storage actions. Visible sections
+  live under `features/settings/presentation/sections/`.
+- `AppSettings` is grouped internally, but existing `SharedPreferences` keys are
+  still read and written for update compatibility.
+- Small control-agent response models use `json_serializable` with custom
+  converters where null/default/list/date behavior matters.
+
 ## Storage And Threshold Behavior
 
 - Storage hides `/srv/sftp/...` bind mounts defensively if they appear in the
