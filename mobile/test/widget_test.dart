@@ -40,4 +40,39 @@ void main() {
     expect(find.text('Homelab Tablet'), findsWidgets);
     expect(find.byIcon(Icons.dashboard), findsWidgets);
   });
+
+  testWidgets('saving unrelated settings does not leave settings route', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'onboardingComplete': true,
+      'monitoringApiUrl': 'http://100.64.10.22:4040/api',
+    });
+    final preferences = await SharedPreferences.getInstance();
+    late WidgetRef capturedRef;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+        child: Consumer(
+          builder: (context, ref, _) {
+            capturedRef = ref;
+            return const HomelabTabletApp(initialWidgetRoute: '/settings');
+          },
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    expect(find.text('Monitoring'), findsOneWidget);
+
+    final settings = capturedRef.read(settingsControllerProvider);
+    capturedRef
+        .read(settingsControllerProvider.notifier)
+        .save(settings.copyWith(showRawApiErrors: true));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Monitoring'), findsOneWidget);
+    expect(find.text('CPU Usage'), findsNothing);
+  });
 }
