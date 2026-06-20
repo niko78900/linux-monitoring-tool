@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/byte_format.dart';
 import '../../../../core/utils/temperature_format.dart';
+import '../../../../core/utils/threshold_tone.dart';
 import '../../../../core/widgets/info_row.dart';
 import '../../../../core/widgets/section_card.dart';
+import '../../../../core/widgets/status_tone.dart';
 import '../../../dashboard/domain/models/monitoring_models.dart';
 import '../../../dashboard/presentation/providers/monitoring_controller.dart';
 import '../../../dashboard/presentation/widgets/resource_status_view.dart';
@@ -39,6 +41,9 @@ class HardwarePage extends ConsumerWidget {
                 InfoRow(
                   label: 'Chassis Temp',
                   value: formatTemperature(system.chassisTemperatureC),
+                  valueColor: toneColor(
+                    thresholdTone(system.chassisTemperatureC),
+                  ),
                 ),
               ],
             ),
@@ -67,10 +72,12 @@ class HardwarePage extends ConsumerWidget {
                 InfoRow(
                   label: 'Current usage',
                   value: '${system.cpu.usagePercent.toStringAsFixed(1)}%',
+                  valueColor: toneColor(thresholdTone(system.cpu.usagePercent)),
                 ),
                 InfoRow(
                   label: 'Temperature',
                   value: formatTemperature(system.cpu.temperatureC),
+                  valueColor: toneColor(thresholdTone(system.cpu.temperatureC)),
                 ),
                 InfoRow(
                   label: 'Min frequency',
@@ -104,6 +111,7 @@ class HardwarePage extends ConsumerWidget {
                 InfoRow(
                   label: 'Current usage',
                   value: '${system.memory.percent.toStringAsFixed(1)}%',
+                  valueColor: toneColor(thresholdTone(system.memory.percent)),
                 ),
                 InfoRow(
                   label: 'Available RAM',
@@ -124,6 +132,7 @@ class HardwarePage extends ConsumerWidget {
                 InfoRow(
                   label: 'Swap usage',
                   value: '${system.swap.percent.toStringAsFixed(1)}%',
+                  valueColor: toneColor(thresholdTone(system.swap.percent)),
                 ),
                 for (final module in system.specs.memory.modules)
                   InfoRow(

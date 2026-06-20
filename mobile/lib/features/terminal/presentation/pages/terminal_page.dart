@@ -10,7 +10,6 @@ import 'package:xterm/xterm.dart';
 import '../../../../core/config/app_settings.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/status_badge.dart';
 import '../../../../core/widgets/status_tone.dart';
 import '../../data/ssh_connection_service.dart';
@@ -80,33 +79,17 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
   Widget build(BuildContext context) {
     final profile = ref.watch(settingsControllerProvider).sshProfile;
     if (!profile.isConfigured) {
-      return Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: EmptyState(
-          icon: Icons.terminal,
-          title: 'Configure the SSH profile first',
-          message:
-              'Set the SSH host, port, and username in Settings before opening the terminal.',
-          action: FilledButton(
-            onPressed: () => context.go('/settings'),
-            child: const Text('Open Settings'),
-          ),
-        ),
+      return _TerminalSetupState(
+        title: 'SSH setup required',
+        activeStep: 1,
+        onOpenSettings: () => context.go('/settings'),
       );
     }
     if (!profile.hasImportedKey) {
-      return Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: EmptyState(
-          icon: Icons.key,
-          title: 'Import a private key',
-          message:
-              'The terminal uses a direct SSH key over Tailscale. Import the key in Settings before connecting.',
-          action: FilledButton(
-            onPressed: () => context.go('/settings'),
-            child: const Text('Open Settings'),
-          ),
-        ),
+      return _TerminalSetupState(
+        title: 'Private key required',
+        activeStep: 2,
+        onOpenSettings: () => context.go('/settings'),
       );
     }
 
@@ -426,6 +409,80 @@ class _TerminalPageState extends ConsumerState<TerminalPage>
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _TerminalSetupState extends StatelessWidget {
+  const _TerminalSetupState({
+    required this.title,
+    required this.activeStep,
+    required this.onOpenSettings,
+  });
+
+  final String title;
+  final int activeStep;
+  final VoidCallback onOpenSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    const steps = [
+      'Configure SSH host and user',
+      'Import private key',
+      'Trust host fingerprint',
+      'Connect',
+    ];
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.terminal),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(title, style: Theme.of(context).textTheme.titleLarge),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                for (var index = 0; index < steps.length; index += 1)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      index < activeStep
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
+                    ),
+                    title: Text(steps[index]),
+                  ),
+                const SizedBox(height: AppSpacing.md),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: onOpenSettings,
+                      icon: const Icon(Icons.settings),
+                      label: const Text('Open SSH Settings'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: onOpenSettings,
+                      icon: const Icon(Icons.upload_file),
+                      label: const Text('Import Key'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

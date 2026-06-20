@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/status_badge.dart';
@@ -27,14 +28,24 @@ class HealthStrip extends StatelessWidget {
               ? 'Server reachable'
               : 'Server unreachable',
           tone: state.serverReachable ? StatusTone.healthy : StatusTone.offline,
+          onTap: () => context.go('/hardware'),
         ),
-        StatusBadge(label: 'RAID ${_raidLabel(system)}', tone: raidTone),
-        StatusBadge(label: 'Disks ${_diskLabel(system)}', tone: diskTone),
+        StatusBadge(
+          label: 'RAID ${_raidLabel(system)}',
+          tone: raidTone,
+          onTap: () => context.go('/storage'),
+        ),
+        StatusBadge(
+          label: 'Disks ${_diskLabel(system)}',
+          tone: diskTone,
+          onTap: () => context.go('/storage'),
+        ),
         StatusBadge(
           label: gpu?.available == true ? 'GPU available' : 'GPU unavailable',
           tone: gpu?.available == true
               ? StatusTone.healthy
               : StatusTone.unknown,
+          onTap: () => context.go('/gpu'),
         ),
         StatusBadge(
           label: docker?.dockerAvailable == true
@@ -43,10 +54,12 @@ class HealthStrip extends StatelessWidget {
           tone: docker?.dockerAvailable == true
               ? StatusTone.healthy
               : StatusTone.unknown,
+          onTap: () => context.go('/services'),
         ),
-        const StatusBadge(
+        StatusBadge(
           label: 'Control agent optional',
           tone: StatusTone.neutral,
+          onTap: () => context.go('/actions'),
         ),
       ],
     );

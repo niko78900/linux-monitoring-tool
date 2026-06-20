@@ -6,6 +6,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/byte_format.dart';
 import '../../../../core/utils/percentage_format.dart';
 import '../../../../core/utils/temperature_format.dart';
+import '../../../../core/utils/threshold_tone.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/metric_card.dart';
 import '../../../../core/widgets/status_tone.dart';
@@ -63,7 +64,9 @@ class GpuPage extends ConsumerWidget {
                     title: 'Utilization',
                     value: formatPercent(gpu.utilizationPercent),
                     progress: gpu.utilizationPercent,
-                    tone: _usageTone(gpu.utilizationPercent),
+                    progressColor: toneColor(
+                      thresholdTone(gpu.utilizationPercent),
+                    ),
                   ),
                 ),
                 SizedBox(
@@ -71,7 +74,6 @@ class GpuPage extends ConsumerWidget {
                   child: MetricCard(
                     title: 'Temperature',
                     value: formatTemperature(gpu.temperatureC),
-                    tone: _tempTone(gpu.temperatureC),
                   ),
                 ),
                 SizedBox(
@@ -82,6 +84,9 @@ class GpuPage extends ConsumerWidget {
                     subtitle:
                         '${formatMegabytes(gpu.memoryUsedMb)} / ${formatMegabytes(gpu.memoryTotalMb)}',
                     progress: gpu.memoryUsedPercent,
+                    progressColor: toneColor(
+                      thresholdTone(gpu.memoryUsedPercent),
+                    ),
                   ),
                 ),
                 SizedBox(
@@ -141,31 +146,5 @@ class GpuPage extends ConsumerWidget {
         );
       },
     );
-  }
-
-  StatusTone _usageTone(num? value) {
-    if (value == null) {
-      return StatusTone.neutral;
-    }
-    if (value >= 90) {
-      return StatusTone.critical;
-    }
-    if (value >= 70) {
-      return StatusTone.warning;
-    }
-    return StatusTone.healthy;
-  }
-
-  StatusTone _tempTone(num? value) {
-    if (value == null) {
-      return StatusTone.neutral;
-    }
-    if (value >= 85) {
-      return StatusTone.critical;
-    }
-    if (value >= 70) {
-      return StatusTone.warning;
-    }
-    return StatusTone.healthy;
   }
 }

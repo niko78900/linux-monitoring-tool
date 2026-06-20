@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/byte_format.dart';
 import '../../../../core/utils/temperature_format.dart';
+import '../../../../core/utils/threshold_tone.dart';
 import '../../../../core/widgets/info_row.dart';
 import '../../../../core/widgets/section_card.dart';
 import '../../../../core/widgets/status_badge.dart';
+import '../../../../core/widgets/status_tone.dart';
 import '../../../dashboard/domain/models/monitoring_models.dart';
 import '../../../dashboard/presentation/providers/monitoring_controller.dart';
 import '../../../dashboard/presentation/widgets/resource_status_view.dart';
@@ -32,6 +34,9 @@ class _StoragePageState extends ConsumerState<StoragePage> {
           ref.read(monitoringControllerProvider.notifier).fetchSystem(),
       builder: (system) {
         final physicalDisks = [...system.physicalDisks]..sort(_compareDisks);
+        final visibleFilesystems = system.disks
+            .where((disk) => !_isHiddenMount(disk.mountpoint))
+            .toList(growable: false);
         return ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
@@ -39,7 +44,7 @@ class _StoragePageState extends ConsumerState<StoragePage> {
               title: 'Mounted Filesystems',
               child: Column(
                 children: [
-                  for (final disk in system.disks)
+                  for (final disk in visibleFilesystems)
                     Card(
                       child: ListTile(
                         leading: Icon(
@@ -55,7 +60,13 @@ class _StoragePageState extends ConsumerState<StoragePage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text('${disk.percent.toStringAsFixed(1)}%'),
+                            Text(
+                              '${disk.percent.toStringAsFixed(1)}%',
+                              style: TextStyle(
+                                color: toneColor(thresholdTone(disk.percent)),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                             StatusBadge(
                               label: disk.health.status,
                               tone: disk.health.tone,
@@ -234,6 +245,11 @@ class _StoragePageState extends ConsumerState<StoragePage> {
 
   bool _highlightMount(String mountpoint) {
     return const {'/', '/mnt/warm', '/mnt/storage'}.contains(mountpoint);
+  }
+
+  bool _isHiddenMount(String mountpoint) {
+    return mountpoint == '/srv/sftp/tablet_sftp/WarmStorage' ||
+        mountpoint.startsWith('/srv/sftp/');
   }
 
   int _compareDisks(PhysicalDiskMetrics a, PhysicalDiskMetrics b) {

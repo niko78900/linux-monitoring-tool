@@ -4,10 +4,16 @@ import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 
 class InfoRow extends StatelessWidget {
-  const InfoRow({super.key, required this.label, required this.value});
+  const InfoRow({
+    super.key,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
 
   final String label;
   final String value;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +32,12 @@ class InfoRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
+            child: Text(
+              value,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: valueColor),
+            ),
           ),
         ],
       ),

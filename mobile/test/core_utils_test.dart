@@ -5,7 +5,9 @@ import 'package:homelab_tablet/core/utils/duration_format.dart';
 import 'package:homelab_tablet/core/utils/path_safety.dart';
 import 'package:homelab_tablet/core/utils/ring_buffer.dart';
 import 'package:homelab_tablet/core/utils/temperature_format.dart';
+import 'package:homelab_tablet/core/utils/threshold_tone.dart';
 import 'package:homelab_tablet/core/utils/throughput_calculator.dart';
+import 'package:homelab_tablet/core/widgets/status_tone.dart';
 import 'package:homelab_tablet/features/files/data/file_browser_utils.dart';
 
 void main() {
@@ -87,6 +89,10 @@ void main() {
       expect(target.startsWith('/warm/.tablet-trash/'), isTrue);
       expect(isImagePreviewable('photo.jpg'), isTrue);
       expect(isTextPreviewable('server.log'), isTrue);
+      expect(isTextPreviewable('script.py'), isTrue);
+      expect(isTextPreviewable('query.sql'), isTrue);
+      expect(isExternalPreviewable('runbook.pdf'), isTrue);
+      expect(isExternalPreviewable('slides.pptx'), isTrue);
       expect(isVideoPreviewable('movie.mkv'), isTrue);
       expect(isImagePreviewable('archive.zip'), isFalse);
     },
@@ -100,6 +106,15 @@ void main() {
     expect(settings.allowSftpRename, isFalse);
     expect(settings.allowSftpMove, isFalse);
     expect(settings.allowSftpSoftDelete, isFalse);
+    expect(settings.sftpBackgroundTimeout, SftpBackgroundTimeout.fiveMinutes);
     expect(canMutateFiles(settings), isFalse);
+  });
+
+  test('threshold tone follows homelab 60/80 boundaries', () {
+    expect(thresholdTone(null), StatusTone.neutral);
+    expect(thresholdTone(60), StatusTone.healthy);
+    expect(thresholdTone(61), StatusTone.warning);
+    expect(thresholdTone(80), StatusTone.warning);
+    expect(thresholdTone(81), StatusTone.critical);
   });
 }

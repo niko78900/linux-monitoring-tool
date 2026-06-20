@@ -27,7 +27,11 @@ void main() {
 
     await tester.pump();
 
-    expect(find.text('Import a private key'), findsOneWidget);
-    expect(find.text('Open Settings'), findsOneWidget);
+    expect(find.text('Private key required'), findsOneWidget);
+    expect(find.text('Configure SSH host and user'), findsOneWidget);
+    expect(find.text('Import private key'), findsOneWidget);
+    expect(find.text('Trust host fingerprint'), findsOneWidget);
+    expect(find.text('Open SSH Settings'), findsOneWidget);
+    expect(find.text('Import Key'), findsOneWidget);
   });
 }

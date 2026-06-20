@@ -11,6 +11,7 @@ import '../../../../core/utils/byte_format.dart';
 import '../../../../core/utils/duration_format.dart';
 import '../../../../core/utils/percentage_format.dart';
 import '../../../../core/utils/temperature_format.dart';
+import '../../../../core/utils/threshold_tone.dart';
 import '../../../../core/widgets/metric_card.dart';
 import '../../../../core/widgets/section_card.dart';
 import '../../../../core/widgets/status_tone.dart';
@@ -117,12 +118,14 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                 icon: Icons.speed,
                 progress: summary?.cpuPercent,
                 tone: _usageTone(summary?.cpuPercent),
+                onTap: () => context.go('/hardware'),
               ),
               MetricCard(
                 title: 'CPU Temp',
                 value: formatTemperature(system?.cpu.temperatureC),
                 icon: Icons.thermostat,
                 tone: _temperatureTone(system?.cpu.temperatureC),
+                onTap: () => context.go('/hardware'),
               ),
               MetricCard(
                 title: 'Memory',
@@ -133,6 +136,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                 icon: Icons.memory,
                 progress: summary?.memoryPercent,
                 tone: _usageTone(summary?.memoryPercent),
+                onTap: () => context.go('/hardware'),
               ),
               MetricCard(
                 title: 'Swap',
@@ -143,6 +147,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                 icon: Icons.swap_horiz,
                 progress: system?.swap.percent,
                 tone: _usageTone(system?.swap.percent),
+                onTap: () => context.go('/storage'),
               ),
               MetricCard(
                 title: 'Primary Disk',
@@ -153,6 +158,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                 icon: Icons.storage,
                 progress: summary?.diskPercent,
                 tone: _usageTone(summary?.diskPercent),
+                onTap: () => context.go('/storage'),
               ),
               if (gpu?.available == true)
                 MetricCard(
@@ -161,6 +167,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                   icon: Icons.developer_board,
                   progress: gpu?.utilizationPercent,
                   tone: _usageTone(gpu?.utilizationPercent),
+                  onTap: () => context.go('/gpu'),
                 ),
               if (gpu?.available == true)
                 MetricCard(
@@ -168,6 +175,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                   value: formatTemperature(gpu?.temperatureC),
                   icon: Icons.device_thermostat,
                   tone: _temperatureTone(gpu?.temperatureC),
+                  onTap: () => context.go('/gpu'),
                 ),
               if (gpu?.available == true)
                 MetricCard(
@@ -178,6 +186,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                   icon: Icons.sd_storage,
                   progress: gpu?.memoryUsedPercent,
                   tone: _usageTone(gpu?.memoryUsedPercent),
+                  onTap: () => context.go('/gpu'),
                 ),
               MetricCard(
                 title: 'Uptime',
@@ -185,6 +194,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                     summary?.uptimeHuman ??
                     formatDurationSeconds(system?.uptimeSeconds),
                 icon: Icons.schedule,
+                onTap: () => context.go('/history'),
               ),
               MetricCard(
                 title: 'Network RX/TX',
@@ -193,6 +203,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                 subtitle:
                     'TX ${formatBytes(state.throughput.sendBytesPerSecond)}/s',
                 icon: Icons.swap_vert,
+                onTap: () => context.go('/network'),
               ),
               MetricCard(
                 title: 'Docker',
@@ -206,6 +217,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                 tone: docker?.dockerAvailable == true
                     ? StatusTone.healthy
                     : StatusTone.unknown,
+                onTap: () => context.go('/services'),
               ),
             ],
           ),
@@ -392,27 +404,9 @@ class _ChartGrid extends StatelessWidget {
 }
 
 StatusTone _usageTone(num? value) {
-  if (value == null || value.isNaN) {
-    return StatusTone.neutral;
-  }
-  if (value >= 90) {
-    return StatusTone.critical;
-  }
-  if (value >= 70) {
-    return StatusTone.warning;
-  }
-  return StatusTone.healthy;
+  return thresholdTone(value);
 }
 
 StatusTone _temperatureTone(num? value) {
-  if (value == null || value.isNaN) {
-    return StatusTone.neutral;
-  }
-  if (value >= 85) {
-    return StatusTone.critical;
-  }
-  if (value >= 70) {
-    return StatusTone.warning;
-  }
-  return StatusTone.healthy;
+  return thresholdTone(value);
 }
