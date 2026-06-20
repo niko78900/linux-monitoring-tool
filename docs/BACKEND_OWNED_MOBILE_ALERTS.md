@@ -18,7 +18,6 @@ Control agent :4042/api
 - Wake-on-LAN
 - managed hosts and Tailscale-aware devices
 - restricted service actions
-- legacy optional neighbors endpoint
 
 Discord bot
 - slash commands and scheduled status posts

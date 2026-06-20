@@ -719,7 +719,6 @@ control_agent/
         health.py
         devices.py
         actions.py
-        neighbors.py
     core/
       config.py
       auth.py
@@ -734,7 +733,6 @@ control_agent/
       wake_on_lan.py
       device_probe.py
       tailscale_peers.py
-      neighbors.py
   config/
     known_devices.example.yaml
   scripts/
@@ -765,10 +763,11 @@ GET  /api/health
 GET  /api/devices
 GET  /api/devices/{device_id}
 POST /api/actions/wake-main-pc
-GET  /api/neighbors
 ```
 
-`/api/neighbors` should be optional and clearly labeled approximate if implemented from `ip neigh`.
+The server-side neighbor inventory idea from the original plan was removed from
+the default product surface. Current device inventory should come from
+configured known devices and Tailscale peers.
 
 ## Wake-on-LAN Design
 
@@ -850,7 +849,7 @@ UI wording should be honest:
 ```text
 Known devices
 Last successful check
-Observed LAN neighbors, approximate
+Historical neighbor-scan wording was removed from the current tablet UI.
 Server could not verify device status
 ```
 
@@ -1116,12 +1115,12 @@ Deliverable: safe fixed Wake Main PC action.
 
 Deliverable: known-device visibility without router dependency.
 
-### Historical Phase 8: Optional Observed Neighbors
+### Historical Phase 8: Optional Neighbor Scans
 
 ```text
 [ ] Parse ip neigh safely.
 [ ] Add optional control endpoint.
-[ ] Add approximate Observed LAN Neighbors panel.
+[ ] Add approximate neighbor scan panel.
 [ ] Clearly label limitations.
 ```
 

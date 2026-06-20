@@ -8,7 +8,7 @@ Current tablet use:
 - Devices page reads known devices and Tailscale peers from `/api/devices`.
 - Services page reads allowlisted services from `/api/services`.
 - Actions page uses Wake Main PC and Main PC quick actions.
-- Network page does not display control-agent neighbor scans.
+- Network page does not display device inventory or neighbor scans.
 
 ## Scope
 
@@ -23,7 +23,6 @@ GET  /api/services
 GET  /api/services/{service_id}
 POST /api/services/{service_id}/actions/{action}
 POST /api/actions/wake-main-pc
-GET  /api/neighbors
 ```
 
 It does not expose:
@@ -33,6 +32,7 @@ shell execution
 arbitrary scripts
 client-supplied MAC addresses
 generic device scans
+server-side neighbor inventory
 mobile-alert registration
 Firebase credential handling
 ```

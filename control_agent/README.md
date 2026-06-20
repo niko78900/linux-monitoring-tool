@@ -8,7 +8,6 @@ Current scope:
 - managed-host status and details
 - configured known devices plus Tailscale peers
 - allowlisted service status and start/stop/restart actions
-- optional legacy neighbor endpoint for diagnostics
 
 The tablet uses the control agent for privileged/control data only. Monitoring
 telemetry, history, widgets, mobile-alert registration, and FCM delivery stay
@@ -25,7 +24,6 @@ GET  /api/services
 GET  /api/services/{service_id}
 POST /api/services/{service_id}/actions/{action}
 POST /api/actions/wake-main-pc
-GET  /api/neighbors
 ```
 
 The service does not expose mobile-alert registration, Firebase credentials, client-supplied MAC addresses, generic shell execution, or arbitrary scripts.
@@ -73,8 +71,8 @@ Important deployment notes:
   match by configured IP, hostname, or alias.
 - Unsupported service actions are rejected even if the tablet renders an action
   button incorrectly.
-- The `GET /api/neighbors` route is retained for compatibility, but the current
-  tablet Devices and Network pages no longer display LAN neighbor scans.
+- The old server-side neighbor inventory route is no longer exposed by default.
+  Device inventory comes from configured devices and Tailscale peers.
 
 ## Run
 

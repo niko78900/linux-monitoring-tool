@@ -54,7 +54,7 @@ Verify these items before distribution:
 [ ] SFTP background timeout behaves as configured after app background/resume
 [ ] Services page shows configured services and service details
 [ ] Network page shows Live, Day, Week, and Month ranges without device scans
-[ ] Devices page shows Tailscale peers without Observed LAN Neighbors
+[ ] Devices page shows Tailscale peers without a LAN-neighbor section
 [ ] Storage page hides restricted SFTP bind mounts such as /srv/sftp/...
 [ ] GPU numeric values stay neutral while utilization/VRAM bars use thresholds
 ```

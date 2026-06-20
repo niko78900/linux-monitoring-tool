@@ -92,7 +92,9 @@ Control-agent endpoints are mounted separately under its own `API_PREFIX`
 - `GET /services/{service_id}`
 - `POST /services/{service_id}/actions/{action}`
 - `POST /actions/wake-main-pc`
-- `GET /neighbors` (legacy/optional; not shown in the current tablet UI)
+
+The previous neighbor inventory route has been removed from the default
+control-agent API.
 
 OpenAPI and docs:
 
