@@ -88,7 +88,7 @@ async def test_history_collector_store_failure_does_not_raise(tmp_path: Path) ->
     collector = HistoryCollector(
         settings=get_settings(),
         store=store,
-        get_system_metrics_fn=lambda _mountpoint: SystemResponse.model_validate(
+        get_system_metrics_fn=lambda _mountpoint, **_kwargs: SystemResponse.model_validate(
             _sample_system_payload()
         ),
         get_gpu_metrics_fn=lambda: GPUResponse(available=False, reason="No GPU"),
@@ -108,7 +108,7 @@ async def test_history_collector_shutdown_cancels_background_task(tmp_path: Path
     collector = HistoryCollector(
         settings=get_settings(),
         store=store,
-        get_system_metrics_fn=lambda _mountpoint: SystemResponse.model_validate(
+        get_system_metrics_fn=lambda _mountpoint, **_kwargs: SystemResponse.model_validate(
             _sample_system_payload()
         ),
         get_gpu_metrics_fn=lambda: GPUResponse(available=False, reason="No GPU"),

@@ -14,6 +14,7 @@ DEFAULT_ORIGINS = [
     "http://localhost:4041",
     "http://127.0.0.1:4041",
 ]
+DEFAULT_IGNORED_MOUNT_PREFIXES_EXTRA = ("/srv/sftp",)
 
 def _parse_origins(raw_origins: str | None, default_origins: list[str]) -> list[str]:
     if not raw_origins:
@@ -55,6 +56,16 @@ def _parse_optional_string(raw_value: str | None) -> str | None:
     return normalized or None
 
 
+def _parse_csv_values(raw_value: str | None, default: tuple[str, ...] = ()) -> tuple[str, ...]:
+    if raw_value is None:
+        return default
+    return tuple(item.strip().rstrip("/") or "/" for item in raw_value.split(",") if item.strip())
+
+
+def _parse_csv_set(raw_value: str | None) -> set[str]:
+    return set(_parse_csv_values(raw_value))
+
+
 @dataclass(frozen=True)
 class Settings:
     app_name: str
@@ -63,6 +74,8 @@ class Settings:
     cors_origins: list[str]
     cors_origin_regex: str | None
     disk_mountpoint: str
+    visible_mountpoints: set[str]
+    ignored_mount_prefixes_extra: tuple[str, ...]
     log_level: str
     host: str
     port: int
@@ -104,6 +117,11 @@ def get_settings() -> Settings:
         cors_origins=_parse_origins(os.getenv("CORS_ORIGINS"), default_origins),
         cors_origin_regex=_parse_optional_string(os.getenv("CORS_ORIGIN_REGEX")),
         disk_mountpoint=os.getenv("DISK_MOUNTPOINT", "/"),
+        visible_mountpoints=_parse_csv_set(os.getenv("VISIBLE_MOUNTPOINTS")),
+        ignored_mount_prefixes_extra=_parse_csv_values(
+            os.getenv("IGNORED_MOUNT_PREFIXES_EXTRA"),
+            DEFAULT_IGNORED_MOUNT_PREFIXES_EXTRA,
+        ),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         host=host,
         port=_parse_int(os.getenv("PORT"), 4040, minimum=1),

@@ -194,7 +194,7 @@ def test_system_endpoint_returns_service_data(client: TestClient, api_prefix: st
 
     seen_mountpoint: dict[str, str] = {}
 
-    def fake_get_system_metrics(mountpoint: str) -> dict:
+    def fake_get_system_metrics(mountpoint: str, **_kwargs) -> dict:
         seen_mountpoint["value"] = mountpoint
         return _sample_system_payload()
 
