@@ -13,10 +13,8 @@ import 'package:open_filex/open_filex.dart';
 import '../../../../core/config/app_settings.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/utils/byte_format.dart';
 import '../../../../core/utils/path_safety.dart';
 import '../../../../core/widgets/empty_state.dart';
-import '../../../../core/widgets/section_card.dart';
 import '../../../../core/widgets/status_badge.dart';
 import '../../../../core/widgets/status_tone.dart';
 import '../../data/file_browser_utils.dart';
@@ -28,6 +26,8 @@ import '../../data/sftp_connection_service.dart';
 import '../../domain/models/file_browser_models.dart';
 import '../../domain/models/remote_file_entry.dart';
 import '../../domain/models/transfer_item.dart';
+import '../widgets/recent_downloads_panel.dart';
+import '../widgets/remote_file_list.dart';
 import '../widgets/transfer_queue_panel.dart';
 import '../../../terminal/presentation/widgets/terminal_connection_dialogs.dart';
 
@@ -312,7 +312,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final list = _RemoteFileList(
+                final list = RemoteFileList(
                   entries: visibleEntries,
                   currentPath: _currentPath ?? root,
                   dateFormat: _dateFormat,
@@ -333,45 +333,11 @@ class _FilesPageState extends ConsumerState<FilesPage>
                       onOpen: _openDownloadedFile,
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    SectionCard(
-                      title: 'Recent Downloads',
-                      child: _recentDownloads.isEmpty
-                          ? const Text('No recent downloads')
-                          : Column(
-                              children: [
-                                for (final item in _recentDownloads.take(
-                                  5,
-                                )) ...[
-                                  ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: Text(item.fileName),
-                                    subtitle: Text(item.remotePath),
-                                    trailing: Wrap(
-                                      spacing: AppSpacing.xs,
-                                      children: [
-                                        IconButton(
-                                          tooltip: 'Open',
-                                          onPressed: () =>
-                                              _openLocalPath(item.localPath),
-                                          icon: const Icon(Icons.open_in_new),
-                                        ),
-                                        IconButton(
-                                          tooltip: 'Remove from recents',
-                                          onPressed: () =>
-                                              _removeRecentDownload(
-                                                hostProfileId,
-                                                item.remotePath,
-                                              ),
-                                          icon: const Icon(Icons.close),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  if (item != _recentDownloads.take(5).last)
-                                    const Divider(height: 1),
-                                ],
-                              ],
-                            ),
+                    RecentDownloadsPanel(
+                      items: _recentDownloads,
+                      onOpen: (item) => _openLocalPath(item.localPath),
+                      onRemove: (item) =>
+                          _removeRecentDownload(hostProfileId, item.remotePath),
                     ),
                   ],
                 );
@@ -1159,7 +1125,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
 
   Future<void> _handleEntryAction(
     RemoteFileEntry entry,
-    _EntryAction action,
+    FileEntryAction action,
     String root,
   ) async {
     final settings = ref.read(settingsControllerProvider);
@@ -1169,11 +1135,11 @@ class _FilesPageState extends ConsumerState<FilesPage>
     }
 
     switch (action) {
-      case _EntryAction.preview:
+      case FileEntryAction.preview:
         await _previewEntry(entry);
-      case _EntryAction.download:
+      case FileEntryAction.download:
         _enqueueDownload(entry);
-      case _EntryAction.rename:
+      case FileEntryAction.rename:
         if (!settings.allowSftpRename) {
           _showSnackBar('Rename is disabled in Settings.');
           return;
@@ -1192,7 +1158,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
         );
         await connection.sftp.rename(entry.path, target);
         await _loadDirectory(_currentPath ?? root);
-      case _EntryAction.move:
+      case FileEntryAction.move:
         if (!settings.allowSftpMove) {
           _showSnackBar('Move is disabled in Settings.');
           return;
@@ -1210,7 +1176,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
         );
         await connection.sftp.rename(entry.path, target);
         await _loadDirectory(_currentPath ?? root);
-      case _EntryAction.softDelete:
+      case FileEntryAction.softDelete:
         if (!settings.allowSftpSoftDelete) {
           _showSnackBar('Soft delete is disabled in Settings.');
           return;
@@ -1345,114 +1311,6 @@ class _FilesPageState extends ConsumerState<FilesPage>
   }
 }
 
-class _RemoteFileList extends StatelessWidget {
-  const _RemoteFileList({
-    required this.entries,
-    required this.currentPath,
-    required this.dateFormat,
-    required this.onOpenDirectory,
-    required this.onPreview,
-    required this.onDownload,
-    required this.onEntryAction,
-    required this.onCopyPath,
-  });
-
-  final List<RemoteFileEntry> entries;
-  final String currentPath;
-  final DateFormat dateFormat;
-  final ValueChanged<RemoteFileEntry> onOpenDirectory;
-  final ValueChanged<RemoteFileEntry> onPreview;
-  final ValueChanged<RemoteFileEntry> onDownload;
-  final void Function(RemoteFileEntry entry, _EntryAction action) onEntryAction;
-  final ValueChanged<String> onCopyPath;
-
-  @override
-  Widget build(BuildContext context) {
-    if (entries.isEmpty) {
-      return EmptyState(
-        icon: Icons.folder_open,
-        title: 'No files in this directory',
-        message: 'Current path: $currentPath',
-      );
-    }
-
-    return ListView.separated(
-      itemCount: entries.length,
-      separatorBuilder: (context, index) => const Divider(height: 1),
-      itemBuilder: (context, index) {
-        final entry = entries[index];
-        final subtitle = <String>[
-          if (entry.isSymbolicLink) 'symlink',
-          if (!entry.isDirectory && entry.sizeBytes != null)
-            formatBytes(entry.sizeBytes!),
-          if (entry.modifiedAt != null) dateFormat.format(entry.modifiedAt!),
-        ].join('  |  ');
-
-        return ListTile(
-          leading: Icon(
-            entry.isSymbolicLink
-                ? Icons.link_off
-                : entry.isDirectory
-                ? Icons.folder
-                : Icons.insert_drive_file,
-          ),
-          title: Text(entry.name),
-          subtitle: subtitle.isEmpty ? null : Text(subtitle),
-          onTap: entry.isDirectory && !entry.isSymbolicLink
-              ? () => onOpenDirectory(entry)
-              : (!entry.isSymbolicLink ? () => onPreview(entry) : null),
-          trailing: Wrap(
-            spacing: AppSpacing.xs,
-            children: [
-              IconButton(
-                tooltip: 'Copy remote path',
-                onPressed: () => onCopyPath(entry.path),
-                icon: const Icon(Icons.copy_all),
-              ),
-              if (!entry.isSymbolicLink)
-                IconButton(
-                  tooltip: 'Preview',
-                  onPressed: entry.isDirectory
-                      ? null
-                      : () => onEntryAction(entry, _EntryAction.preview),
-                  icon: const Icon(Icons.visibility),
-                ),
-              if (!entry.isDirectory && !entry.isSymbolicLink)
-                IconButton(
-                  tooltip: 'Download file',
-                  onPressed: () => onDownload(entry),
-                  icon: const Icon(Icons.download),
-                ),
-              PopupMenuButton<_EntryAction>(
-                onSelected: (action) => onEntryAction(entry, action),
-                itemBuilder: (context) => [
-                  if (!entry.isDirectory && !entry.isSymbolicLink)
-                    const PopupMenuItem(
-                      value: _EntryAction.preview,
-                      child: Text('Preview'),
-                    ),
-                  const PopupMenuItem(
-                    value: _EntryAction.rename,
-                    child: Text('Rename'),
-                  ),
-                  const PopupMenuItem(
-                    value: _EntryAction.move,
-                    child: Text('Move'),
-                  ),
-                  const PopupMenuItem(
-                    value: _EntryAction.softDelete,
-                    child: Text('Soft delete'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
 enum _FilesStatus {
   disconnected('Disconnected', StatusTone.offline),
   connecting('Connecting', StatusTone.warning),
@@ -1467,5 +1325,3 @@ enum _FilesStatus {
 }
 
 enum _FilesSort { name, modified, size }
-
-enum _EntryAction { preview, download, rename, move, softDelete }

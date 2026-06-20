@@ -23,6 +23,7 @@ import '../../../server_widget/data/server_widget_catalog.dart';
 import '../../../server_widget/data/server_widget_service.dart';
 import '../../../terminal/data/ssh_connection_service.dart';
 import '../../../terminal/presentation/widgets/terminal_connection_dialogs.dart';
+import '../widgets/settings_fields.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -110,25 +111,25 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              _PollingField(
+              PollingField(
                 label: 'Summary polling ms',
                 value: settings.summaryPollingMs,
                 onChanged: (value) =>
                     _save(settings.copyWith(summaryPollingMs: value)),
               ),
-              _PollingField(
+              PollingField(
                 label: 'Details polling ms',
                 value: settings.detailsPollingMs,
                 onChanged: (value) =>
                     _save(settings.copyWith(detailsPollingMs: value)),
               ),
-              _PollingField(
+              PollingField(
                 label: 'Health polling ms',
                 value: settings.healthPollingMs,
                 onChanged: (value) =>
                     _save(settings.copyWith(healthPollingMs: value)),
               ),
-              _PollingField(
+              PollingField(
                 label: 'Docker polling ms',
                 value: settings.dockerPollingMs,
                 onChanged: (value) =>
@@ -234,12 +235,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const SizedBox(height: AppSpacing.md),
               ],
-              _InfoLine(
+              SettingsInfoLine(
                 label: 'Imported key',
                 value: _sshKeySummary ?? 'No key imported',
               ),
               const SizedBox(height: AppSpacing.sm),
-              _InfoLine(
+              SettingsInfoLine(
                 label: 'Trusted host fingerprint',
                 value:
                     _sshTrustedFingerprint ?? 'No trusted fingerprint stored',
@@ -404,12 +405,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 },
               ),
               const SizedBox(height: AppSpacing.md),
-              _InfoLine(
+              SettingsInfoLine(
                 label: 'Imported key',
                 value: _sftpKeySummary ?? 'No key imported',
               ),
               const SizedBox(height: AppSpacing.sm),
-              _InfoLine(
+              SettingsInfoLine(
                 label: 'Trusted host fingerprint',
                 value:
                     _sftpTrustedFingerprint ?? 'No trusted fingerprint stored',
@@ -580,7 +581,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     physics: const NeverScrollableScrollPhysics(),
                     children: [
                       for (final widget in homeScreenWidgets)
-                        _WidgetCatalogCard(
+                        WidgetCatalogCard(
                           widget: widget,
                           requesting:
                               _requestingWidgetPinProvider ==
@@ -642,22 +643,31 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     _save(settings.copyWith(mobilePushIncludeRecovery: value)),
                 title: const Text('Include recovery notifications'),
               ),
-              _InfoLine(
+              SettingsInfoLine(
                 label: 'Permission',
                 value: _notificationPermission?.label ?? 'Not checked',
               ),
               const SizedBox(height: AppSpacing.sm),
-              _InfoLine(label: 'Registration', value: _registrationLabel()),
+              SettingsInfoLine(
+                label: 'Registration',
+                value: _registrationLabel(),
+              ),
               const SizedBox(height: AppSpacing.sm),
-              _InfoLine(label: 'Channel', value: _channelReadinessLabel()),
+              SettingsInfoLine(
+                label: 'Channel',
+                value: _channelReadinessLabel(),
+              ),
               const SizedBox(height: AppSpacing.sm),
-              _InfoLine(
+              SettingsInfoLine(
                 label: 'Readiness',
                 value: _mobileAlertReadiness?.readinessMessage ?? 'Not checked',
               ),
               if (_mobileAlertStatusText != null) ...[
                 const SizedBox(height: AppSpacing.sm),
-                _InfoLine(label: 'Last action', value: _mobileAlertStatusText!),
+                SettingsInfoLine(
+                  label: 'Last action',
+                  value: _mobileAlertStatusText!,
+                ),
               ],
               const SizedBox(height: AppSpacing.md),
               Wrap(
@@ -1598,131 +1608,5 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       return error.message;
     }
     return error.toString();
-  }
-}
-
-class _PollingField extends StatelessWidget {
-  const _PollingField({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String label;
-  final int value;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: DropdownButtonFormField<int>(
-        initialValue: value,
-        decoration: InputDecoration(labelText: label),
-        items: const [
-          DropdownMenuItem(value: 1000, child: Text('1 second')),
-          DropdownMenuItem(value: 3000, child: Text('3 seconds')),
-          DropdownMenuItem(value: 5000, child: Text('5 seconds')),
-          DropdownMenuItem(value: 10000, child: Text('10 seconds')),
-          DropdownMenuItem(value: 15000, child: Text('15 seconds')),
-          DropdownMenuItem(value: 30000, child: Text('30 seconds')),
-          DropdownMenuItem(value: 60000, child: Text('1 minute')),
-        ],
-        onChanged: (next) {
-          if (next != null) {
-            onChanged(next);
-          }
-        },
-      ),
-    );
-  }
-}
-
-class _WidgetCatalogCard extends StatelessWidget {
-  const _WidgetCatalogCard({
-    required this.widget,
-    required this.requesting,
-    required this.onAdd,
-  });
-
-  final HomeScreenWidgetDescriptor widget;
-  final bool requesting;
-  final VoidCallback onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).dividerColor),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          children: [
-            const Icon(Icons.widgets),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    widget.displayName,
-                    style: Theme.of(context).textTheme.titleSmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    '${widget.recommendedSize} | ${widget.purpose}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            OutlinedButton.icon(
-              onPressed: requesting ? null : onAdd,
-              icon: const Icon(Icons.add),
-              label: Text(requesting ? 'Adding...' : 'Add'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoLine extends StatelessWidget {
-  const _InfoLine({
-    required this.label,
-    required this.value,
-    this.selectable = false,
-  });
-
-  final String label;
-  final String value;
-  final bool selectable;
-
-  @override
-  Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.bodyMedium;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 180,
-          child: Text(
-            label,
-            style: style?.copyWith(fontWeight: FontWeight.w600),
-          ),
-        ),
-        Expanded(
-          child: selectable ? SelectableText(value) : Text(value, style: style),
-        ),
-      ],
-    );
   }
 }
