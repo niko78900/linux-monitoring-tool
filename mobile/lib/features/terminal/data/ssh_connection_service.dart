@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/app_settings.dart';
 import '../../../core/security/host_fingerprint_store.dart';
 import '../../../core/security/secure_storage_service.dart';
+import 'private_key_validation.dart';
 import '../domain/models/ssh_connection_models.dart';
 
 typedef SshHostTrustPrompt = Future<bool> Function(SshHostFingerprint hostKey);
@@ -134,8 +135,9 @@ class SshConnectionService implements SshConnectionClient {
       throw const SshPrivateKeyMissingException();
     }
 
+    final normalizedPrivateKey = _validateStoredPrivateKey(privateKey);
     final identities = await _loadIdentities(
-      privateKey,
+      normalizedPrivateKey,
       readStoredPassphrase: readStoredPassphrase,
       clearStoredPassphrase: clearStoredPassphrase,
       onPassphraseRequired: onPassphraseRequired,
@@ -202,7 +204,7 @@ class SshConnectionService implements SshConnectionClient {
     required Future<String?> Function() readStoredPassphrase,
     required Future<void> Function() clearStoredPassphrase,
   }) async {
-    if (!SSHKeyPair.isEncryptedPem(privateKey)) {
+    if (!_isEncryptedPem(privateKey)) {
       return _parsePrivateKey(privateKey, null);
     }
 
@@ -231,7 +233,23 @@ class SshConnectionService implements SshConnectionClient {
     try {
       return SSHKeyPair.fromPem(pem, passphrase);
     } catch (error) {
-      throw SshInvalidPrivateKeyException(cause: error);
+      throw SshInvalidPrivateKeyException.ssh(cause: error);
+    }
+  }
+
+  String _validateStoredPrivateKey(String privateKey) {
+    try {
+      return validateAndNormalizePrivateKey(privateKey);
+    } catch (error) {
+      throw SshInvalidPrivateKeyException.ssh(cause: error);
+    }
+  }
+
+  bool _isEncryptedPem(String privateKey) {
+    try {
+      return SSHKeyPair.isEncryptedPem(privateKey);
+    } catch (error) {
+      throw SshInvalidPrivateKeyException.ssh(cause: error);
     }
   }
 

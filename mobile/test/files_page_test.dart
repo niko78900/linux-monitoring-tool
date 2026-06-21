@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:homelab_tablet/core/config/app_settings.dart';
 import 'package:homelab_tablet/features/files/data/sftp_connection_service.dart';
 import 'package:homelab_tablet/features/files/presentation/pages/files_page.dart';
+import 'package:homelab_tablet/features/terminal/domain/models/ssh_connection_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -96,6 +97,47 @@ void main() {
     expect(find.text('Disconnected'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('shows friendly SFTP key error without raw parser cause', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1180, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final service = _ThrowingSftpConnectionClient(
+      const SshInvalidPrivateKeyException.sftp(
+        cause: FormatException('PEM header must start with ---- BEGIN'),
+      ),
+    );
+    SharedPreferences.setMockInitialValues(_configuredSftpSettings());
+    final preferences = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          sftpConnectionServiceProvider.overrideWithValue(service),
+        ],
+        child: const MaterialApp(home: Scaffold(body: FilesPage())),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Connect'));
+    await tester.pump();
+
+    expect(
+      find.text(
+        'The imported SFTP private key is invalid. Remove it and import the private key file again, not the .pub file.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('FormatException'), findsNothing);
+    expect(find.textContaining('PEM header'), findsNothing);
+  });
 }
 
 Map<String, Object> _configuredSftpSettings() {
@@ -124,6 +166,36 @@ class _FakeSftpConnectionClient implements SftpConnectionClient {
     SftpPassphrasePrompt? onPassphraseRequired,
   }) {
     return _openCompleter.future;
+  }
+
+  @override
+  Future<String?> readTrustedFingerprint(ConnectionProfile profile) async {
+    return null;
+  }
+
+  @override
+  Future<void> resetTrustedFingerprint(ConnectionProfile profile) async {}
+
+  @override
+  Future<void> testConnection({
+    required ConnectionProfile profile,
+    required SftpHostTrustPrompt onTrustHost,
+    SftpPassphrasePrompt? onPassphraseRequired,
+  }) async {}
+}
+
+class _ThrowingSftpConnectionClient implements SftpConnectionClient {
+  const _ThrowingSftpConnectionClient(this.error);
+
+  final Object error;
+
+  @override
+  Future<SftpSessionConnection> open({
+    required ConnectionProfile profile,
+    required SftpHostTrustPrompt onTrustHost,
+    SftpPassphrasePrompt? onPassphraseRequired,
+  }) async {
+    throw error;
   }
 
   @override

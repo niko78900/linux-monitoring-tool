@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/app_settings.dart';
 import '../../../core/security/host_fingerprint_store.dart';
 import '../../../core/security/secure_storage_service.dart';
+import '../../terminal/data/private_key_validation.dart';
 import '../../terminal/domain/models/ssh_connection_models.dart';
 
 typedef SftpHostTrustPrompt = Future<bool> Function(SshHostFingerprint hostKey);
@@ -77,8 +78,9 @@ class SftpConnectionService implements SftpConnectionClient {
       throw const SshPrivateKeyMissingException();
     }
 
+    final normalizedPrivateKey = _validateStoredPrivateKey(privateKey);
     final identities = await _loadIdentities(
-      privateKey,
+      normalizedPrivateKey,
       readStoredPassphrase: _storage.readSftpPassphrase,
       clearStoredPassphrase: _storage.clearSftpPassphrase,
       onPassphraseRequired: onPassphraseRequired,
@@ -165,7 +167,7 @@ class SftpConnectionService implements SftpConnectionClient {
     required Future<String?> Function() readStoredPassphrase,
     required Future<void> Function() clearStoredPassphrase,
   }) async {
-    if (!SSHKeyPair.isEncryptedPem(privateKey)) {
+    if (!_isEncryptedPem(privateKey)) {
       return _parsePrivateKey(privateKey, null);
     }
 
@@ -194,7 +196,23 @@ class SftpConnectionService implements SftpConnectionClient {
     try {
       return SSHKeyPair.fromPem(pem, passphrase);
     } catch (error) {
-      throw SshInvalidPrivateKeyException(cause: error);
+      throw SshInvalidPrivateKeyException.sftp(cause: error);
+    }
+  }
+
+  String _validateStoredPrivateKey(String privateKey) {
+    try {
+      return validateAndNormalizePrivateKey(privateKey);
+    } catch (error) {
+      throw SshInvalidPrivateKeyException.sftp(cause: error);
+    }
+  }
+
+  bool _isEncryptedPem(String privateKey) {
+    try {
+      return SSHKeyPair.isEncryptedPem(privateKey);
+    } catch (error) {
+      throw SshInvalidPrivateKeyException.sftp(cause: error);
     }
   }
 

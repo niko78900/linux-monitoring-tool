@@ -59,6 +59,20 @@ class SshPassphraseRequiredException extends AppException {
 }
 
 class SshInvalidPrivateKeyException extends AppException {
-  const SshInvalidPrivateKeyException({Object? cause})
-    : super('The imported private key could not be opened.', cause: cause);
+  const SshInvalidPrivateKeyException({
+    String message = 'The imported private key could not be opened.',
+    Object? cause,
+  }) : super(message, cause: cause);
+
+  const SshInvalidPrivateKeyException.ssh({Object? cause})
+    : super(
+        'The imported SSH private key is invalid. Remove it and import the private key file again, not the .pub file.',
+        cause: cause,
+      );
+
+  const SshInvalidPrivateKeyException.sftp({Object? cause})
+    : super(
+        'The imported SFTP private key is invalid. Remove it and import the private key file again, not the .pub file.',
+        cause: cause,
+      );
 }
