@@ -49,6 +49,7 @@ Verify these items before distribution:
 [ ] Release manifest does not globally enable cleartext HTTP
 [ ] SSH and SFTP host fingerprint resets are available in Settings
 [ ] Host fingerprint mismatch tells the operator to reset trust before reconnecting
+[ ] Malformed or public SSH/SFTP key imports show friendly reimport guidance, not raw PEM parser errors
 [ ] Restricted SFTP stays clamped to the configured virtual root
 [ ] Server-side SFTP chroot is still enforced per docs/RESTRICTED_SFTP_SETUP.md
 [ ] SFTP background timeout behaves as configured after app background/resume
@@ -73,6 +74,9 @@ Run:
 cd mobile
 flutter build apk --release
 ```
+
+Use a supported JDK for Gradle, such as JDK 17 or JDK 21. Java 25 can fail
+during Gradle Kotlin DSL evaluation before Android compilation starts.
 
 Expected output:
 

@@ -125,9 +125,12 @@ Notable current behavior:
 - Services shows configured allowlisted services with search/filter/sort
   controls and a service detail dashboard.
 - Files uses direct restricted SFTP with configurable background disconnect
-  timing, capped previews, and explicit download/open-externally flows.
+  timing, capped previews, explicit download/open-externally flows, and
+  friendly private-key validation errors for stored bad keys.
 - The SSH terminal keeps direct `dartssh2` security and adds a clearer status
   header plus safe quick-input chips that only write into the active shell.
+  Stored SSH keys are validated before parsing so raw PEM parser errors are not
+  shown in the UI.
 - Hardware, Storage, GPU, and Overview apply shared threshold colors for values
   where higher is worse; informational values remain neutral.
 - Android widgets store non-sensitive flattened telemetry only.
@@ -208,6 +211,9 @@ Mobile:
 
 - Monitoring API URL and Control API URL are stored on-device.
 - SSH/SFTP private keys and passphrases are stored through secure storage.
+- Imported and previously stored SSH/SFTP keys are validated before connection.
+  Public `.pub` keys and malformed key text produce user-facing reimport
+  guidance instead of raw parser errors.
 - SFTP background timeout is configurable in Settings.
 - Widget refresh interval is limited to 15, 30, or 60 minutes.
 

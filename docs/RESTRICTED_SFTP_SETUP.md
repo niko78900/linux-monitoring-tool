@@ -142,6 +142,12 @@ Virtual root:  /warm
 
 Import the dedicated restricted private key through the Settings screen.
 
+Import only the private key file. Do not import the matching `.pub` file. The
+tablet app validates newly imported keys and revalidates stored keys before
+opening SFTP, so old malformed secure-storage values or accidentally imported
+public keys produce a setup message asking the operator to remove and reimport
+the private key instead of showing raw PEM parser errors.
+
 ## Storage display note
 
 The monitoring backend and mobile Storage page hide restricted SFTP bind-mount

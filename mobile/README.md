@@ -26,10 +26,13 @@ The app consumes:
   a service detail dashboard.
 - Direct SSH terminal using `dartssh2`, secure key storage, and host-fingerprint
   trust, with a compact status header and safe quick-input chips that write only
-  into the active SSH session.
+  into the active SSH session. Stored keys are validated before parsing so
+  invalid old secure-storage values do not leak raw PEM parser errors.
 - Restricted SFTP browser with configurable background timeout, capped text/code
   previews, image previews, download/open support, and external open support for
   PDF/Office files or unsupported files where a system app can handle them.
+  Public `.pub` keys and malformed private-key text are rejected with clear
+  reimport guidance.
 - Android home-screen widgets backed by non-sensitive flattened telemetry.
 - Backend-owned Firebase mobile alert registration and test push flow.
 
@@ -76,6 +79,10 @@ Debug APK:
 cd mobile
 flutter build apk --debug
 ```
+
+Gradle/Kotlin currently expects a supported Java runtime such as JDK 17 or JDK
+21. If Windows has Java 25 first on `PATH`, build with `JAVA_HOME` pointed at a
+JDK 21 install before running `flutter build`.
 
 Release APK:
 
