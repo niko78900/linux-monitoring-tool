@@ -37,76 +37,53 @@ class GpuPage extends ConsumerWidget {
         return ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
-            Wrap(
-              spacing: AppSpacing.md,
-              runSpacing: AppSpacing.md,
+            _GpuMetricGrid(
               children: [
-                SizedBox(
-                  width: 320,
-                  child: MetricCard(
-                    title: 'Model',
-                    value: gpu.name ?? 'N/A',
-                    icon: Icons.developer_board,
-                    maxValueLines: 2,
+                MetricCard(
+                  title: 'Model',
+                  value: gpu.name ?? 'N/A',
+                  icon: Icons.developer_board,
+                  maxValueLines: 2,
+                ),
+                MetricCard(
+                  title: 'Driver',
+                  value: gpu.driverVersion ?? 'N/A',
+                  icon: Icons.badge,
+                ),
+                MetricCard(
+                  title: 'Utilization',
+                  value: formatPercent(gpu.utilizationPercent),
+                  valueTone: thresholdTone(gpu.utilizationPercent),
+                  progress: gpu.utilizationPercent,
+                  progressColor: toneColor(
+                    thresholdTone(gpu.utilizationPercent),
                   ),
                 ),
-                SizedBox(
-                  width: 220,
-                  child: MetricCard(
-                    title: 'Driver',
-                    value: gpu.driverVersion ?? 'N/A',
-                    icon: Icons.badge,
+                MetricCard(
+                  title: 'Temperature',
+                  value: formatTemperature(gpu.temperatureC),
+                  valueTone: temperatureTone(gpu.temperatureC),
+                ),
+                MetricCard(
+                  title: 'VRAM',
+                  value: formatPercent(gpu.memoryUsedPercent),
+                  valueTone: thresholdTone(gpu.memoryUsedPercent),
+                  subtitle:
+                      '${formatMegabytes(gpu.memoryUsedMb)} / ${formatMegabytes(gpu.memoryTotalMb)}',
+                  progress: gpu.memoryUsedPercent,
+                  progressColor: toneColor(
+                    thresholdTone(gpu.memoryUsedPercent),
                   ),
                 ),
-                SizedBox(
-                  width: 220,
-                  child: MetricCard(
-                    title: 'Utilization',
-                    value: formatPercent(gpu.utilizationPercent),
-                    valueTone: thresholdTone(gpu.utilizationPercent),
-                    progress: gpu.utilizationPercent,
-                    progressColor: toneColor(
-                      thresholdTone(gpu.utilizationPercent),
-                    ),
-                  ),
+                MetricCard(
+                  title: 'Power',
+                  value: gpu.powerUsageW == null
+                      ? 'N/A'
+                      : '${gpu.powerUsageW!.toStringAsFixed(1)} W',
                 ),
-                SizedBox(
-                  width: 220,
-                  child: MetricCard(
-                    title: 'Temperature',
-                    value: formatTemperature(gpu.temperatureC),
-                    valueTone: temperatureTone(gpu.temperatureC),
-                  ),
-                ),
-                SizedBox(
-                  width: 240,
-                  child: MetricCard(
-                    title: 'VRAM',
-                    value: formatPercent(gpu.memoryUsedPercent),
-                    valueTone: thresholdTone(gpu.memoryUsedPercent),
-                    subtitle:
-                        '${formatMegabytes(gpu.memoryUsedMb)} / ${formatMegabytes(gpu.memoryTotalMb)}',
-                    progress: gpu.memoryUsedPercent,
-                    progressColor: toneColor(
-                      thresholdTone(gpu.memoryUsedPercent),
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: 220,
-                  child: MetricCard(
-                    title: 'Power',
-                    value: gpu.powerUsageW == null
-                        ? 'N/A'
-                        : '${gpu.powerUsageW!.toStringAsFixed(1)} W',
-                  ),
-                ),
-                SizedBox(
-                  width: 220,
-                  child: MetricCard(
-                    title: 'Fan',
-                    value: formatPercent(gpu.fanSpeedPercent),
-                  ),
+                MetricCard(
+                  title: 'Fan',
+                  value: formatPercent(gpu.fanSpeedPercent),
                 ),
               ],
             ),
@@ -146,6 +123,34 @@ class GpuPage extends ConsumerWidget {
               ],
             ),
           ],
+        );
+      },
+    );
+  }
+}
+
+class _GpuMetricGrid extends StatelessWidget {
+  const _GpuMetricGrid({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 1100
+            ? 4
+            : constraints.maxWidth >= 760
+            ? 3
+            : 1;
+        return GridView.count(
+          crossAxisCount: columns,
+          crossAxisSpacing: AppSpacing.md,
+          mainAxisSpacing: AppSpacing.md,
+          childAspectRatio: columns == 1 ? 2.8 : 1.55,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: children,
         );
       },
     );
