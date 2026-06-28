@@ -37,6 +37,56 @@ void main() {
     expect(find.text('Open Settings'), findsOneWidget);
   });
 
+  testWidgets('auto-connects configured SFTP profile on open', (tester) async {
+    final service = _FakeSftpConnectionClient();
+    SharedPreferences.setMockInitialValues(_configuredSftpSettings());
+    final preferences = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          sftpConnectionServiceProvider.overrideWithValue(service),
+        ],
+        child: const MaterialApp(home: Scaffold(body: FilesPage())),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(service.openCount, 1);
+    expect(find.text('Connecting'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+  });
+
+  testWidgets('manual disconnect suppresses immediate auto-reconnect', (
+    tester,
+  ) async {
+    final service = _FakeSftpConnectionClient();
+    SharedPreferences.setMockInitialValues(_configuredSftpSettings());
+    final preferences = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          sftpConnectionServiceProvider.overrideWithValue(service),
+        ],
+        child: const MaterialApp(home: Scaffold(body: FilesPage())),
+      ),
+    );
+
+    await tester.pump();
+    expect(service.openCount, 1);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(service.openCount, 1);
+    expect(find.text('Disconnected'), findsOneWidget);
+  });
+
   testWidgets('closes stale SFTP connection after page disposal', (
     tester,
   ) async {
@@ -53,8 +103,6 @@ void main() {
         child: const MaterialApp(home: Scaffold(body: FilesPage())),
       ),
     );
-    await tester.pump();
-    await tester.tap(find.text('Connect'));
     await tester.pump();
 
     final connection = _FakeSftpSessionConnection();
@@ -82,8 +130,6 @@ void main() {
         child: const MaterialApp(home: Scaffold(body: FilesPage())),
       ),
     );
-    await tester.pump();
-    await tester.tap(find.text('Connect'));
     await tester.pump();
     expect(find.text('Cancel'), findsOneWidget);
 
@@ -126,7 +172,6 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.text('Connect'));
     await tester.pump();
 
     expect(
@@ -154,6 +199,7 @@ Map<String, Object> _configuredSftpSettings() {
 
 class _FakeSftpConnectionClient implements SftpConnectionClient {
   final _openCompleter = Completer<SftpSessionConnection>();
+  int openCount = 0;
 
   void complete(SftpSessionConnection connection) {
     _openCompleter.complete(connection);
@@ -165,6 +211,7 @@ class _FakeSftpConnectionClient implements SftpConnectionClient {
     required SftpHostTrustPrompt onTrustHost,
     SftpPassphrasePrompt? onPassphraseRequired,
   }) {
+    openCount += 1;
     return _openCompleter.future;
   }
 

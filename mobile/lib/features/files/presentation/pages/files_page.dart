@@ -64,11 +64,16 @@ class _FilesPageState extends ConsumerState<FilesPage>
   FilesSort _sort = FilesSort.name;
   bool _searchingRemote = false;
   int _connectAttemptId = 0;
+  String? _autoConnectAttemptedForProfile;
+  bool _autoConnectScheduled = false;
+  bool _manuallyDisconnected = false;
+  bool _backgroundDisconnected = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _scheduleAutoConnect();
   }
 
   @override
@@ -96,7 +101,13 @@ class _FilesPageState extends ConsumerState<FilesPage>
       return;
     }
     if (state == AppLifecycleState.resumed) {
+      final shouldReconnect = _backgroundDisconnected;
       _cancelBackgroundDisconnect();
+      if (shouldReconnect && !_manuallyDisconnected) {
+        _backgroundDisconnected = false;
+        _autoConnectAttemptedForProfile = null;
+        _scheduleAutoConnect(force: true);
+      }
     }
   }
 
@@ -141,6 +152,8 @@ class _FilesPageState extends ConsumerState<FilesPage>
       );
     }
 
+    _scheduleAutoConnect(settings: settings);
+
     final visibleEntries = _sortedEntries(
       _filteredEntries(_entries, _searchController.text),
     );
@@ -165,7 +178,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
             canCreateDirectory: settings.allowSftpCreateDirectory,
             favorites: _favorites,
             onConnect: () => _connect(settings),
-            onDisconnect: _disconnect,
+            onDisconnect: () => _disconnect(userInitiated: true),
             onRoot: () => _loadDirectory(root),
             onBack: _goBack,
             onRefresh: () => _loadDirectory(_currentPath ?? root),
@@ -252,7 +265,82 @@ class _FilesPageState extends ConsumerState<FilesPage>
     );
   }
 
-  Future<void> _connect(AppSettings settings) async {
+  void _scheduleAutoConnect({AppSettings? settings, bool force = false}) {
+    if (_autoConnectScheduled) {
+      return;
+    }
+    if (settings != null &&
+        !_canAutoConnect(
+          settings,
+          _autoConnectProfileKey(settings),
+          force: force,
+        )) {
+      return;
+    }
+    _autoConnectScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _autoConnectScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      final AppSettings currentSettings =
+          settings ?? ref.read(settingsControllerProvider);
+      unawaited(_maybeAutoConnect(currentSettings, force: force));
+    });
+  }
+
+  Future<void> _maybeAutoConnect(
+    AppSettings settings, {
+    bool force = false,
+  }) async {
+    final profileKey = _autoConnectProfileKey(settings);
+    if (!_canAutoConnect(settings, profileKey, force: force)) {
+      return;
+    }
+    _autoConnectAttemptedForProfile = profileKey;
+    await _connect(settings, automatic: true);
+  }
+
+  bool _canAutoConnect(
+    AppSettings settings,
+    String profileKey, {
+    required bool force,
+  }) {
+    final profile = settings.sftpProfile;
+    return profile.isConfigured &&
+        profile.hasImportedKey &&
+        _connection == null &&
+        _status != _FilesStatus.connecting &&
+        !_manuallyDisconnected &&
+        (force || _autoConnectAttemptedForProfile != profileKey);
+  }
+
+  String _autoConnectProfileKey(AppSettings settings) {
+    final profile = settings.sftpProfile;
+    return [
+      profile.host.trim(),
+      profile.port.toString(),
+      profile.username.trim(),
+      settings.sftpVirtualRoot.trim(),
+      profile.hasImportedKey.toString(),
+      profile.storePassphrase.toString(),
+    ].join('|');
+  }
+
+  Future<void> _connect(AppSettings settings, {bool automatic = false}) async {
+    if (automatic &&
+        !_canAutoConnect(
+          settings,
+          _autoConnectProfileKey(settings),
+          force: true,
+        )) {
+      return;
+    }
+    if (!automatic) {
+      _manuallyDisconnected = false;
+      _backgroundDisconnected = false;
+      _autoConnectAttemptedForProfile = _autoConnectProfileKey(settings);
+    }
     _backgroundDisconnectTimer?.cancel();
     final profile = settings.sftpProfile;
     final root = normalizeVirtualPath(
@@ -266,7 +354,9 @@ class _FilesPageState extends ConsumerState<FilesPage>
     }
     setState(() {
       _status = _FilesStatus.connecting;
-      _message = 'Connecting to ${profile.host}:${profile.port}';
+      _message = automatic
+          ? 'Auto-connecting to ${profile.host}:${profile.port}'
+          : 'Connecting to ${profile.host}:${profile.port}';
       _currentPath = root;
     });
 
@@ -287,6 +377,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
         _status = _FilesStatus.connected;
         _message = 'Connected to restricted SFTP root.';
       });
+      _backgroundDisconnected = false;
       await _refreshMetadata();
       if (!mounted ||
           attemptId != _connectAttemptId ||
@@ -305,8 +396,19 @@ class _FilesPageState extends ConsumerState<FilesPage>
     }
   }
 
-  Future<void> _disconnect({String? message, bool clearMessage = false}) async {
+  Future<void> _disconnect({
+    String? message,
+    bool clearMessage = false,
+    bool userInitiated = false,
+    bool backgroundTimeout = false,
+  }) async {
     _connectAttemptId += 1;
+    if (userInitiated) {
+      _manuallyDisconnected = true;
+      _backgroundDisconnected = false;
+    } else if (backgroundTimeout) {
+      _backgroundDisconnected = true;
+    }
     _backgroundDisconnectTimer?.cancel();
     _cancelOutstandingTransfers();
     final connection = _connection;
@@ -815,6 +917,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
       unawaited(
         _disconnect(
           message: 'SFTP session closed after the app moved to background.',
+          backgroundTimeout: true,
         ),
       );
       return;
@@ -838,6 +941,7 @@ class _FilesPageState extends ConsumerState<FilesPage>
       unawaited(
         _disconnect(
           message: 'SFTP disconnected after ${timeout.label} in background.',
+          backgroundTimeout: true,
         ),
       );
     });
