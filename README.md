@@ -11,7 +11,8 @@ cockpit.
 - `frontend/`: read-only Angular dashboard for the monitoring backend.
 - `bot/`: Discord slash-command and alert-event presentation client.
 - `control_agent/`: restricted privileged API for Wake-on-LAN, managed hosts,
-  Tailscale-aware device state, and allowlisted service controls.
+  Tailscale-aware device state, allowlisted service controls, and benchmark
+  jobs.
 - `mobile/`: Android-only Flutter tablet app with monitoring pages, SSH
   terminal, restricted SFTP file browser, service dashboard, widgets, and push
   alert registration.
@@ -87,6 +88,9 @@ Control-agent endpoints under `/api`:
 - `GET /services/{service_id}`
 - `POST /services/{service_id}/actions/{action}`
 - `POST /actions/wake-main-pc`
+- `GET /benchmarks/status`
+- `POST /benchmarks/start`
+- `POST /benchmarks/stop`
 
 The old server-side neighbor inventory endpoint has been removed from the
 default control-agent API. Device inventory now comes from configured devices
@@ -124,6 +128,9 @@ Notable current behavior:
 - Hosts shows managed hosts and useful host actions.
 - Services shows configured allowlisted services with search/filter/sort
   controls and a service detail dashboard.
+- Actions includes CPU/GPU benchmark controls backed by the restricted control
+  agent. Supported jobs are CPU single-core, CPU multi-core, CPU stress, and GPU
+  Vulkan via the reviewed helper wrapper.
 - Files uses direct restricted SFTP with configurable background disconnect
   timing, capped previews, explicit download/open-externally flows, and
   friendly private-key validation errors for stored bad keys.
@@ -205,6 +212,9 @@ Control agent:
 - `MANAGED_HOSTS_CONFIG_PATH`
 - `SERVICES_CONFIG_PATH`
 - `SERVICE_CONTROL_HELPER_PATH`
+- `BENCHMARK_GPU_HELPER_PATH=/usr/local/sbin/homelab-vkmark-benchmark`
+- `BENCHMARK_MAX_DURATION_SECONDS=300`
+- `BENCHMARK_STDOUT_TAIL_LINES=80`
 - `MAIN_PC_MAC`, `WAKE_BROADCAST_HOST`, `WAKE_PORT`
 
 Mobile:

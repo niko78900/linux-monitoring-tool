@@ -57,6 +57,9 @@ class Settings:
     service_control_helper_path: Path
     service_command_timeout_seconds: int
     service_action_state_path: Path
+    benchmark_gpu_helper_path: Path
+    benchmark_max_duration_seconds: int
+    benchmark_stdout_tail_lines: int
     main_pc_mac: str
     wake_broadcast_host: str
     wake_port: int
@@ -107,6 +110,18 @@ def get_settings() -> Settings:
                 "SERVICE_ACTION_STATE_PATH",
                 "/var/lib/linux-monitor-control-agent/service_actions.json",
             )
+        ),
+        benchmark_gpu_helper_path=Path(
+            os.getenv(
+                "BENCHMARK_GPU_HELPER_PATH",
+                "/usr/local/sbin/homelab-vkmark-benchmark",
+            )
+        ),
+        benchmark_max_duration_seconds=_parse_int(
+            os.getenv("BENCHMARK_MAX_DURATION_SECONDS"), 300, minimum=10
+        ),
+        benchmark_stdout_tail_lines=_parse_int(
+            os.getenv("BENCHMARK_STDOUT_TAIL_LINES"), 80, minimum=10
         ),
         main_pc_mac=os.getenv("MAIN_PC_MAC", "AA:BB:CC:DD:EE:FF").strip(),
         wake_broadcast_host=os.getenv("WAKE_BROADCAST_HOST", "255.255.255.255").strip(),

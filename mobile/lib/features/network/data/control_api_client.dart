@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/networking/dio_factory.dart';
+import '../../actions/domain/models/benchmark_models.dart';
 import '../domain/models/device_models.dart';
 import '../../hosts/domain/models/host_models.dart';
 import '../../services/domain/models/service_models.dart';
@@ -85,6 +86,27 @@ class ControlApiClient {
     );
     final payload = response.data ?? const <String, dynamic>{};
     return ServiceActionResult.fromJson(payload);
+  }
+
+  Future<BenchmarkStatus> getBenchmarkStatus() async {
+    final response = await _dio.get<Map<String, dynamic>>('/benchmarks/status');
+    final payload = response.data ?? const <String, dynamic>{};
+    return BenchmarkStatus.fromJson(payload);
+  }
+
+  Future<BenchmarkStatus> startBenchmark(BenchmarkStartRequest request) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/benchmarks/start',
+      data: request.toJson(),
+    );
+    final payload = response.data ?? const <String, dynamic>{};
+    return BenchmarkStatus.fromJson(payload);
+  }
+
+  Future<BenchmarkStatus> stopBenchmark() async {
+    final response = await _dio.post<Map<String, dynamic>>('/benchmarks/stop');
+    final payload = response.data ?? const <String, dynamic>{};
+    return BenchmarkStatus.fromJson(payload);
   }
 }
 
