@@ -25,6 +25,23 @@ void main() {
     );
 
     await tester.pump();
+
+    expect(find.text('Server'), findsOneWidget);
+    expect(find.text('Debian 13'), findsOneWidget);
+    expect(find.text('Linux 6.12'), findsOneWidget);
+    expect(find.text('Intel Core i5-13400F'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Show raw OS value'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Linux-6.12.90+deb13.1-amd64-x86_64-with-glibc2.41'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
     await tester.scrollUntilVisible(
       find.text('Chipset'),
       240,
@@ -51,15 +68,15 @@ class _FakeMonitoringController extends MonitoringController {
 
 SystemResponse _system() {
   return SystemResponse.fromJson({
-    'hostname': 'homelab',
+    'hostname': 'server',
     'os': {
       'system': 'Linux',
-      'release': '6.0',
+      'release': '6.12.90+deb13.1-amd64',
       'version': '1',
       'machine': 'x86_64',
-      'platform': 'Debian GNU/Linux',
+      'platform': 'Linux-6.12.90+deb13.1-amd64-x86_64-with-glibc2.41',
     },
-    'kernel_version': '6.0',
+    'kernel_version': '6.12.90+deb13.1-amd64',
     'uptime_seconds': 3600,
     'uptime_human': '1h',
     'cpu': {
@@ -85,8 +102,8 @@ SystemResponse _system() {
     },
     'specs': {
       'cpu': {
-        'model_name': 'AMD Ryzen 7 5800X',
-        'vendor': 'AuthenticAMD',
+        'model_name': '13th Gen Intel(R) Core(TM) i5-13400F',
+        'vendor': 'GenuineIntel',
         'architecture': 'x86_64',
         'physical_cores': 8,
         'logical_cores': 16,

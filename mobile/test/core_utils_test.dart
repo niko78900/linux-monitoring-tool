@@ -3,6 +3,7 @@ import 'package:homelab_tablet/core/config/app_settings.dart';
 import 'package:homelab_tablet/core/utils/byte_format.dart';
 import 'package:homelab_tablet/core/utils/display_name_format.dart';
 import 'package:homelab_tablet/core/utils/duration_format.dart';
+import 'package:homelab_tablet/core/utils/hardware_display_format.dart';
 import 'package:homelab_tablet/core/utils/path_safety.dart';
 import 'package:homelab_tablet/core/utils/ring_buffer.dart';
 import 'package:homelab_tablet/core/utils/temperature_format.dart';
@@ -41,6 +42,21 @@ void main() {
     );
     expect(formatDeviceDisplayName(null), 'Unknown');
     expect(formatHostDisplayName(''), 'Unknown');
+  });
+
+  test('formats noisy hardware values for display', () {
+    expect(
+      formatOperatingSystemDisplayName(
+        'Linux-6.12.90+deb13.1-amd64-x86_64-with-glibc2.41',
+      ),
+      'Debian 13',
+    );
+    expect(formatKernelDisplayName('6.12.90+deb13.1-amd64'), 'Linux 6.12');
+    expect(
+      formatCpuModelDisplayName('13th Gen Intel(R) Core(TM) i5-13400F'),
+      'Intel Core i5-13400F',
+    );
+    expect(formatOperatingSystemDisplayName('CustomOS'), 'CustomOS');
   });
 
   test('ring buffer keeps only newest values', () {

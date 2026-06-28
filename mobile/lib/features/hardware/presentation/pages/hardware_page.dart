@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/byte_format.dart';
 import '../../../../core/utils/display_name_format.dart';
+import '../../../../core/utils/hardware_display_format.dart';
 import '../../../../core/utils/temperature_format.dart';
 import '../../../../core/utils/threshold_tone.dart';
 import '../../../../core/widgets/info_row.dart';
@@ -38,9 +39,18 @@ class HardwarePage extends ConsumerWidget {
                 InfoRow(
                   label: 'Hostname',
                   value: formatHostDisplayName(system.hostname),
+                  rawValue: system.hostname,
                 ),
-                InfoRow(label: 'OS', value: system.os.platform),
-                InfoRow(label: 'Kernel', value: system.kernelVersion),
+                InfoRow(
+                  label: 'OS',
+                  value: formatOperatingSystemDisplayName(system.os.platform),
+                  rawValue: system.os.platform,
+                ),
+                InfoRow(
+                  label: 'Kernel',
+                  value: formatKernelDisplayName(system.kernelVersion),
+                  rawValue: system.kernelVersion,
+                ),
                 InfoRow(label: 'Uptime', value: system.uptimeHuman),
                 InfoRow(
                   label: 'Chassis Temp',
@@ -56,7 +66,11 @@ class HardwarePage extends ConsumerWidget {
             title: 'CPU',
             child: Column(
               children: [
-                InfoRow(label: 'Model', value: system.specs.cpu.modelName),
+                InfoRow(
+                  label: 'Model',
+                  value: formatCpuModelDisplayName(system.specs.cpu.modelName),
+                  rawValue: system.specs.cpu.modelName,
+                ),
                 InfoRow(
                   label: 'Vendor',
                   value: system.specs.cpu.vendor ?? 'N/A',
