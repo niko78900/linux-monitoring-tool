@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/display_name_format.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/section_card.dart';
 import '../../../../core/widgets/status_badge.dart';
@@ -100,7 +101,7 @@ class _DeviceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SectionCard(
-      title: device.name,
+      title: formatDeviceDisplayName(device.name),
       trailing: StatusBadge(
         label: device.online ? 'Online' : 'Offline',
         tone: device.online ? StatusTone.healthy : StatusTone.offline,

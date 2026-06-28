@@ -22,7 +22,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('tablet-peer'), findsOneWidget);
+    expect(find.text('Tablet Peer'), findsOneWidget);
     expect(find.text('100.64.10.99'), findsOneWidget);
     expect(find.text('LAN neighbor section'), findsNothing);
   });

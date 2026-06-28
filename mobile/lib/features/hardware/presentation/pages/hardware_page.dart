@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/byte_format.dart';
+import '../../../../core/utils/display_name_format.dart';
 import '../../../../core/utils/temperature_format.dart';
 import '../../../../core/utils/threshold_tone.dart';
 import '../../../../core/widgets/info_row.dart';
@@ -34,7 +35,10 @@ class HardwarePage extends ConsumerWidget {
             title: 'System Identity',
             child: Column(
               children: [
-                InfoRow(label: 'Hostname', value: system.hostname),
+                InfoRow(
+                  label: 'Hostname',
+                  value: formatHostDisplayName(system.hostname),
+                ),
                 InfoRow(label: 'OS', value: system.os.platform),
                 InfoRow(label: 'Kernel', value: system.kernelVersion),
                 InfoRow(label: 'Uptime', value: system.uptimeHuman),

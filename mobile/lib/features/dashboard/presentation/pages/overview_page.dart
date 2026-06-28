@@ -8,6 +8,7 @@ import '../../../../core/config/app_settings.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/byte_format.dart';
+import '../../../../core/utils/display_name_format.dart';
 import '../../../../core/utils/duration_format.dart';
 import '../../../../core/utils/percentage_format.dart';
 import '../../../../core/utils/temperature_format.dart';
@@ -66,7 +67,9 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
           _Header(
-            hostname: summary?.hostname ?? system?.hostname ?? 'Homelab server',
+            hostname: formatHostDisplayName(
+              summary?.hostname ?? system?.hostname ?? 'Homelab server',
+            ),
             reachable: state.serverReachable,
             lastRefresh: state.lastRefresh,
             pollingMs: settings.summaryPollingMs,

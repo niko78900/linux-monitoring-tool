@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/display_name_format.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/section_card.dart';
 import '../../../../core/widgets/status_badge.dart';
@@ -47,7 +48,7 @@ class _DeviceDetailPageState extends ConsumerState<DeviceDetailPage> {
                 icon: const Icon(Icons.arrow_back),
               ),
               Text(
-                device.name,
+                formatDeviceDisplayName(device.name),
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               StatusBadge(
@@ -180,7 +181,7 @@ class _DeviceDetailPageState extends ConsumerState<DeviceDetailPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Wake ${device.name}?'),
+          title: Text('Wake ${formatDeviceDisplayName(device.name)}?'),
           content: const Text(
             'Send the allowlisted Wake-on-LAN action and poll for status updates.',
           ),
@@ -234,7 +235,10 @@ class _DeviceDetailPageState extends ConsumerState<DeviceDetailPage> {
         );
         if (device.online) {
           if (mounted) {
-            setState(() => _statusMessage = '${device.name} is online.');
+            setState(
+              () => _statusMessage =
+                  '${formatDeviceDisplayName(device.name)} is online.',
+            );
           }
           return;
         }

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:homelab_tablet/core/config/app_settings.dart';
 import 'package:homelab_tablet/core/utils/byte_format.dart';
+import 'package:homelab_tablet/core/utils/display_name_format.dart';
 import 'package:homelab_tablet/core/utils/duration_format.dart';
 import 'package:homelab_tablet/core/utils/path_safety.dart';
 import 'package:homelab_tablet/core/utils/ring_buffer.dart';
@@ -27,6 +28,19 @@ void main() {
     expect(formatDurationSeconds(null), 'N/A');
     expect(formatDurationSeconds(3661), '1h 1m 1s');
     expect(formatDurationSeconds(90061), '1d 1h 1m 1s');
+  });
+
+  test('formats host and device display names without mutating raw values', () {
+    expect(formatHostDisplayName('server'), 'Server');
+    expect(formatHostDisplayName('homelab-server'), 'Homelab Server');
+    expect(formatDeviceDisplayName('main-pc'), 'Main PC');
+    expect(formatDeviceDisplayName('tablet_peer'), 'Tablet Peer');
+    expect(
+      formatHostDisplayName('server.tailnet.ts.net'),
+      'server.tailnet.ts.net',
+    );
+    expect(formatDeviceDisplayName(null), 'Unknown');
+    expect(formatHostDisplayName(''), 'Unknown');
   });
 
   test('ring buffer keeps only newest values', () {

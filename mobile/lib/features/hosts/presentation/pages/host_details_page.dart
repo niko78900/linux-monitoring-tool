@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/display_name_format.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/section_card.dart';
 import '../providers/host_providers.dart';
@@ -33,7 +34,7 @@ class HostDetailsPage extends ConsumerWidget {
                 icon: const Icon(Icons.arrow_back),
               ),
               Text(
-                host.displayName,
+                formatHostDisplayName(host.displayName),
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               HostStatusBadge(host: host),
