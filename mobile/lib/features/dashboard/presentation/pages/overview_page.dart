@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -318,23 +320,24 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final formatter = DateFormat.Hms();
-    return Row(
+    final titleBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(hostname, style: Theme.of(context).textTheme.headlineMedium),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                '${reachable ? 'API reachable' : 'Server unreachable'} | Last refresh ${lastRefresh == null ? 'N/A' : formatter.format(lastRefresh!)}',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
-              ),
-            ],
-          ),
+        Text(hostname, style: Theme.of(context).textTheme.headlineMedium),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          '${reachable ? 'API reachable' : 'Server unreachable'} | Last refresh ${lastRefresh == null ? 'N/A' : formatter.format(lastRefresh!)}',
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
         ),
+      ],
+    );
+    final controls = Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
         DropdownButton<int>(
           value: pollingMs,
           items: const [
@@ -351,13 +354,113 @@ class _Header extends StatelessWidget {
             }
           },
         ),
-        const SizedBox(width: AppSpacing.sm),
         FilledButton.icon(
           onPressed: onRefresh,
           icon: const Icon(Icons.refresh),
           label: const Text('Refresh'),
         ),
       ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 820) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleBlock,
+              const SizedBox(height: AppSpacing.md),
+              const _LocalStatusCard(),
+              const SizedBox(height: AppSpacing.md),
+              controls,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(child: titleBlock),
+            const SizedBox(width: AppSpacing.lg),
+            const _LocalStatusCard(),
+            const SizedBox(width: AppSpacing.lg),
+            controls,
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _LocalStatusCard extends StatefulWidget {
+  const _LocalStatusCard();
+
+  @override
+  State<_LocalStatusCard> createState() => _LocalStatusCardState();
+}
+
+class _LocalStatusCardState extends State<_LocalStatusCard> {
+  late DateTime _now;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _now = DateTime.now();
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() => _now = DateTime.now());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final time = DateFormat.Hm().format(_now);
+    final date = DateFormat('EEE, MMM d').format(_now);
+    final zone = _now.timeZoneName;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.schedule, color: AppColors.accent),
+            const SizedBox(width: AppSpacing.sm),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Local time',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelMedium?.copyWith(color: AppColors.textMuted),
+                ),
+                Text(time, style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  '$date | $zone',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
