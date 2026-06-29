@@ -44,5 +44,8 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Locally archived debug APKs are build outputs, not source.
+/Versions/
+
 # Firebase Android config is downloaded manually from Firebase Console.
 /android/app/google-services.json

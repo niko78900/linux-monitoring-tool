@@ -107,109 +107,115 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _load(settings);
     }
 
-    return ListView(
+    return ListView.builder(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      children: [
-        MonitoringSettingsSection(
-          settings: settings,
-          monitoringUrlController: _monitoringUrl,
-          onSave: _save,
-          onTest: _testMonitoring,
-        ),
-        ControlAgentSettingsSection(
-          settings: settings,
-          controlUrlController: _controlUrl,
-          controlTokenController: _controlToken,
-          onSave: _saveControl,
-          onTest: _testControl,
-          onClearToken: _clearToken,
-        ),
-        TerminalSettingsSection(
-          settings: settings,
-          nameController: _sshName,
-          hostController: _sshHost,
-          portController: _sshPort,
-          userController: _sshUser,
-          keySummary: _sshKeySummary,
-          trustedFingerprint: _sshTrustedFingerprint,
-          passphraseRemembered: _sshPassphraseRemembered,
-          testing: _testingSsh,
-          onSaveProfiles: _saveProfiles,
-          onSetPassphraseStorage: _setSshPassphraseStorage,
-          onForgetPassphrase: _forgetSshPassphrase,
-          onImportKey: _importSshKey,
-          onPasteKey: _pasteSshKey,
-          onRemoveKey: _removeSshKey,
-          onTest: _testSsh,
-          onResetTrustedFingerprint: _resetTrustedFingerprint,
-        ),
-        FilesSettingsSection(
-          settings: settings,
-          nameController: _sftpName,
-          hostController: _sftpHost,
-          portController: _sftpPort,
-          userController: _sftpUser,
-          rootController: _sftpRoot,
-          keySummary: _sftpKeySummary,
-          trustedFingerprint: _sftpTrustedFingerprint,
-          passphraseRemembered: _sftpPassphraseRemembered,
-          testing: _testingSftp,
-          onSaveProfiles: _saveProfiles,
-          onSave: _save,
-          onSetPassphraseStorage: _setSftpPassphraseStorage,
-          onForgetPassphrase: _forgetSftpPassphrase,
-          onImportKey: _importSftpKey,
-          onPasteKey: _pasteSftpKey,
-          onRemoveKey: _removeSftpKey,
-          onTest: _testSftp,
-          onResetTrustedFingerprint: _resetSftpTrustedFingerprint,
-        ),
-        WidgetSettingsSection(
-          settings: settings,
-          mountpointController: _widgetMountpoint,
-          labelController: _widgetLabel,
-          secondaryMountpointController: _widgetSecondaryMountpoint,
-          secondaryLabelController: _widgetSecondaryLabel,
-          requestingWidgetPinProvider: _requestingWidgetPinProvider,
-          onSave: _save,
-          onRefreshSnapshots: _refreshWidgetSnapshots,
-          onRequestPinWidget: _requestPinWidget,
-        ),
-        PushAlertsSettingsSection(
-          settings: settings,
-          tokenController: _mobileAlertToken,
-          busy: _mobileAlertBusy,
-          notificationPermission: _notificationPermission,
-          readiness: _mobileAlertReadiness,
-          registrationLabel: _registrationLabel(),
-          channelReadinessLabel: _channelReadinessLabel(),
-          statusText: _mobileAlertStatusText,
-          onSaveToken: _saveMobileAlertToken,
-          onClearToken: _clearMobileAlertToken,
-          onEnable: _enablePushAlerts,
-          onDisable: _disablePushAlerts,
-          onSave: _save,
-          onRefreshStatus: _refreshMobileAlertStatus,
-          onRegister: _enablePushAlerts,
-          onSendTest: _sendTestPush,
-          onOpenAndroidNotificationSettings: () => unawaited(
-            MobileAlertService.instance.openAndroidNotificationSettings(),
-          ),
-        ),
-        TabletSettingsSection(
-          settings: settings,
-          onSave: _save,
-          onManualLock: () =>
-              ref.read(appLockControllerProvider.notifier).lock(),
-        ),
-        DebugSettingsSection(
-          settings: settings,
-          onSave: _save,
-          onResetOnboarding: () =>
-              ref.read(settingsControllerProvider.notifier).resetOnboarding(),
-        ),
-      ],
+      itemCount: _settingsSectionCount,
+      itemBuilder: (context, index) => _buildSection(settings, index),
     );
+  }
+
+  static const _settingsSectionCount = 8;
+
+  Widget _buildSection(AppSettings settings, int index) {
+    return switch (index) {
+      0 => MonitoringSettingsSection(
+        settings: settings,
+        monitoringUrlController: _monitoringUrl,
+        onSave: _save,
+        onTest: _testMonitoring,
+      ),
+      1 => ControlAgentSettingsSection(
+        settings: settings,
+        controlUrlController: _controlUrl,
+        controlTokenController: _controlToken,
+        onSave: _saveControl,
+        onTest: _testControl,
+        onClearToken: _clearToken,
+      ),
+      2 => TerminalSettingsSection(
+        settings: settings,
+        nameController: _sshName,
+        hostController: _sshHost,
+        portController: _sshPort,
+        userController: _sshUser,
+        keySummary: _sshKeySummary,
+        trustedFingerprint: _sshTrustedFingerprint,
+        passphraseRemembered: _sshPassphraseRemembered,
+        testing: _testingSsh,
+        onSaveProfiles: _saveProfiles,
+        onSetPassphraseStorage: _setSshPassphraseStorage,
+        onForgetPassphrase: _forgetSshPassphrase,
+        onImportKey: _importSshKey,
+        onPasteKey: _pasteSshKey,
+        onRemoveKey: _removeSshKey,
+        onTest: _testSsh,
+        onResetTrustedFingerprint: _resetTrustedFingerprint,
+      ),
+      3 => FilesSettingsSection(
+        settings: settings,
+        nameController: _sftpName,
+        hostController: _sftpHost,
+        portController: _sftpPort,
+        userController: _sftpUser,
+        rootController: _sftpRoot,
+        keySummary: _sftpKeySummary,
+        trustedFingerprint: _sftpTrustedFingerprint,
+        passphraseRemembered: _sftpPassphraseRemembered,
+        testing: _testingSftp,
+        onSaveProfiles: _saveProfiles,
+        onSave: _save,
+        onSetPassphraseStorage: _setSftpPassphraseStorage,
+        onForgetPassphrase: _forgetSftpPassphrase,
+        onImportKey: _importSftpKey,
+        onPasteKey: _pasteSftpKey,
+        onRemoveKey: _removeSftpKey,
+        onTest: _testSftp,
+        onResetTrustedFingerprint: _resetSftpTrustedFingerprint,
+      ),
+      4 => WidgetSettingsSection(
+        settings: settings,
+        mountpointController: _widgetMountpoint,
+        labelController: _widgetLabel,
+        secondaryMountpointController: _widgetSecondaryMountpoint,
+        secondaryLabelController: _widgetSecondaryLabel,
+        requestingWidgetPinProvider: _requestingWidgetPinProvider,
+        onSave: _save,
+        onRefreshSnapshots: _refreshWidgetSnapshots,
+        onRequestPinWidget: _requestPinWidget,
+      ),
+      5 => PushAlertsSettingsSection(
+        settings: settings,
+        tokenController: _mobileAlertToken,
+        busy: _mobileAlertBusy,
+        notificationPermission: _notificationPermission,
+        readiness: _mobileAlertReadiness,
+        registrationLabel: _registrationLabel(),
+        channelReadinessLabel: _channelReadinessLabel(),
+        statusText: _mobileAlertStatusText,
+        onSaveToken: _saveMobileAlertToken,
+        onClearToken: _clearMobileAlertToken,
+        onEnable: _enablePushAlerts,
+        onDisable: _disablePushAlerts,
+        onSave: _save,
+        onRefreshStatus: _refreshMobileAlertStatus,
+        onRegister: _enablePushAlerts,
+        onSendTest: _sendTestPush,
+        onOpenAndroidNotificationSettings: () => unawaited(
+          MobileAlertService.instance.openAndroidNotificationSettings(),
+        ),
+      ),
+      6 => TabletSettingsSection(
+        settings: settings,
+        onSave: _save,
+        onManualLock: () => ref.read(appLockControllerProvider.notifier).lock(),
+      ),
+      _ => DebugSettingsSection(
+        settings: settings,
+        onSave: _save,
+        onResetOnboarding: () =>
+            ref.read(settingsControllerProvider.notifier).resetOnboarding(),
+      ),
+    };
   }
 
   void _load(AppSettings settings) {
@@ -261,9 +267,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   void _save(AppSettings settings) {
     ref.read(settingsControllerProvider.notifier).save(settings);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Settings saved')));
+    _showSnackBar('Settings saved');
   }
 
   Future<void> _saveControl(AppSettings settings) async {
@@ -278,9 +282,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     ref.read(settingsControllerProvider.notifier).save(next);
     unawaited(_persistSshPassphrase(next));
     unawaited(_persistSftpPassphrase(next));
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Settings saved')));
+    _showSnackBar('Settings saved');
   }
 
   AppSettings _buildSettingsFromFields(AppSettings settings) {
@@ -328,11 +330,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _sshPassphrase.clear();
     }
     await _refreshSshSecretState(next);
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Settings saved')));
-    }
+    _showSnackBar('Settings saved');
   }
 
   Future<void> _persistSftpPassphrase(AppSettings settings) async {
@@ -362,11 +360,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _sftpPassphrase.clear();
     }
     await _refreshSftpSecretState(next);
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Settings saved')));
-    }
+    _showSnackBar('Settings saved');
   }
 
   Future<void> _forgetSshPassphrase(AppSettings settings) async {
@@ -379,11 +373,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
     ref.read(settingsControllerProvider.notifier).save(next);
     await _refreshSshSecretState(next);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('SSH key passphrase forgotten')),
-      );
-    }
+    _showSnackBar('SSH key passphrase forgotten');
   }
 
   Future<void> _forgetSftpPassphrase(AppSettings settings) async {
@@ -396,42 +386,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
     ref.read(settingsControllerProvider.notifier).save(next);
     await _refreshSftpSecretState(next);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('SFTP key passphrase forgotten')),
-      );
-    }
+    _showSnackBar('SFTP key passphrase forgotten');
   }
 
   Future<void> _clearToken() async {
     await ref.read(secureStorageServiceProvider).clearControlToken();
     _controlToken.clear();
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Control token cleared')));
-    }
+    _showSnackBar('Control token cleared');
   }
 
   Future<void> _saveMobileAlertToken() async {
     await ref
         .read(secureStorageServiceProvider)
         .writeMobileAlertToken(_mobileAlertToken.text);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mobile-alert backend token saved')),
-      );
-    }
+    _showSnackBar('Mobile-alert backend token saved');
   }
 
   Future<void> _clearMobileAlertToken() async {
     await ref.read(secureStorageServiceProvider).clearMobileAlertToken();
     _mobileAlertToken.clear();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mobile-alert backend token cleared')),
-      );
-    }
+    _showSnackBar('Mobile-alert backend token cleared');
   }
 
   Future<void> _testMonitoring() async {
@@ -440,19 +414,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         DioFactory.create(baseUrl: _monitoringUrl.text),
       );
       final health = await client.getHealth();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Connected to ${health.appName} ${health.version}'),
-          ),
-        );
-      }
+      _showSnackBar('Connected to ${health.appName} ${health.version}');
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Monitoring API unreachable')),
-        );
-      }
+      _showSnackBar('Monitoring API unreachable');
     }
   }
 
@@ -463,27 +427,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         token: _controlToken.text,
       );
       await client.getHealth();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Control agent reachable')),
-        );
-      }
+      _showSnackBar('Control agent reachable');
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Control agent unreachable')),
-        );
-      }
+      _showSnackBar('Control agent unreachable');
     }
   }
 
   Future<void> _requestPinWidget(String providerName) async {
     if (!Platform.isAndroid) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Widget pinning is Android only')),
-        );
-      }
+      _showSnackBar('Widget pinning is Android only');
       return;
     }
 
@@ -491,25 +443,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     try {
       final supported = await HomeWidget.isRequestPinWidgetSupported();
       if (supported != true) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Launcher does not support pinning')),
-          );
-        }
+        _showSnackBar('Launcher does not support pinning');
         return;
       }
       await HomeWidget.requestPinWidget(name: providerName);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Widget add request sent')),
-        );
-      }
+      _showSnackBar('Widget add request sent');
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to request widget pinning')),
-        );
-      }
+      _showSnackBar('Unable to request widget pinning');
     } finally {
       if (mounted) {
         setState(() => _requestingWidgetPinProvider = null);
@@ -519,11 +459,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _refreshWidgetSnapshots() async {
     await ServerWidgetService.instance.runBackgroundRefreshTask();
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Widget refresh requested')));
-    }
+    _showSnackBar('Widget refresh requested');
   }
 
   Future<void> _refreshMobileAlertStatus(AppSettings settings) async {
@@ -591,16 +527,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           _mobileAlertReadiness = readiness;
           _mobileAlertStatusText = readiness.readinessMessage;
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Push alerts registered')));
+        _showSnackBar('Push alerts registered');
       }
     } catch (error) {
       if (mounted) {
         setState(() => _mobileAlertStatusText = _describeError(error));
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(_describeError(error))));
+        _showSnackBar(_describeError(error));
       }
     } finally {
       if (mounted) {
@@ -628,16 +560,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           _mobileAlertStatus = status;
           _mobileAlertStatusText = 'Push alerts disabled';
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Push alerts disabled')));
+        _showSnackBar('Push alerts disabled');
       }
     } catch (error) {
       if (mounted) {
         setState(() => _mobileAlertStatusText = _describeError(error));
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(_describeError(error))));
+        _showSnackBar(_describeError(error));
       }
     } finally {
       if (mounted) {
@@ -677,16 +605,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ? 'Test notification requested (${result.sentCount} sent)'
               : readiness.readinessMessage;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Round-trip test notification sent')),
-        );
+        _showSnackBar('Round-trip test notification sent');
       }
     } catch (error) {
       if (mounted) {
         setState(() => _mobileAlertStatusText = _describeError(error));
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(_describeError(error))));
+        _showSnackBar(_describeError(error));
       }
     } finally {
       if (mounted) {
@@ -740,16 +664,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             onPassphraseRequired: () => _promptSshPassphrase(next),
           );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('SSH connection succeeded')),
-        );
+        _showSnackBar('SSH connection succeeded');
       }
       await _refreshSshSecretState(next);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(_describeError(error))));
+        _showSnackBar(_describeError(error));
       }
     } finally {
       if (mounted) {
@@ -773,16 +693,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             onPassphraseRequired: () => _promptSftpPassphrase(next),
           );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('SFTP connection succeeded')),
-        );
+        _showSnackBar('SFTP connection succeeded');
       }
       await _refreshSftpSecretState(next);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(_describeError(error))));
+        _showSnackBar(_describeError(error));
       }
     } finally {
       if (mounted) {
@@ -871,11 +787,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       contents = await File(file.path!).readAsString();
     }
     if (contents == null || contents.trim().isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('The selected file was empty')),
-        );
-      }
+      _showSnackBar('The selected file was empty');
       return;
     }
     await _storeSshKey(settings, contents);
@@ -898,11 +810,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     try {
       normalized = validateAndNormalizePrivateKey(contents);
     } on AppException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
-      }
+      _showSnackBar(error.message);
       return;
     }
     await ref.read(secureStorageServiceProvider).writeSshPrivateKey(normalized);
@@ -914,11 +822,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     ref.read(settingsControllerProvider.notifier).save(next);
     await _persistSshPassphrase(next);
     await _refreshSshSecretState(next);
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('SSH private key saved')));
-    }
+    _showSnackBar('SSH private key saved');
   }
 
   Future<void> _importSftpKey(AppSettings settings) async {
@@ -937,11 +841,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       contents = await File(file.path!).readAsString();
     }
     if (contents == null || contents.trim().isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('The selected file was empty')),
-        );
-      }
+      _showSnackBar('The selected file was empty');
       return;
     }
     await _storeSftpKey(settings, contents);
@@ -964,11 +864,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     try {
       normalized = validateAndNormalizePrivateKey(contents);
     } on AppException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
-      }
+      _showSnackBar(error.message);
       return;
     }
     await ref
@@ -982,11 +878,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     ref.read(settingsControllerProvider.notifier).save(next);
     await _persistSftpPassphrase(next);
     await _refreshSftpSecretState(next);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Restricted SFTP key saved')),
-      );
-    }
+    _showSnackBar('Restricted SFTP key saved');
   }
 
   Future<void> _removeSshKey(AppSettings settings) async {
@@ -1001,11 +893,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
     ref.read(settingsControllerProvider.notifier).save(next);
     await _refreshSshSecretState(next);
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('SSH private key removed')));
-    }
+    _showSnackBar('SSH private key removed');
   }
 
   Future<void> _removeSftpKey(AppSettings settings) async {
@@ -1020,11 +908,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
     ref.read(settingsControllerProvider.notifier).save(next);
     await _refreshSftpSecretState(next);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Restricted SFTP key removed')),
-      );
-    }
+    _showSnackBar('Restricted SFTP key removed');
   }
 
   Future<void> _resetTrustedFingerprint(ConnectionProfile profile) async {
@@ -1032,11 +916,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         .read(sshConnectionServiceProvider)
         .resetTrustedFingerprint(profile);
     await _refreshSshSecretState(ref.read(settingsControllerProvider));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Trusted fingerprint reset')),
-      );
-    }
+    _showSnackBar('Trusted fingerprint reset');
   }
 
   Future<void> _resetSftpTrustedFingerprint(ConnectionProfile profile) async {
@@ -1044,11 +924,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         .read(sftpConnectionServiceProvider)
         .resetTrustedFingerprint(profile);
     await _refreshSftpSecretState(ref.read(settingsControllerProvider));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Trusted fingerprint reset')),
-      );
-    }
+    _showSnackBar('Trusted fingerprint reset');
   }
 
   Future<void> _refreshSshSecretState(AppSettings settings) async {
@@ -1105,5 +981,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       return error.message;
     }
     return error.toString();
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
