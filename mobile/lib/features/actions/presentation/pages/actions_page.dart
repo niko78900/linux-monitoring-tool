@@ -36,7 +36,7 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
   bool _benchmarkBusy = false;
   String? _token;
   String? _statusMessage;
-  String? _benchmarkMessage;
+  _BenchmarkNotice? _benchmarkNotice;
   _ControlStatus _status = _ControlStatus.disconnected;
   BenchmarkStatus? _benchmarkStatus;
   Timer? _benchmarkPollTimer;
@@ -106,7 +106,7 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
         const SizedBox(height: AppSpacing.lg),
         _BenchmarkControls(
           status: _benchmarkStatus,
-          message: _benchmarkMessage,
+          notice: _benchmarkNotice,
           busy: _benchmarkBusy,
           dateFormat: _dateFormat,
           onCpuSelected: (kind) => _startCpuBenchmark(settings, kind),
@@ -270,7 +270,7 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
     if (!silent) {
       setState(() {
         _benchmarkBusy = true;
-        _benchmarkMessage = null;
+        _benchmarkNotice = null;
       });
     }
     try {
@@ -280,14 +280,14 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
       }
       setState(() {
         _benchmarkStatus = status;
-        _benchmarkMessage = status.detail;
+        _benchmarkNotice = _benchmarkNoticeForStatus(status);
       });
       _syncBenchmarkPolling(status);
     } catch (error) {
       if (!mounted) {
         return;
       }
-      setState(() => _benchmarkMessage = _describeError(error));
+      setState(() => _benchmarkNotice = _describeBenchmarkError(error));
       _benchmarkPollTimer?.cancel();
     } finally {
       if (mounted && !silent) {
@@ -305,14 +305,14 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
       if (mounted) {
         setState(() {
           _benchmarkStatus = status;
-          _benchmarkMessage = status.detail;
+          _benchmarkNotice = _benchmarkNoticeForStatus(status);
         });
         _syncBenchmarkPolling(status);
       }
       return status;
     } catch (error) {
       if (mounted) {
-        setState(() => _benchmarkMessage = _describeError(error));
+        setState(() => _benchmarkNotice = _describeBenchmarkError(error));
       }
       return _benchmarkStatus;
     }
@@ -404,7 +404,7 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
   ) async {
     setState(() {
       _benchmarkBusy = true;
-      _benchmarkMessage = null;
+      _benchmarkNotice = null;
     });
     try {
       final status = await _controlClient(settings).startBenchmark(request);
@@ -413,14 +413,17 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
       }
       setState(() {
         _benchmarkStatus = status;
-        _benchmarkMessage = 'Started ${status.label ?? request.kind.label}.';
+        _benchmarkNotice = _benchmarkNoticeForStatus(
+          status,
+          startedLabel: status.label ?? request.kind.label,
+        );
       });
       _syncBenchmarkPolling(status);
     } catch (error) {
       if (!mounted) {
         return;
       }
-      setState(() => _benchmarkMessage = _describeError(error));
+      setState(() => _benchmarkNotice = _describeBenchmarkError(error));
     } finally {
       if (mounted) {
         setState(() => _benchmarkBusy = false);
@@ -431,7 +434,7 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
   Future<void> _stopBenchmark(AppSettings settings) async {
     setState(() {
       _benchmarkBusy = true;
-      _benchmarkMessage = null;
+      _benchmarkNotice = null;
     });
     try {
       final status = await _controlClient(settings).stopBenchmark();
@@ -440,14 +443,17 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
       }
       setState(() {
         _benchmarkStatus = status;
-        _benchmarkMessage = status.detail ?? 'Stop requested.';
+        _benchmarkNotice = _benchmarkNoticeForStatus(
+          status,
+          fallbackMessage: 'Stop requested.',
+        );
       });
       _syncBenchmarkPolling(status);
     } catch (error) {
       if (!mounted) {
         return;
       }
-      setState(() => _benchmarkMessage = _describeError(error));
+      setState(() => _benchmarkNotice = _describeBenchmarkError(error));
     } finally {
       if (mounted) {
         setState(() => _benchmarkBusy = false);
@@ -544,6 +550,66 @@ class _ActionsPageState extends ConsumerState<ActionsPage> {
     }
     return mapError(error);
   }
+
+  _BenchmarkNotice _describeBenchmarkError(Object error) {
+    if (error is DioException) {
+      final statusCode = error.response?.statusCode;
+      final detail = _dioDetail(error);
+      final rawDetail = detail ?? error.message ?? error.toString();
+      if (statusCode == 401 || statusCode == 403) {
+        return _BenchmarkNotice(
+          'Control-agent token missing or invalid.',
+          stateOverride: _BenchmarkUiState.authError,
+          rawDetail: rawDetail,
+        );
+      }
+      if (statusCode == 404) {
+        return _BenchmarkNotice(
+          'Benchmark endpoints are unavailable. Update/restart the control agent.',
+          stateOverride: _BenchmarkUiState.unavailable,
+          rawDetail: rawDetail,
+        );
+      }
+      if (_isConnectionFailure(error)) {
+        return _BenchmarkNotice(
+          'Control agent unreachable.',
+          stateOverride: _BenchmarkUiState.unreachable,
+          rawDetail: rawDetail,
+        );
+      }
+      if (statusCode == 409) {
+        return _BenchmarkNotice(
+          'Another benchmark is already running. Refresh status.',
+          stateOverride: _BenchmarkUiState.running,
+          rawDetail: rawDetail,
+        );
+      }
+      if (statusCode == 503 || _looksUnavailable(rawDetail)) {
+        return _BenchmarkNotice(
+          'Benchmark tool is unavailable on the control agent.',
+          stateOverride: _BenchmarkUiState.unavailable,
+          rawDetail: rawDetail,
+        );
+      }
+      return _BenchmarkNotice(
+        'Benchmark action failed. Open details for diagnostics.',
+        stateOverride: _BenchmarkUiState.failed,
+        rawDetail: rawDetail,
+      );
+    }
+    if (error is AppException) {
+      return _BenchmarkNotice(
+        'Benchmark action failed. Open details for diagnostics.',
+        stateOverride: _BenchmarkUiState.failed,
+        rawDetail: error.cause?.toString() ?? error.message,
+      );
+    }
+    return _BenchmarkNotice(
+      'Benchmark action failed. Open details for diagnostics.',
+      stateOverride: _BenchmarkUiState.failed,
+      rawDetail: error.toString(),
+    );
+  }
 }
 
 enum _ControlStatus {
@@ -557,10 +623,29 @@ enum _ControlStatus {
   final StatusTone tone;
 }
 
+enum _BenchmarkUiState {
+  idle,
+  running,
+  finished,
+  failed,
+  stopped,
+  unavailable,
+  authError,
+  unreachable,
+}
+
+class _BenchmarkNotice {
+  const _BenchmarkNotice(this.message, {this.stateOverride, this.rawDetail});
+
+  final String message;
+  final _BenchmarkUiState? stateOverride;
+  final String? rawDetail;
+}
+
 class _BenchmarkControls extends StatelessWidget {
   const _BenchmarkControls({
     required this.status,
-    required this.message,
+    required this.notice,
     required this.busy,
     required this.dateFormat,
     required this.onCpuSelected,
@@ -570,7 +655,7 @@ class _BenchmarkControls extends StatelessWidget {
   });
 
   final BenchmarkStatus? status;
-  final String? message;
+  final _BenchmarkNotice? notice;
   final bool busy;
   final DateFormat dateFormat;
   final ValueChanged<BenchmarkKind> onCpuSelected;
@@ -580,23 +665,40 @@ class _BenchmarkControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = status?.state ?? 'idle';
-    final running = status?.isRunning ?? false;
-    final locked = busy || running;
-    final label = status?.label ?? 'No benchmark running';
+    final uiState = _benchmarkUiState(status, notice);
+    final running = uiState == _BenchmarkUiState.running;
+    final controlsBlocked = _benchmarkServiceBlocked(uiState);
+    final startEnabled = !busy && !running && !controlsBlocked;
+    final label = status?.label ?? 'No active benchmark';
+    final rawDetail = _benchmarkRawDetail(status, notice);
+    final hasDetails = _hasBenchmarkDetails(status, rawDetail);
     return SectionCard(
       title: 'Benchmarks',
       trailing: StatusBadge(
-        label: _benchmarkStateLabel(state),
-        tone: _benchmarkTone(state),
+        label: _benchmarkStateLabel(uiState),
+        tone: _benchmarkTone(uiState),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label),
-          if (message != null) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text(message!),
+          Text(
+            'Run allowlisted CPU and GPU tests through the control agent. '
+            'Only one benchmark can run at a time.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _BenchmarkStatusSummary(
+            label: label,
+            message: notice?.message ?? _benchmarkDefaultMessage(uiState),
+            tone: _benchmarkTone(uiState),
+          ),
+          if (status != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            _BenchmarkMetadata(status: status!, dateFormat: dateFormat),
+          ],
+          if (status?.result.isNotEmpty ?? false) ...[
+            const SizedBox(height: AppSpacing.md),
+            _BenchmarkResultSummary(status: status!),
           ],
           const SizedBox(height: AppSpacing.md),
           Wrap(
@@ -604,7 +706,7 @@ class _BenchmarkControls extends StatelessWidget {
             runSpacing: AppSpacing.sm,
             children: [
               PopupMenuButton<BenchmarkKind>(
-                enabled: !locked,
+                enabled: startEnabled,
                 onSelected: onCpuSelected,
                 itemBuilder: (context) => const [
                   PopupMenuItem(
@@ -623,31 +725,76 @@ class _BenchmarkControls extends StatelessWidget {
                 child: _BenchmarkMenuButton(
                   icon: Icons.memory,
                   label: busy ? 'Working...' : 'CPU Benchmark',
-                  enabled: !locked,
+                  enabled: startEnabled,
                 ),
               ),
               FilledButton.icon(
-                onPressed: locked ? null : onGpuSelected,
+                onPressed: startEnabled ? onGpuSelected : null,
                 icon: const Icon(Icons.speed),
                 label: const Text('GPU Vulkan Benchmark'),
               ),
+              if (running)
+                OutlinedButton.icon(
+                  onPressed: busy ? null : onStop,
+                  icon: const Icon(Icons.stop_circle),
+                  label: const Text('Stop Running Test'),
+                ),
               OutlinedButton.icon(
-                onPressed: running && !busy ? onStop : null,
-                icon: const Icon(Icons.stop_circle),
-                label: const Text('Stop Running Test'),
-              ),
-              OutlinedButton.icon(
-                onPressed: busy ? null : onRefresh,
+                onPressed: onRefresh,
                 icon: const Icon(Icons.refresh),
                 label: const Text('Refresh status'),
               ),
             ],
           ),
-          if (status != null) ...[
+          if (hasDetails) ...[
             const SizedBox(height: AppSpacing.md),
-            _BenchmarkDetails(status: status!, dateFormat: dateFormat),
+            _BenchmarkDetails(status: status, rawDetail: rawDetail),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _BenchmarkStatusSummary extends StatelessWidget {
+  const _BenchmarkStatusSummary({
+    required this.label,
+    required this.message,
+    required this.tone,
+  });
+
+  final String label;
+  final String message;
+  final StatusTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = toneColor(tone);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(_benchmarkStateIcon(tone), color: color),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(message),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -694,89 +841,136 @@ class _BenchmarkMenuButton extends StatelessWidget {
   }
 }
 
-class _BenchmarkDetails extends StatelessWidget {
-  const _BenchmarkDetails({required this.status, required this.dateFormat});
+class _BenchmarkMetadata extends StatelessWidget {
+  const _BenchmarkMetadata({required this.status, required this.dateFormat});
 
   final BenchmarkStatus status;
   final DateFormat dateFormat;
 
   @override
   Widget build(BuildContext context) {
-    final outputText = [
-      if (status.stdoutTail.isNotEmpty) ...['stdout', ...status.stdoutTail],
-      if (status.stderrTail.isNotEmpty) ...[
-        if (status.stdoutTail.isNotEmpty) '',
-        'stderr',
-        ...status.stderrTail,
-      ],
-    ].join('\n');
+    final chips = [
+      _InfoPill(label: 'Server cores', value: status.nproc.toString()),
+      if (status.startedAt != null)
+        _InfoPill(
+          label: 'Started',
+          value: dateFormat.format(status.startedAt!.toLocal()),
+        ),
+      if (status.finishedAt != null)
+        _InfoPill(
+          label: 'Finished',
+          value: dateFormat.format(status.finishedAt!.toLocal()),
+        ),
+      if (status.durationSeconds != null)
+        _InfoPill(label: 'Duration', value: '${status.durationSeconds}s'),
+      if (status.threads != null)
+        _InfoPill(label: 'Threads', value: status.threads.toString()),
+      if (status.workers != null)
+        _InfoPill(label: 'Workers', value: status.workers.toString()),
+    ];
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: chips,
+    );
+  }
+}
+
+class _BenchmarkResultSummary extends StatelessWidget {
+  const _BenchmarkResultSummary({required this.status});
+
+  final BenchmarkStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = _benchmarkResultEntries(status);
+    if (entries.isEmpty) {
+      return const SizedBox.shrink();
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text('Results', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.xs),
         Wrap(
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
+          children: entries
+              .map((entry) => _InfoPill(label: entry.label, value: entry.value))
+              .toList(growable: false),
+        ),
+      ],
+    );
+  }
+}
+
+class _BenchmarkDetails extends StatelessWidget {
+  const _BenchmarkDetails({required this.status, required this.rawDetail});
+
+  final BenchmarkStatus? status;
+  final String? rawDetail;
+
+  @override
+  Widget build(BuildContext context) {
+    final outputText = [
+      if (status?.stdoutTail.isNotEmpty ?? false) ...[
+        'stdout',
+        ...status!.stdoutTail,
+      ],
+      if (status?.stderrTail.isNotEmpty ?? false) ...[
+        if (status?.stdoutTail.isNotEmpty ?? false) '',
+        'stderr',
+        ...status!.stderrTail,
+      ],
+    ].join('\n');
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      title: const Text('Details'),
+      subtitle: const Text('Command output and raw diagnostics'),
+      childrenPadding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      children: [
+        if (status?.returnCode != null)
+          _DiagnosticBlock(
+            title: 'Return code',
+            body: status!.returnCode.toString(),
+          ),
+        if (status?.command.isNotEmpty ?? false)
+          _DiagnosticBlock(title: 'Command', body: status!.command.join(' ')),
+        if (rawDetail != null && rawDetail!.trim().isNotEmpty)
+          _DiagnosticBlock(title: 'Raw detail', body: rawDetail!.trim()),
+        if (outputText.isNotEmpty)
+          _DiagnosticBlock(title: 'Output tail', body: outputText),
+      ],
+    );
+  }
+}
+
+class _DiagnosticBlock extends StatelessWidget {
+  const _DiagnosticBlock({required this.title, required this.body});
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _InfoPill(label: 'Server cores', value: status.nproc.toString()),
-            if (status.startedAt != null)
-              _InfoPill(
-                label: 'Started',
-                value: dateFormat.format(status.startedAt!.toLocal()),
-              ),
-            if (status.durationSeconds != null)
-              _InfoPill(label: 'Duration', value: '${status.durationSeconds}s'),
-            if (status.threads != null)
-              _InfoPill(label: 'Threads', value: status.threads.toString()),
-            if (status.workers != null)
-              _InfoPill(label: 'Workers', value: status.workers.toString()),
-            if (status.returnCode != null)
-              _InfoPill(
-                label: 'Exit code',
-                value: status.returnCode.toString(),
-              ),
+            Text(title, style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: AppSpacing.xs),
+            SelectableText(
+              body,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+            ),
           ],
         ),
-        if (status.result.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.md),
-          Text('Result', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: AppSpacing.xs),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              for (final entry in status.result.entries)
-                _InfoPill(
-                  label: _humanizeKey(entry.key),
-                  value: _formatResultValue(entry.value),
-                ),
-            ],
-          ),
-        ],
-        if (status.command.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.md),
-          Text('Command', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: AppSpacing.xs),
-          SelectableText(status.command.join(' ')),
-        ],
-        if (outputText.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.sm),
-          ExpansionTile(
-            tilePadding: EdgeInsets.zero,
-            title: const Text('Output tail'),
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: SelectableText(
-                  outputText,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ],
+      ),
     );
   }
 }
@@ -940,23 +1134,209 @@ class _BenchmarkSettingsResult {
   final int? secondaryValue;
 }
 
-String _benchmarkStateLabel(String state) {
+_BenchmarkNotice _benchmarkNoticeForStatus(
+  BenchmarkStatus status, {
+  String? startedLabel,
+  String? fallbackMessage,
+}) {
+  final state = _stateFromApiValue(status.state);
+  if (state == _BenchmarkUiState.running) {
+    final label = startedLabel ?? status.label ?? 'Benchmark';
+    return _BenchmarkNotice(
+      '$label is running. Status refreshes automatically.',
+    );
+  }
+  if (state == _BenchmarkUiState.finished) {
+    return const _BenchmarkNotice(
+      'Benchmark finished. Results are shown below.',
+    );
+  }
+  if (state == _BenchmarkUiState.stopped) {
+    return _BenchmarkNotice(fallbackMessage ?? 'Benchmark stopped.');
+  }
+  if (state == _BenchmarkUiState.failed) {
+    final rawDetail = status.detail;
+    final unavailable = _looksUnavailable(rawDetail);
+    return _BenchmarkNotice(
+      unavailable
+          ? 'Benchmark tool is unavailable on the control agent.'
+          : status.kind == BenchmarkKind.gpuVkmark
+          ? 'GPU benchmark failed. Open details for command output.'
+          : 'Benchmark failed. Open details for command output.',
+      stateOverride: unavailable
+          ? _BenchmarkUiState.unavailable
+          : _BenchmarkUiState.failed,
+      rawDetail: rawDetail,
+    );
+  }
+  return const _BenchmarkNotice('Choose a CPU or GPU benchmark to run.');
+}
+
+_BenchmarkUiState _benchmarkUiState(
+  BenchmarkStatus? status,
+  _BenchmarkNotice? notice,
+) {
+  return notice?.stateOverride ?? _stateFromApiValue(status?.state);
+}
+
+_BenchmarkUiState _stateFromApiValue(String? state) {
   return switch (state) {
-    'running' => 'Running',
-    'finished' => 'Finished',
-    'failed' => 'Failed',
-    'stopped' => 'Stopped',
-    _ => 'Idle',
+    'running' => _BenchmarkUiState.running,
+    'finished' => _BenchmarkUiState.finished,
+    'failed' => _BenchmarkUiState.failed,
+    'stopped' => _BenchmarkUiState.stopped,
+    _ => _BenchmarkUiState.idle,
   };
 }
 
-StatusTone _benchmarkTone(String state) {
+String _benchmarkStateLabel(_BenchmarkUiState state) {
   return switch (state) {
-    'running' => StatusTone.warning,
-    'finished' => StatusTone.healthy,
-    'failed' => StatusTone.critical,
-    'stopped' => StatusTone.offline,
-    _ => StatusTone.unknown,
+    _BenchmarkUiState.running => 'Running',
+    _BenchmarkUiState.finished => 'Finished',
+    _BenchmarkUiState.failed => 'Failed',
+    _BenchmarkUiState.stopped => 'Stopped',
+    _BenchmarkUiState.unavailable => 'Unavailable',
+    _BenchmarkUiState.authError => 'Auth error',
+    _BenchmarkUiState.unreachable => 'Unreachable',
+    _BenchmarkUiState.idle => 'Idle',
+  };
+}
+
+String _benchmarkDefaultMessage(_BenchmarkUiState state) {
+  return switch (state) {
+    _BenchmarkUiState.running =>
+      'Benchmark is running. Status refreshes automatically.',
+    _BenchmarkUiState.finished =>
+      'Benchmark finished. Results are shown below.',
+    _BenchmarkUiState.failed =>
+      'Benchmark failed. Open details for command output.',
+    _BenchmarkUiState.stopped => 'Benchmark stopped.',
+    _BenchmarkUiState.unavailable =>
+      'Benchmark endpoints are unavailable. Update/restart the control agent.',
+    _BenchmarkUiState.authError => 'Control-agent token missing or invalid.',
+    _BenchmarkUiState.unreachable => 'Control agent unreachable.',
+    _BenchmarkUiState.idle => 'Choose a CPU or GPU benchmark to run.',
+  };
+}
+
+StatusTone _benchmarkTone(_BenchmarkUiState state) {
+  return switch (state) {
+    _BenchmarkUiState.running => StatusTone.warning,
+    _BenchmarkUiState.finished => StatusTone.healthy,
+    _BenchmarkUiState.failed => StatusTone.critical,
+    _BenchmarkUiState.stopped => StatusTone.offline,
+    _BenchmarkUiState.unavailable => StatusTone.warning,
+    _BenchmarkUiState.authError => StatusTone.critical,
+    _BenchmarkUiState.unreachable => StatusTone.offline,
+    _BenchmarkUiState.idle => StatusTone.unknown,
+  };
+}
+
+IconData _benchmarkStateIcon(StatusTone tone) {
+  return switch (tone) {
+    StatusTone.healthy => Icons.check_circle,
+    StatusTone.warning => Icons.hourglass_top,
+    StatusTone.critical => Icons.error_outline,
+    StatusTone.offline => Icons.power_off,
+    StatusTone.unknown || StatusTone.neutral => Icons.speed,
+  };
+}
+
+bool _benchmarkServiceBlocked(_BenchmarkUiState state) {
+  return switch (state) {
+    _BenchmarkUiState.unavailable ||
+    _BenchmarkUiState.authError ||
+    _BenchmarkUiState.unreachable => true,
+    _ => false,
+  };
+}
+
+bool _hasBenchmarkDetails(BenchmarkStatus? status, String? rawDetail) {
+  return rawDetail?.trim().isNotEmpty == true ||
+      status?.returnCode != null ||
+      (status?.command.isNotEmpty ?? false) ||
+      (status?.stdoutTail.isNotEmpty ?? false) ||
+      (status?.stderrTail.isNotEmpty ?? false);
+}
+
+String? _benchmarkRawDetail(BenchmarkStatus? status, _BenchmarkNotice? notice) {
+  return notice?.rawDetail ?? status?.detail;
+}
+
+bool _looksUnavailable(String? detail) {
+  final value = detail?.toLowerCase() ?? '';
+  return value.contains('unavailable') ||
+      value.contains('not found') ||
+      value.contains('no such file') ||
+      value.contains('missing');
+}
+
+String? _dioDetail(DioException error) {
+  final data = error.response?.data;
+  if (data is Map<String, dynamic>) {
+    return data['detail']?.toString();
+  }
+  if (data is String && data.trim().isNotEmpty) {
+    return data;
+  }
+  return null;
+}
+
+bool _isConnectionFailure(DioException error) {
+  return switch (error.type) {
+    DioExceptionType.connectionTimeout ||
+    DioExceptionType.sendTimeout ||
+    DioExceptionType.receiveTimeout ||
+    DioExceptionType.connectionError ||
+    DioExceptionType.unknown => true,
+    _ => false,
+  };
+}
+
+List<_ResultEntry> _benchmarkResultEntries(BenchmarkStatus status) {
+  final result = status.result;
+  final orderedKeys = switch (status.kind) {
+    BenchmarkKind.gpuVkmark => ['score'],
+    BenchmarkKind.cpuSingle || BenchmarkKind.cpuMulti => [
+      'events_per_second',
+      'total_events',
+      'total_time_seconds',
+    ],
+    BenchmarkKind.cpuStress => [
+      'passed',
+      'failed',
+      'bogo_ops',
+      'bogo_ops_per_second',
+      'real_time_seconds',
+    ],
+    null => result.keys.toList(growable: false),
+  };
+  final emitted = <String>{};
+  return [
+    for (final key in orderedKeys)
+      if (result.containsKey(key) && emitted.add(key))
+        _ResultEntry(_resultLabel(key), _formatResultValue(key, result[key])),
+    for (final entry in result.entries)
+      if (emitted.add(entry.key))
+        _ResultEntry(
+          _humanizeKey(entry.key),
+          _formatResultValue(entry.key, entry.value),
+        ),
+  ];
+}
+
+String _resultLabel(String key) {
+  return switch (key) {
+    'score' => 'Vulkan score',
+    'events_per_second' => 'Events/sec',
+    'total_events' => 'Total events',
+    'total_time_seconds' => 'Total time',
+    'bogo_ops' => 'Bogo ops',
+    'bogo_ops_per_second' => 'Bogo ops/sec',
+    'real_time_seconds' => 'Real time',
+    'passed' => 'Passed',
+    'failed' => 'Failed',
+    _ => _humanizeKey(key),
   };
 }
 
@@ -968,13 +1348,32 @@ String _humanizeKey(String key) {
       .join(' ');
 }
 
-String _formatResultValue(Object? value) {
-  return switch (value) {
-    double item => item.toStringAsFixed(item >= 100 ? 1 : 2),
-    num item => item.toString(),
-    bool item => item ? 'yes' : 'no',
+String _formatResultValue(String key, Object? value) {
+  return switch ((key, value)) {
+    ('events_per_second', num item) => '${_formatNumber(item)}/s',
+    ('bogo_ops_per_second', num item) => '${_formatNumber(item)}/s',
+    ('total_time_seconds', num item) => '${_formatNumber(item)}s',
+    ('real_time_seconds', num item) => '${_formatNumber(item)}s',
+    (_, double item) => _formatNumber(item),
+    (_, num item) => item.toString(),
+    (_, bool item) => item ? 'yes' : 'no',
     _ => value?.toString() ?? '-',
   };
+}
+
+String _formatNumber(num value) {
+  final number = value.toDouble();
+  if (number >= 100 || number == number.roundToDouble()) {
+    return number.toStringAsFixed(number == number.roundToDouble() ? 0 : 1);
+  }
+  return number.toStringAsFixed(2);
+}
+
+class _ResultEntry {
+  const _ResultEntry(this.label, this.value);
+
+  final String label;
+  final String value;
 }
 
 class _MainPcQuickActions extends ConsumerWidget {
