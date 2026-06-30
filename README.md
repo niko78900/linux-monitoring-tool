@@ -175,6 +175,10 @@ flutter test
 flutter run
 ```
 
+`flutter test` runs the focused default mobile suite. Use
+`flutter test test test_extended` from `mobile/` when changing chart rendering,
+Android widgets, or mobile alert behavior.
+
 Frontend:
 
 ```powershell

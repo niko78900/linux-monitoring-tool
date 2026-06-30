@@ -71,6 +71,13 @@ flutter test
 flutter run
 ```
 
+`flutter test` runs the focused default suite. Heavier chart/widget/mobile-alert
+regressions live in `test_extended/`; include them with:
+
+```powershell
+flutter test test test_extended
+```
+
 ## Build
 
 Debug APK:
