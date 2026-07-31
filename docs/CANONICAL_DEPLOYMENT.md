@@ -19,34 +19,40 @@ The repository contains source, tests, lockfiles, sanitized examples, and reusab
 
 ## External local state
 
-The preferred long-term layout is:
+The homelab source volume does not enforce POSIX ownership or modes, so local
+configuration, credentials, and mutable state must live on the root filesystem.
+The deployment layout is:
 
 ```text
-/mnt/warm/homelab-data/linux-monitor/
-├── config/
-│   ├── backend.env
-│   ├── bot.env
-│   ├── control-agent.env
-│   ├── frontend.env
-│   └── control-agent/
-│       ├── known_devices.yaml
-│       ├── managed_hosts.yaml
-│       └── services.yaml
-├── credentials/
-│   └── firebase-service-account.json
+/etc/linux-monitor/
+├── backend.env
+├── bot.env
+├── control-agent.env
+├── frontend.env
+├── control-agent/
+│   ├── known_devices.yaml
+│   ├── managed_hosts.yaml
+│   └── services.yaml
+└── credentials/
+    └── firebase-service-account.json
+
+/var/lib/linux-monitor/
 ├── databases/
 │   ├── alerts.sqlite3
 │   └── history.sqlite3
-├── state/
-│   ├── bot/
-│   │   ├── discord_alert_cursor.json
-│   │   └── status_schedule_state.json
-│   └── control-agent/
-│       └── service_actions.json
-└── logs/
+└── state/
+    ├── bot/
+    │   ├── discord_alert_cursor.json
+    │   └── status_schedule_state.json
+    └── control-agent/
+        └── service_actions.json
 ```
 
-This directory is intentionally not created or populated by repository code. Provision it during a maintenance window, preserve restrictive ownership and modes, and copy data rather than moving it until the new deployment has passed validation.
+These directories are intentionally not created or populated by repository code.
+Provision them during a maintenance window, preserve restrictive ownership and
+modes, and copy data rather than moving it until the new deployment has passed
+validation. Never place secrets on a filesystem that cannot enforce the requested
+owner, group, and mode.
 
 ## Environment path mapping
 
@@ -54,19 +60,19 @@ Set these local-only environment values when adopting the external layout:
 
 ```dotenv
 # backend.env
-HISTORY_DB_PATH=/mnt/warm/homelab-data/linux-monitor/databases/history.sqlite3
-ALERT_DB_PATH=/mnt/warm/homelab-data/linux-monitor/databases/alerts.sqlite3
-FIREBASE_SERVICE_ACCOUNT_FILE=/mnt/warm/homelab-data/linux-monitor/credentials/firebase-service-account.json
+HISTORY_DB_PATH=/var/lib/linux-monitor/databases/history.sqlite3
+ALERT_DB_PATH=/var/lib/linux-monitor/databases/alerts.sqlite3
+FIREBASE_SERVICE_ACCOUNT_FILE=/etc/linux-monitor/credentials/firebase-service-account.json
 
 # bot.env
-DISCORD_ALERT_CURSOR_FILE=/mnt/warm/homelab-data/linux-monitor/state/bot/discord_alert_cursor.json
-STATUS_SCHEDULE_STATE_FILE=/mnt/warm/homelab-data/linux-monitor/state/bot/status_schedule_state.json
+DISCORD_ALERT_CURSOR_FILE=/var/lib/linux-monitor/state/bot/discord_alert_cursor.json
+STATUS_SCHEDULE_STATE_FILE=/var/lib/linux-monitor/state/bot/status_schedule_state.json
 
 # control-agent.env
-KNOWN_DEVICES_CONFIG_PATH=/mnt/warm/homelab-data/linux-monitor/config/control-agent/known_devices.yaml
-MANAGED_HOSTS_CONFIG_PATH=/mnt/warm/homelab-data/linux-monitor/config/control-agent/managed_hosts.yaml
-SERVICES_CONFIG_PATH=/mnt/warm/homelab-data/linux-monitor/config/control-agent/services.yaml
-SERVICE_ACTION_STATE_PATH=/mnt/warm/homelab-data/linux-monitor/state/control-agent/service_actions.json
+KNOWN_DEVICES_CONFIG_PATH=/etc/linux-monitor/control-agent/known_devices.yaml
+MANAGED_HOSTS_CONFIG_PATH=/etc/linux-monitor/control-agent/managed_hosts.yaml
+SERVICES_CONFIG_PATH=/etc/linux-monitor/control-agent/services.yaml
+SERVICE_ACTION_STATE_PATH=/var/lib/linux-monitor/state/control-agent/service_actions.json
 ```
 
 Copy all other required values from the component `.env.example` files and supply secrets locally. Never copy a live environment file into Git or include its values in migration reports.

@@ -9,7 +9,7 @@ Type=simple
 User=niko
 Group=niko
 WorkingDirectory=/mnt/warm/homelab/linux-monitoring/bot
-EnvironmentFile=/mnt/warm/homelab-data/linux-monitor/config/bot.env
+EnvironmentFile=/etc/linux-monitor/bot.env
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/var/lib/homelab-venvs/linux-monitor-bot/bin/python /mnt/warm/homelab/linux-monitoring/bot/src/bot.py
 Restart=always

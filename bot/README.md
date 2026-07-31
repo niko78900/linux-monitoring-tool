@@ -62,7 +62,7 @@ Copy-Item .env.example .env
 - `MONITORING_API_BASE_URL` (required, example `http://127.0.0.1:4040/api`)
 - `ALERT_CONSUMER_API_TOKEN` (required)
 - `POLL_INTERVAL_SECONDS` (default `30`)
-- `DISCORD_ALERT_CURSOR_FILE` (default `discord_alert_cursor.json` in `bot/`, production example `/var/lib/linux-monitoring/discord_alert_cursor.json`)
+- `DISCORD_ALERT_CURSOR_FILE` (default `discord_alert_cursor.json` in `bot/`, canonical deployment example `/var/lib/linux-monitor/state/bot/discord_alert_cursor.json`)
 - `DISCORD_ALERT_REPLAY_ON_FIRST_START` (default `false`)
 - `STATUS_SCHEDULE_STATE_FILE` (optional, default `status_schedule_state.json` in `bot/`)
 
