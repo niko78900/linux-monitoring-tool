@@ -1,0 +1,7 @@
+Defaults:linux-monitor-action env_reset
+Defaults:linux-monitor-action secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Defaults:linux-monitor-action !pam_acct_mgmt
+
+Cmnd_Alias LINUX_MONITOR_DASHBOARD_ACTION_HELPER = /usr/local/libexec/linux-monitor-dashboard-action-helper ""
+
+linux-monitor-action ALL=(root) NOPASSWD: LINUX_MONITOR_DASHBOARD_ACTION_HELPER

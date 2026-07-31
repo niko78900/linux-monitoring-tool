@@ -34,10 +34,14 @@ The deployment layout is:
 │   ├── managed_hosts.yaml
 │   └── services.yaml
 ├── dashboard-control-read.env
+├── dashboard-control-action.env
+├── dashboard-managed-actions.yml
 └── credentials/
     └── firebase-service-account.json
 
 /var/lib/linux-monitor/
+├── dashboard-actions/
+│   └── dashboard-actions.db
 ├── databases/
 │   ├── alerts.sqlite3
 │   └── history.sqlite3
@@ -80,8 +84,8 @@ Copy all other required values from the component `.env.example` files and suppl
 
 ## systemd architecture
 
-The deployment uses four established services and may add one isolated read-only
-Dashboard bridge:
+The deployment uses four established services and may add two isolated
+Dashboard-facing bridges:
 
 | Unit | Working directory | Listener or role |
 | --- | --- | --- |
@@ -90,6 +94,7 @@ Dashboard bridge:
 | `linux-monitor-control-agent.service` | `control_agent/` | control API on port 4042; bind address is host-specific |
 | `linux-monitor-discord-bot.service` | `bot/` | outbound Discord client |
 | `linux-monitor-dashboard-read-bridge.service` | `control_agent/` | authenticated read-only API on a Dashboard-specific Docker bridge address, normally port 4043 |
+| `linux-monitor-dashboard-action.service` | `control_agent/` | separately authenticated allowlisted action API on the same private bridge, normally port 4044 |
 
 The tracked units in `deploy/systemd/` target the canonical source path and external state layout. Review every account, group, virtual-environment path, environment file, and bind address before installing them. Repository templates never stop, restart, enable, or reload a service automatically.
 
@@ -97,6 +102,11 @@ The optional Dashboard bridge does not replace or alter the full Control Agent.
 See [`DASHBOARD_CONTROL_READ_BRIDGE.md`](DASHBOARD_CONTROL_READ_BRIDGE.md) for its
 dedicated token, strict route allowlist, Docker partial-availability behavior,
 and isolated rollback procedure.
+
+The optional action service does not alter the read-only bridge. It uses a
+different token, root-owned registry, unprivileged account, root-owned helper,
+narrow sudoers rule, and durable SQLite history. See
+[`DASHBOARD_CONTROL_ACTION_SERVICE.md`](DASHBOARD_CONTROL_ACTION_SERVICE.md).
 
 ## Frontend serving models
 

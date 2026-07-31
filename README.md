@@ -52,8 +52,8 @@ The production tablet deployment is expected to communicate over Tailscale or a
 private reverse-proxy boundary. The live testing URLs are:
 
 ```text
-Monitoring API: http://100.64.10.22:4040/api
-Control API:    http://100.64.10.22:4042/api
+Monitoring API: http://100.x.x.x:4040/api
+Control API:    http://100.x.x.x:4042/api
 ```
 
 ## Backend API

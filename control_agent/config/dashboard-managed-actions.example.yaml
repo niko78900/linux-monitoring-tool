@@ -1,0 +1,36 @@
+services:
+  - id: example-worker
+    name: Example Worker
+    kind: docker_container
+    container_name: example-worker
+    expected_compose_project: example-stack
+    expected_compose_service: worker
+    allowed_actions:
+      - start
+      - stop
+      - restart
+    timeout_seconds: 90
+    health_url: http://127.0.0.1:8080/health
+    confirmation_level: normal
+
+  - id: example-web
+    name: Example Web Service
+    kind: systemd
+    systemd_unit: example-web.service
+    allowed_actions:
+      - restart
+    timeout_seconds: 30
+    health_url: http://127.0.0.1:8081/health
+    confirmation_level: high
+
+wake_targets:
+  - id: main-pc
+    name: Main PC
+    allowed_actions:
+      - wake
+    mac_address: AA:BB:CC:DD:EE:FF
+    broadcast_address: 192.0.2.255
+    interface: example0
+    port: 9
+    timeout_seconds: 10
+    confirmation_level: normal

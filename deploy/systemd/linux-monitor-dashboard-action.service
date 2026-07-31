@@ -1,0 +1,54 @@
+[Unit]
+Description=Linux Monitor Dashboard Action Service
+After=network-online.target docker.service
+Wants=network-online.target
+RequiresMountsFor=/mnt/warm/homelab/linux-monitoring/control_agent /var/lib/linux-monitor/dashboard-actions
+StartLimitIntervalSec=300
+StartLimitBurst=6
+
+[Service]
+Type=simple
+User=linux-monitor-action
+Group=linux-monitor-action
+WorkingDirectory=/mnt/warm/homelab/linux-monitoring/control_agent
+EnvironmentFile=/etc/linux-monitor/dashboard-control-action.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+LoadCredential=dashboard-managed-actions.yml:/etc/linux-monitor/dashboard-managed-actions.yml
+ExecStart=/var/lib/homelab-venvs/linux-monitor-control-agent/bin/uvicorn app.action_main:app --host ${DASHBOARD_CONTROL_ACTION_HOST} --port ${DASHBOARD_CONTROL_ACTION_PORT} --workers 1 --no-proxy-headers --no-server-header
+Restart=on-failure
+RestartSec=5
+UMask=0027
+
+# sudo executes one root-owned helper with no command-line arguments. The helper
+# receives a bounded JSON request on stdin and independently validates the
+# root-owned registry. No direct systemctl or Docker sudo grant exists.
+NoNewPrivileges=false
+CapabilityBoundingSet=CAP_SETGID CAP_SETUID CAP_NET_RAW
+AmbientCapabilities=
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+ProtectSystem=strict
+ProcSubset=pid
+RestrictAddressFamilies=AF_UNIX AF_INET
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RemoveIPC=true
+SystemCallArchitectures=native
+NoExecPaths=/
+ExecPaths=/var/lib/homelab-venvs/linux-monitor-control-agent /usr/bin/python3.13 /usr/bin/sudo /usr/bin/docker /usr/bin/systemctl /usr/sbin/ip /usr/lib /usr/lib64 /usr/libexec/sudo /usr/local/libexec/linux-monitor-dashboard-action-helper
+ReadOnlyPaths=/mnt/warm/homelab/linux-monitoring
+ReadWritePaths=/var/lib/linux-monitor/dashboard-actions
+
+[Install]
+WantedBy=multi-user.target

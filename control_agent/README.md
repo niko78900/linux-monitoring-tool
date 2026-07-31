@@ -42,6 +42,22 @@ Deployment, network isolation, credential handling, partial Docker behavior, and
 rollback are documented in
 [`docs/DASHBOARD_CONTROL_READ_BRIDGE.md`](../docs/DASHBOARD_CONTROL_READ_BRIDGE.md).
 
+## Dashboard action service
+
+`app.action_main:app` is a second, independent server-to-server entry point for
+durable, explicitly allowlisted actions. It uses a separate token, registry,
+SQLite history, service account, root-owned helper, sudoers rule, listener, and
+firewall rule. It does not import the full Control Agent router and does not add
+actions to the read-only bridge.
+
+Its routes are `GET /health`, `/capabilities`, `/services`,
+`/services/{service_id}`, `/actions`, and `/actions/{action_id}`, plus the two
+explicit POST forms `/services/{service_id}/actions/{action}` and
+`/actions/wake-main-pc`.
+
+The complete contract and deployment procedure are in
+[`docs/DASHBOARD_CONTROL_ACTION_SERVICE.md`](../docs/DASHBOARD_CONTROL_ACTION_SERVICE.md).
+
 The service does not expose mobile-alert registration, Firebase credentials,
 client-supplied MAC addresses, generic shell execution, arbitrary scripts, raw
 benchmark command strings, or raw `vkmark`.
@@ -81,7 +97,7 @@ control_agent/config/services.example.yaml
 ```
 
 Production should point the environment variables at reviewed files under
-`/etc/linux-monitor-control-agent/`.
+`/etc/linux-monitor/control-agent/`.
 
 Important deployment notes:
 
