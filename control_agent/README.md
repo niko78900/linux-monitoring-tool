@@ -30,6 +30,18 @@ POST /api/benchmarks/start
 POST /api/benchmarks/stop
 ```
 
+## Dashboard read-only bridge
+
+`app.read_only_main:app` is a separate, bearer-protected server-to-server entry
+point for Dashboard observations. It intentionally excludes every action router
+and disables HTTP access to OpenAPI and interactive documentation. Its only
+routes are `GET /health`, `/devices`, `/hosts`, `/hosts/{host_id}`, `/services`,
+and `/services/{service_id}`.
+
+Deployment, network isolation, credential handling, partial Docker behavior, and
+rollback are documented in
+[`docs/DASHBOARD_CONTROL_READ_BRIDGE.md`](../docs/DASHBOARD_CONTROL_READ_BRIDGE.md).
+
 The service does not expose mobile-alert registration, Firebase credentials,
 client-supplied MAC addresses, generic shell execution, arbitrary scripts, raw
 benchmark command strings, or raw `vkmark`.

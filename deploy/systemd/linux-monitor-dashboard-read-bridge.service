@@ -1,0 +1,48 @@
+[Unit]
+Description=Linux Monitor Dashboard Read-Only Control Bridge
+After=network-online.target docker.service tailscaled.service
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=12
+
+[Service]
+Type=simple
+DynamicUser=true
+User=linux-monitor-read
+Group=linux-monitor-read
+SupplementaryGroups=linuxcontrol
+WorkingDirectory=/mnt/warm/homelab/linux-monitoring/control_agent
+EnvironmentFile=/etc/linux-monitor/dashboard-control-read.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/var/lib/homelab-venvs/linux-monitor-control-agent/bin/uvicorn app.read_only_main:app --host ${DASHBOARD_CONTROL_BRIDGE_HOST} --port ${DASHBOARD_CONTROL_BRIDGE_PORT} --workers 1 --no-proxy-headers --no-server-header
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RemoveIPC=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+InaccessiblePaths=-/run/docker.sock -/var/run/docker.sock
+ReadOnlyPaths=/mnt/warm/homelab/linux-monitoring /etc/linux-monitor/control-agent /var/lib/homelab-venvs/linux-monitor-control-agent
+
+[Install]
+WantedBy=multi-user.target

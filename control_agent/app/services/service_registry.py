@@ -240,6 +240,8 @@ def _read_runtime_state(
         return "unavailable"
 
     output = (result.stdout or result.stderr or "").strip().lower()
+    if service.adapter == "docker" and result.returncode != 0:
+        return "unavailable"
     if result.returncode != 0 and not output:
         return "unavailable"
     return output or "unknown"

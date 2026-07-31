@@ -33,6 +33,7 @@ The deployment layout is:
 │   ├── known_devices.yaml
 │   ├── managed_hosts.yaml
 │   └── services.yaml
+├── dashboard-control-read.env
 └── credentials/
     └── firebase-service-account.json
 
@@ -79,7 +80,8 @@ Copy all other required values from the component `.env.example` files and suppl
 
 ## systemd architecture
 
-The deployment uses four services:
+The deployment uses four established services and may add one isolated read-only
+Dashboard bridge:
 
 | Unit | Working directory | Listener or role |
 | --- | --- | --- |
@@ -87,8 +89,14 @@ The deployment uses four services:
 | `linux-monitor-frontend.service` | `frontend/` | built Angular SPA and `/api` proxy on port 4041 |
 | `linux-monitor-control-agent.service` | `control_agent/` | control API on port 4042; bind address is host-specific |
 | `linux-monitor-discord-bot.service` | `bot/` | outbound Discord client |
+| `linux-monitor-dashboard-read-bridge.service` | `control_agent/` | authenticated read-only API on a Dashboard-specific Docker bridge address, normally port 4043 |
 
 The tracked units in `deploy/systemd/` target the canonical source path and external state layout. Review every account, group, virtual-environment path, environment file, and bind address before installing them. Repository templates never stop, restart, enable, or reload a service automatically.
+
+The optional Dashboard bridge does not replace or alter the full Control Agent.
+See [`DASHBOARD_CONTROL_READ_BRIDGE.md`](DASHBOARD_CONTROL_READ_BRIDGE.md) for its
+dedicated token, strict route allowlist, Docker partial-availability behavior,
+and isolated rollback procedure.
 
 ## Frontend serving models
 

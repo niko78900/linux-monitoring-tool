@@ -200,6 +200,23 @@ def test_systemd_adapter_status_reads_runtime(tmp_path: Path) -> None:
     assert status.runtime_state == "active"
 
 
+def test_docker_adapter_failure_is_reported_without_command_error(tmp_path: Path) -> None:
+    service = load_service_registry(_write_services_config(tmp_path))[0]
+
+    status = get_service_status(
+        service,
+        subprocess_runner=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            [],
+            1,
+            "",
+            "permission denied: /var/run/docker.sock",
+        ),
+        url_opener=lambda *_args, **_kwargs: _HttpOkResponse(),
+    )
+
+    assert status.runtime_state == "unavailable"
+
+
 def test_helper_invocation_exact_arguments(
     client, auth_headers, monkeypatch, tmp_path: Path
 ) -> None:
