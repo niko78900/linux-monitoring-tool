@@ -17,7 +17,10 @@ class FirebaseMobilePushSender:
 
     @property
     def configured(self) -> bool:
-        return self.service_account_file.exists()
+        try:
+            return self.service_account_file.is_file()
+        except OSError:
+            return False
 
     def send_to_installation(
         self,
