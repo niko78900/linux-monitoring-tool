@@ -1,0 +1,18 @@
+[Unit]
+Description=Linux Monitor Frontend
+After=network-online.target linux-monitor-backend.service
+Wants=network-online.target
+Requires=linux-monitor-backend.service
+
+[Service]
+Type=simple
+User=linuxmon
+Group=linuxmon
+WorkingDirectory=/mnt/warm/homelab/linux-monitoring/frontend
+EnvironmentFile=-/mnt/warm/homelab-data/linux-monitor/config/frontend.env
+ExecStart=/usr/bin/python3 /mnt/warm/homelab/linux-monitoring/frontend/server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

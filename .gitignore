@@ -1,26 +1,66 @@
-# Python
-backend/.venv/
-backend/.env
-backend/__pycache__/
-backend/**/*.pyc
-bot/.venv/
-bot/.env
-bot/__pycache__/
-bot/**/*.pyc
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+control_agent/config/*.yaml
+!control_agent/config/*.example.yaml
+mobile/android/key.properties
+mobile/android/app/google-services.json
+firebase-service-account.json
+**/firebase-service-account.json
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+*.keystore
+
+# Runtime databases and state
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+/data/
+/runtime/
+/backups/
 bot/status_schedule_state.json
 bot/alert_state.json
 bot/discord_alert_cursor.json
-control_agent/.venv/
-control_agent/.env
-control_agent/__pycache__/
-control_agent/**/*.pyc
+.deployed-at
+.deployed-commit
+
+# Logs and process artifacts
+logs/
+*.log
+*.pid
+*.lock
+*.tmp
+*.backup.*
+
+# Python
+__pycache__/
+*.py[cod]
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
 pytest-cache-files-*/
+.coverage
+htmlcov/
 
 # Node/Angular
-frontend/node_modules/
-frontend/.angular/
-frontend/dist/
+node_modules/
+dist/
+.angular/
+coverage/
+
+# Flutter/Gradle generated state
+.dart_tool/
+mobile/build/
+mobile/android/.gradle/
 
 # OS/editor
 .DS_Store
@@ -29,10 +69,3 @@ Thumbs.db
 # Local planning notes
 plans.txt
 hosting-deploy-notes.txt
-
-# Firebase credentials/config are installed manually.
-mobile/android/app/google-services.json
-firebase-service-account.json
-**/firebase-service-account.json
-*.sqlite3
-*.sqlite3-*

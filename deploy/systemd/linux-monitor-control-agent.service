@@ -1,0 +1,22 @@
+[Unit]
+Description=Linux Monitor Control Agent
+After=network-online.target tailscaled.service
+Wants=network-online.target
+RequiresMountsFor=/mnt/warm/homelab/linux-monitoring/control_agent
+
+[Service]
+Type=simple
+User=linuxcontrol
+Group=linuxcontrol
+WorkingDirectory=/mnt/warm/homelab/linux-monitoring/control_agent
+EnvironmentFile=/mnt/warm/homelab-data/linux-monitor/config/control-agent.env
+ExecStart=/var/lib/homelab-venvs/linux-monitor-control-agent/bin/uvicorn app.main:app --host ${HOST} --port ${PORT}
+Restart=on-failure
+RestartSec=5
+PrivateTmp=true
+ProtectHome=true
+NoNewPrivileges=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

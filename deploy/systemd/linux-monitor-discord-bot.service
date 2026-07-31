@@ -1,0 +1,19 @@
+[Unit]
+Description=Linux Monitor Discord Bot
+After=network-online.target linux-monitor-backend.service
+Wants=network-online.target
+Requires=linux-monitor-backend.service
+
+[Service]
+Type=simple
+User=niko
+Group=niko
+WorkingDirectory=/mnt/warm/homelab/linux-monitoring/bot
+EnvironmentFile=/mnt/warm/homelab-data/linux-monitor/config/bot.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/var/lib/homelab-venvs/linux-monitor-bot/bin/python /mnt/warm/homelab/linux-monitoring/bot/src/bot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

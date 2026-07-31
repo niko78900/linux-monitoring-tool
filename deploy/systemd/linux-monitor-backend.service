@@ -1,0 +1,17 @@
+[Unit]
+Description=Linux Monitor Backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=linuxmon
+Group=linuxmon
+WorkingDirectory=/mnt/warm/homelab/linux-monitoring/backend
+EnvironmentFile=/mnt/warm/homelab-data/linux-monitor/config/backend.env
+ExecStart=/var/lib/homelab-venvs/linux-monitor-backend/bin/python /mnt/warm/homelab/linux-monitoring/backend/run.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
