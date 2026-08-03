@@ -18,6 +18,12 @@ That account receives only the exact no-argument helper sudo grant documented
 in [`docs/DASHBOARD_CONTROL_ACTION_SERVICE.md`](../../docs/DASHBOARD_CONTROL_ACTION_SERVICE.md).
 It is never a member of the Docker group.
 
+The Dashboard backup service is another separate optional component. It uses
+the locked `linux-monitor-backup` account, a dedicated credential and database,
+and only the exact root-owned backup helper. The account is never a member of
+the Docker group. Follow
+[`docs/DASHBOARD_BACKUP_SERVICE.md`](../../docs/DASHBOARD_BACKUP_SERVICE.md).
+
 They do not contain credentials. Create the environment files from the component `.env.example` files and keep the real files outside Git:
 
 ```text
@@ -28,6 +34,8 @@ They do not contain credentials. Create the environment files from the component
 /etc/linux-monitor/dashboard-control-read.env
 /etc/linux-monitor/dashboard-control-action.env
 /etc/linux-monitor/dashboard-managed-actions.yml
+/etc/linux-monitor/dashboard-backup.env
+/etc/linux-monitor/dashboard-backups.yml
 ```
 
 Do not place these files on the canonical source volume unless that filesystem
@@ -45,3 +53,8 @@ sudoers rule, database, and unit. Follow
 [`docs/DASHBOARD_CONTROL_ACTION_SERVICE.md`](../../docs/DASHBOARD_CONTROL_ACTION_SERVICE.md)
 before installing `linux-monitor-dashboard-action.service`. Never add action
 routes to the read-only bridge.
+
+The backup service binds only to the discovered Dashboard bridge gateway on
+port `4045`. Its protected registry is loaded into the unprivileged API with
+`LoadCredential`; the privileged helper independently reads the root-owned
+original for every internal operation.

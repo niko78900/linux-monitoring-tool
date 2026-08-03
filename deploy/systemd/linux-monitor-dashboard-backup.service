@@ -1,0 +1,56 @@
+[Unit]
+Description=Linux Monitor Dashboard Backup Service
+After=network-online.target docker.service
+Wants=network-online.target
+RequiresMountsFor=/mnt/warm/homelab/linux-monitoring/control_agent /mnt/storage/backups /var/lib/linux-monitor/dashboard-backups
+StartLimitIntervalSec=300
+StartLimitBurst=6
+
+[Service]
+Type=simple
+User=linux-monitor-backup
+Group=linux-monitor-backup
+WorkingDirectory=/mnt/warm/homelab/linux-monitoring/control_agent
+EnvironmentFile=/etc/linux-monitor/dashboard-backup.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+LoadCredential=dashboard-backups.yml:/etc/linux-monitor/dashboard-backups.yml
+ExecStart=/var/lib/homelab-venvs/linux-monitor-control-agent/bin/uvicorn app.backup_main:app --host ${DASHBOARD_BACKUP_HOST} --port ${DASHBOARD_BACKUP_PORT} --workers 1 --no-proxy-headers --no-server-header
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=30
+UMask=0077
+
+# The API can execute only the exact, root-owned, no-argument helper through
+# sudo. The helper receives bounded JSON on stdin and reloads the protected
+# registry. The source mounts remain read-only in this service namespace.
+NoNewPrivileges=false
+CapabilityBoundingSet=CAP_SETGID CAP_SETUID CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_FOWNER CAP_KILL
+AmbientCapabilities=
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+ProtectSystem=strict
+ProcSubset=pid
+RestrictAddressFamilies=AF_UNIX AF_INET
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RemoveIPC=true
+SystemCallArchitectures=native
+NoExecPaths=/
+ExecPaths=/var/lib/homelab-venvs/linux-monitor-control-agent /usr/bin/python3.13 /usr/bin/sudo /usr/bin/docker /usr/bin/rsync /usr/bin/du /usr/lib /usr/lib64 /usr/libexec/sudo /usr/local/libexec/linux-monitor-dashboard-backup-helper
+ReadOnlyPaths=/mnt/warm /etc/linux-monitor /etc/systemd/system /etc/ufw /opt/homelab
+ReadWritePaths=/var/lib/linux-monitor/dashboard-backups /mnt/storage/backups
+
+[Install]
+WantedBy=multi-user.target

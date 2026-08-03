@@ -1,0 +1,130 @@
+version: 1
+cold_mount: /mnt/storage
+destination_root: /mnt/storage/backups
+raid_device: /dev/md0
+minimum_free_bytes: 68719476736
+capacity_overhead_percent: 10
+plans:
+  - id: immich-database
+    display_name: Immich database
+    description: Consistent logical PostgreSQL dump for the approved Immich database.
+    enabled: true
+    destination: /mnt/storage/backups/immich-database
+    timeout_seconds: 1800
+    estimated_size_bytes: 268435456
+    confirmation_level: high
+    retention:
+      mode: manual
+      retain_at_least: 2
+    steps:
+      - type: postgres_dump
+        container: example-postgres
+        expected_compose_project: example-immich
+        expected_compose_service: database
+        database: example_database
+        role: example_role
+        component: database
+        filename: immich.dump
+        timeout_seconds: 1200
+      - type: verification
+        mode: sha256
+      - type: manifest
+
+  - id: immich-full
+    display_name: Immich full backup
+    description: Logical database dump, best-effort live media snapshot, and reviewed deployment files.
+    enabled: false
+    disabled_reason: Enable only after validating the example media and configuration paths on the deployment host.
+    destination: /mnt/storage/backups/immich-full
+    timeout_seconds: 86400
+    estimated_size_bytes: 21474836480
+    confirmation_level: high
+    retention:
+      mode: manual
+      retain_at_least: 2
+    steps:
+      - type: postgres_dump
+        container: example-postgres
+        expected_compose_project: example-immich
+        expected_compose_service: database
+        database: example_database
+        role: example_role
+        component: database
+        filename: immich.dump
+        timeout_seconds: 1800
+      - type: rsync_snapshot
+        source: /mnt/warm/homelab/example-immich/library
+        component: library
+        excludes: []
+        allow_source_root: false
+        consistency: best_effort_live
+      - type: copy_files
+        component: configuration
+        sources:
+          - /mnt/warm/homelab/example-immich/compose.yml
+      - type: verification
+        mode: inventory
+      - type: manifest
+
+  - id: homelab-config
+    display_name: Homelab configuration
+    description: Reviewed deployment sources and exact configuration files without runtime databases or bulky media.
+    enabled: true
+    destination: /mnt/storage/backups/homelab-config
+    timeout_seconds: 7200
+    estimated_size_bytes: 134217728
+    confirmation_level: high
+    retention:
+      mode: manual
+      retain_at_least: 3
+    steps:
+      - type: rsync_snapshot
+        source: /mnt/warm/homelab/example-app
+        component: deployment
+        excludes:
+          - .git/
+          - node_modules/
+          - .venv/
+          - __pycache__/
+          - '*.db'
+          - .env
+        allow_source_root: false
+        consistency: point_in_time
+      - type: copy_files
+        component: host-config
+        sources:
+          - /etc/systemd/system/example-homelab.service
+      - type: verification
+        mode: sha256
+      - type: manifest
+
+  - id: warm-storage
+    display_name: Warm storage snapshot
+    description: Broad approved warm-storage snapshot with explicit exclusions and mandatory capacity checks.
+    enabled: false
+    disabled_reason: Keep disabled until measured capacity, exclusions, and reserve all pass on the deployment host.
+    destination: /mnt/storage/backups/warm-storage
+    timeout_seconds: 172800
+    estimated_size_bytes: 1099511627776
+    confirmation_level: high
+    retention:
+      mode: manual
+      retain_at_least: 1
+    steps:
+      - type: rsync_snapshot
+        source: /mnt/warm
+        component: warm
+        excludes:
+          - homelab/_infra/backups/
+          - homelab/migration-backups/
+          - homelab/repo-split-backups/
+          - homelab/immich/postgres/
+          - Downloads/
+          - downloads/
+          - cache/
+          - tmp/
+        allow_source_root: true
+        consistency: best_effort_live
+      - type: verification
+        mode: inventory
+      - type: manifest

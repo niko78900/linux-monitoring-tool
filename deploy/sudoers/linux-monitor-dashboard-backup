@@ -1,0 +1,7 @@
+Defaults:linux-monitor-backup env_reset
+Defaults:linux-monitor-backup secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Defaults:linux-monitor-backup !pam_acct_mgmt
+
+Cmnd_Alias LINUX_MONITOR_DASHBOARD_BACKUP_HELPER = /usr/local/libexec/linux-monitor-dashboard-backup-helper ""
+
+linux-monitor-backup ALL=(root) NOPASSWD: LINUX_MONITOR_DASHBOARD_BACKUP_HELPER
