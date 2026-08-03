@@ -71,6 +71,15 @@ sides calculate a canonical registry fingerprint. A mismatch fails closed and
 requires a service restart, preventing the API and helper from acting on
 different plans.
 
+The unprivileged API deliberately does not traverse root-only source and
+destination trees while loading its credential copy. It validates the complete
+schema, bounded values, absolute paths, approved lexical roots, plan layout,
+and fingerprint. The exact sudo helper then performs the privileged
+filesystem, symlink, container-mount, and overlap checks against the original
+registry. Keep the destination root at `root:root 0700`; do not grant the API
+account access merely to duplicate checks that belong at the privilege
+boundary.
+
 ## Destination and consistency
 
 The only destination root is:
@@ -116,6 +125,14 @@ container identity and health, source existence, dynamic source-size estimate,
 per-plan lock, free space, configured reserve, and capacity overhead. The
 preflight performs a short exclusive write probe inside the dedicated backup
 root and removes only that newly created probe.
+
+`ProtectSystem=strict` intentionally presents the cold-storage parent as
+read-only inside the service mount namespace. Only the exact backup root is
+re-exposed read-write through `ReadWritePaths`. Mount health therefore verifies
+the underlying ext4 superblock and RAID source together with the exact writable
+backup-root bind. A read-only backup-root bind, unexpected device, different
+filesystem, or failed write probe remains unhealthy. Do not weaken the unit or
+make the cold-storage parent writable to satisfy `/health`.
 
 Large plans can remain present but disabled. Listing a plan still returns its
 assessment, estimate, free bytes, manual-retention summary, and blocking
@@ -197,6 +214,48 @@ sudo ufw allow in on <dashboard-bridge-interface> \
 
 Do not publish the port through Docker or add a port-only, loopback, LAN,
 tailnet, WAN, default-Docker-bridge, or broad private-network rule.
+
+### Updating an installed helper
+
+Check that `/health` reports no running jobs before replacing the installed
+helper. The unit's executable allow-list is established in its private mount
+namespace at service start, so replacing the helper requires restarting this
+backup unit to make the new inode visible:
+
+```bash
+sudo install -o root -g root -m 0755 \
+  deploy/scripts/linux-monitor-dashboard-backup-helper.py \
+  /usr/local/libexec/linux-monitor-dashboard-backup-helper
+sudo systemctl restart linux-monitor-dashboard-backup.service
+```
+
+Restart only `linux-monitor-dashboard-backup.service`. Never restart Immich,
+the existing Linux Monitor services, or other Dashboard bridges as part of a
+helper update.
+
+### Post-deployment verification
+
+Validate installed artifacts rather than relying only on source-volume modes:
+
+```bash
+sudo visudo -cf /etc/sudoers.d/linux-monitor-dashboard-backup
+systemd-analyze verify \
+  /etc/systemd/system/linux-monitor-dashboard-backup.service
+systemctl show linux-monitor-dashboard-backup.service \
+  -p ActiveState -p SubState -p MainPID -p NRestarts
+ss -ltnp '( sport = :4045 )'
+sudo ufw status numbered
+```
+
+From the Dashboard backend network, an unauthenticated defined route must
+return `401`; an authenticated `/health` must return `200` with registry,
+database, worker, cold mount, writable destination, and RAID health all true.
+Confirm that restore, deletion, and HTTP OpenAPI endpoints remain absent. Run
+large-plan assessments without starting them, then validate the deployment
+with only a reviewed small plan such as `immich-database`. Independently check
+the published manifest, completion marker, dump inspection, checksums, SQLite
+`PRAGMA quick_check`, source integrity, and unrelated service restart counts.
+Never place a bearer value in a command line or validation log.
 
 ## Dashboard backend handoff
 

@@ -57,4 +57,12 @@ routes to the read-only bridge.
 The backup service binds only to the discovered Dashboard bridge gateway on
 port `4045`. Its protected registry is loaded into the unprivileged API with
 `LoadCredential`; the privileged helper independently reads the root-owned
-original for every internal operation.
+original for every internal operation. `ProtectSystem=strict` keeps the cold
+storage parent read-only in the service namespace, while `ReadWritePaths`
+exposes only the root-owned backup destination for writes. Do not broaden that
+writable path or relax destination permissions.
+
+After replacing the installed backup helper, verify that no backup is active
+and restart only `linux-monitor-dashboard-backup.service`. Its exact executable
+allow-list is created when the unit starts, so a restart is required for the
+private namespace to use the replacement helper inode.
