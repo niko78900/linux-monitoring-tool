@@ -1249,12 +1249,15 @@ def _storage_state(registry: dict[str, Any], *, write_probe: bool) -> tuple[bool
     free_bytes = 0
     try:
         mount = _mount_for(cold_mount)
+        destination_mount = _mount_for(destination_root)
         mounted = (
-            mount is not None
-            and mount["mount_point"] == cold_mount
-            and mount["source"] == registry["raid_device"]
-            and mount["filesystem"] == "ext4"
-            and "rw" in mount["options"]
+            _mount_records_approved(
+                mount,
+                destination_mount,
+                cold_mount=cold_mount,
+                destination_root=destination_root,
+                raid_device=registry["raid_device"],
+            )
             and cold_mount.is_mount()
             and not cold_mount.is_symlink()
             and destination_root.exists()
@@ -1293,6 +1296,29 @@ def _storage_state(registry: dict[str, Any], *, write_probe: bool) -> tuple[bool
     return mounted, writable, raid_healthy, free_bytes
 
 
+def _mount_records_approved(
+    mount: dict[str, Any] | None,
+    destination_mount: dict[str, Any] | None,
+    *,
+    cold_mount: Path,
+    destination_root: Path,
+    raid_device: str,
+) -> bool:
+    return bool(
+        mount is not None
+        and destination_mount is not None
+        and mount["mount_point"] == cold_mount
+        and mount["source"] == raid_device
+        and mount["filesystem"] == "ext4"
+        and "rw" in mount["super_options"]
+        and destination_mount["mount_point"] in {cold_mount, destination_root}
+        and destination_mount["source"] == raid_device
+        and destination_mount["filesystem"] == "ext4"
+        and "rw" in destination_mount["options"]
+        and "rw" in destination_mount["super_options"]
+    )
+
+
 def _mount_for(path: Path) -> dict[str, Any] | None:
     best: dict[str, Any] | None = None
     for line in Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines():
@@ -1308,6 +1334,7 @@ def _mount_for(path: Path) -> dict[str, Any] | None:
                 "options": set(fields[5].split(",")),
                 "filesystem": fields[separator + 1],
                 "source": _unescape_mount_field(fields[separator + 2]),
+                "super_options": set(fields[separator + 3].split(",")),
             }
             if best is None or len(mount_point.parts) > len(best["mount_point"].parts):
                 best = candidate

@@ -145,6 +145,64 @@ def test_rsync_failure_is_sanitized_and_never_uses_destructive_flags(
     assert all(isinstance(argument, str) for argument in observed)
 
 
+def test_mount_validation_accepts_only_the_exact_writable_backup_bind(
+    helper_module,
+) -> None:
+    cold_mount = Path("/mnt/storage")
+    destination_root = cold_mount / "backups"
+    cold_record = {
+        "mount_point": cold_mount,
+        "source": "/dev/md0",
+        "filesystem": "ext4",
+        # ProtectSystem may make the parent read-only in the service namespace.
+        "options": {"ro", "noexec"},
+        "super_options": {"rw"},
+    }
+    destination_record = {
+        "mount_point": destination_root,
+        "source": "/dev/md0",
+        "filesystem": "ext4",
+        "options": {"rw"},
+        "super_options": {"rw"},
+    }
+
+    assert helper_module._mount_records_approved(
+        cold_record,
+        destination_record,
+        cold_mount=cold_mount,
+        destination_root=destination_root,
+        raid_device="/dev/md0",
+    )
+
+    destination_record["options"] = {"ro"}
+    assert not helper_module._mount_records_approved(
+        cold_record,
+        destination_record,
+        cold_mount=cold_mount,
+        destination_root=destination_root,
+        raid_device="/dev/md0",
+    )
+
+
+def test_mount_validation_rejects_an_unexpected_device(helper_module) -> None:
+    cold_mount = Path("/mnt/storage")
+    record = {
+        "mount_point": cold_mount,
+        "source": "/dev/other",
+        "filesystem": "ext4",
+        "options": {"rw"},
+        "super_options": {"rw"},
+    }
+
+    assert not helper_module._mount_records_approved(
+        record,
+        record,
+        cold_mount=cold_mount,
+        destination_root=cold_mount / "backups",
+        raid_device="/dev/md0",
+    )
+
+
 def _copy_registry(helper_module, tmp_path: Path) -> tuple[dict, dict, Path, Path]:
     destination_root = tmp_path / "cold" / "backups"
     destination_root.mkdir(parents=True)
