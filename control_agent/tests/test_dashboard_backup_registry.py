@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from app.services import backup_registry as backup_registry_module
 from app.services.backup_registry import RegistryValidationError, validate_backup_registry
 
 
@@ -101,6 +102,26 @@ def test_tracked_example_is_structurally_valid() -> None:
         "homelab-config",
         "warm-storage",
     }
+
+
+def test_credential_copy_validation_does_not_probe_root_only_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document, context = _document(tmp_path)
+
+    def fail_if_probed(*_args, **_kwargs) -> None:
+        raise PermissionError("root-only destination")
+
+    monkeypatch.setattr(
+        backup_registry_module,
+        "_has_symlink_component",
+        fail_if_probed,
+    )
+
+    registry = validate_backup_registry(document, check_paths=False, **context)
+
+    assert registry.get_plan("config") is not None
 
 
 @pytest.mark.parametrize(

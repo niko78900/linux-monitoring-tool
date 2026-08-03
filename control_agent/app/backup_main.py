@@ -35,6 +35,12 @@ def create_app(
         registry = registry_override or load_backup_registry(
             settings.registry_path,
             enforce_metadata=not settings.registry_is_credential,
+            # The systemd credential is readable by the unprivileged API, but
+            # the destination intentionally remains root-only.  The API still
+            # performs full schema and lexical-root validation here; the
+            # independently loaded original receives privileged filesystem,
+            # mount, and symlink validation inside the exact sudo helper.
+            check_paths=not settings.registry_is_credential,
         )
         store = BackupStore(
             settings.database_path,

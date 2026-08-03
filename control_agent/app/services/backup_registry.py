@@ -399,9 +399,9 @@ def _validate_registry_paths(
         raise ValueError("destination root must be directly below the cold mount")
     if not re.fullmatch(r"/dev/md[0-9]+", str(registry.raid_device)):
         raise ValueError("RAID device is invalid")
-    if _has_symlink_component(registry.cold_mount, require_leaf=check_paths):
+    if check_paths and _has_symlink_component(registry.cold_mount, require_leaf=True):
         raise ValueError("cold mount contains a symlink")
-    if _has_symlink_component(registry.destination_root, require_leaf=False):
+    if check_paths and _has_symlink_component(registry.destination_root, require_leaf=True):
         raise ValueError("destination root contains a symlink")
 
     resolved_approved = tuple(_resolved(root, strict=check_paths) for root in approved_source_roots)
@@ -411,7 +411,7 @@ def _validate_registry_paths(
         plan_destination = _resolved(plan.destination, strict=False)
         if plan_destination.parent != destination_root or plan_destination.name != plan.id:
             raise ValueError("plan destination is outside its approved root")
-        if _has_symlink_component(plan.destination, require_leaf=False):
+        if check_paths and _has_symlink_component(plan.destination, require_leaf=True):
             raise ValueError("plan destination contains a symlink")
         for step in plan.steps:
             if isinstance(step, RsyncSnapshotStep):
@@ -447,7 +447,7 @@ def _validate_source(
     require_directory: bool,
     allow_source_root: bool,
 ) -> None:
-    if _has_symlink_component(source, require_leaf=check_paths):
+    if check_paths and _has_symlink_component(source, require_leaf=True):
         raise ValueError("source contains a symlink")
     resolved = _resolved(source, strict=check_paths)
     matching_roots = [root for root in approved_roots if _within(resolved, root)]
