@@ -12,7 +12,7 @@ The service exposes only:
 ```text
 GET  /health
 GET  /plans
-GET  /plans/{plan_id}
+GET  /plans/{plan_id}[?fresh=true&wait_seconds=0..300]
 GET  /jobs
 GET  /jobs/{job_id}
 POST /plans/{plan_id}/jobs
@@ -138,6 +138,66 @@ Large plans can remain present but disabled. Listing a plan still returns its
 assessment, estimate, free bytes, manual-retention summary, and blocking
 reason. Merely listing or assessing a plan does not create a snapshot.
 
+### Bounded assessment cache
+
+Plan reads use an in-memory, observational assessment cache. `GET /plans` and
+an ordinary `GET /plans/{plan_id}` return static registry metadata and any
+last-known assessment immediately; they never wait for a full source scan.
+When an entry is missing or due for refresh, the read starts or reuses a
+background refresh. Duplicate reads for one plan share one task, and the
+service permits no more than the configured small number of assessment helper
+processes globally (two by default).
+
+The default refresh interval is 900 seconds, the maximum accepted assessment
+age is 3600 seconds, and one helper attempt is bounded to 300 seconds. These
+values are configurable with:
+
+```text
+DASHBOARD_BACKUP_ASSESSMENT_REFRESH_SECONDS
+DASHBOARD_BACKUP_ASSESSMENT_MAX_AGE_SECONDS
+DASHBOARD_BACKUP_ASSESSMENT_TIMEOUT_SECONDS
+DASHBOARD_BACKUP_ASSESSMENT_CONCURRENCY
+```
+
+There is no permanent scanning loop. An ordinary read or startup health probe
+causes on-demand refresh. The cache is intentionally not durable, so the first
+read after service restart returns static plan metadata with a safe unavailable
+assessment while refresh starts. A failed or timed-out refresh retains the
+last-known estimate for display but marks it stale and never reports the plan
+as allowed to start.
+
+Each plan response includes:
+
+```text
+assessment_observed_at
+assessment_age_seconds
+assessment_stale
+assessment_in_progress
+estimate_available
+estimate_error
+```
+
+`estimate_error` is a sanitized code, not helper output. When
+`estimate_available` is false, `estimated_source_size` is only the registry's
+reviewed fallback estimate. When `assessment_stale` is true,
+`allowed_to_start_now` is false even if a previous assessment was allowed.
+
+Plan detail supports `fresh=true` to request a refresh and `wait_seconds` from
+0 through 300 to wait for the shared bounded attempt. A positive wait also
+implies a fresh request. If that request-level wait expires, the endpoint
+returns the available cached or partial state; the helper still cannot exceed
+its configured assessment timeout. Reads during an existing refresh return or
+wait on the same per-plan task rather than starting another scan.
+
+This cache is never an authorization or capacity boundary. Before a real job
+start, the service pauses background assessments and invokes the privileged
+helper with `preflight`. That fresh preflight revalidates registry-approved
+source paths, exact mount and RAID health, destination writability, current
+free bytes, reserve, overhead, enabled state, container identity where
+applicable, and plan locking. Cache state cannot make a rejected preflight
+safe. While a backup job is active, new assessment tasks wait without starting
+helper processes; they resume only after backup execution has priority.
+
 ## Durable history
 
 Job history is stored at:
@@ -262,14 +322,28 @@ Never place a bearer value in a command line or validation log.
 Use `http://<dashboard-bridge-gateway>:4045` from the Dashboard backend only.
 Keep the credential in backend server configuration, never browser state.
 
-- Cache `/health` for 10 to 15 seconds and `/plans` for 30 to 60 seconds.
+- Cache `/health` for 10 to 15 seconds and `/plans` for 30 to 60 seconds, while
+  preserving the returned assessment timestamps and stale flags.
 - Do not cache job starts, cancellation requests, or individual active jobs.
-- Use a short connection timeout and a longer read timeout for plan assessment.
+- Use a two-second connection timeout and about a five-second read timeout for
+  ordinary `/health`, `/plans`, plan-detail, and job reads. Ordinary page
+  rendering must not wait for filesystem assessment.
+- For an explicitly requested fresh plan detail, allow up to 310 seconds and
+  set `wait_seconds` no higher than 300. The response may still contain stale
+  or unavailable metadata when the bounded refresh fails or the client wait
+  expires.
+- Allow up to 310 seconds for a start request because it always performs a
+  fresh privileged preflight. Allow about 20 seconds for cancellation.
 - Treat `succeeded`, `failed`, `cancelled`, `timed_out`, and `rejected` as
   terminal.
 - Poll active jobs from one second with backoff to five seconds.
 - Display only the API's sanitized summary and error code.
-- Disable starts when health is degraded or a plan says it is blocked.
+- Treat `assessment_in_progress` as informational and continue rendering from
+  static or last-known metadata. Treat a stale or unavailable estimate as
+  unknown, not as zero and not as permission to start.
+- Disable starts when health is degraded or a plan says it is blocked. Even
+  when the Dashboard offers a start, handle a fresh preflight rejection as the
+  authoritative capacity or storage result.
 - Never infer restore or deletion controls; those routes do not exist.
 
 ## Rollback
