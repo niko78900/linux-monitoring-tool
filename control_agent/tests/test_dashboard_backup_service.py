@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from ipaddress import ip_network
 from pathlib import Path
 from uuid import uuid4
@@ -49,14 +50,19 @@ class FakeBackupHelper:
             bytes_copied=1024,
         )
         self.delay_seconds = 0.0
+        self.background_assessment_delay_seconds = 0.0
         self.cancelled: set[str] = set()
         self.failure: Exception | None = None
         self.validation_calls = 0
+        self.assessment_operations: list[str] = []
 
     async def validate_registry(self, *, plan_id: str, fingerprint: str) -> None:
         self.validation_calls += 1
 
     async def assess(self, *, plan, job_id: str, fingerprint: str, operation: str = "assess"):
+        self.assessment_operations.append(operation)
+        if operation == "assess" and self.background_assessment_delay_seconds:
+            await asyncio.sleep(self.background_assessment_delay_seconds)
         return self.assessment
 
     async def execute(self, *, plan, job_id: str, fingerprint: str, on_progress):
@@ -243,17 +249,49 @@ def test_invalid_token_and_disallowed_source_are_rejected(backup_harness: Backup
 
 
 def test_health_and_plan_contracts_are_safe(backup_harness: BackupHarness) -> None:
+    detail = backup_harness.client.get(
+        "/plans/database?fresh=true&wait_seconds=1",
+        headers=backup_harness.headers,
+    )
     health = backup_harness.client.get("/health", headers=backup_harness.headers)
     plans = backup_harness.client.get("/plans", headers=backup_harness.headers)
 
+    assert detail.status_code == 200
     assert health.status_code == 200
     assert health.json()["status"] == "ok"
     assert health.json()["plan_count"] == 2
+    assert health.json()["assessment_worker_healthy"] is True
+    assert health.json()["assessment_stale"] is False
     assert plans.status_code == 200
     database = next(item for item in plans.json()["plans"] if item["id"] == "database")
     assert database["allowed_to_start_now"] is True
+    assert database["assessment_observed_at"] is not None
+    assert database["assessment_age_seconds"] >= 0
+    assert database["assessment_stale"] is False
+    assert database["estimate_available"] is True
+    assert database["estimate_error"] is None
     assert "container" not in str(database)
     assert "role" not in str(database)
+
+
+def test_empty_cache_returns_static_metadata_without_optimistic_authorization(
+    backup_harness: BackupHarness,
+) -> None:
+    service = backup_harness.app.state.dashboard_backup_service
+    service.assessments._entries.clear()
+    started = time.monotonic()
+    response = backup_harness.client.get("/plans", headers=backup_harness.headers)
+    elapsed = time.monotonic() - started
+    database = next(item for item in response.json()["plans"] if item["id"] == "database")
+
+    assert response.status_code == 200
+    assert elapsed < 1
+    assert database["enabled"] is True
+    assert database["estimated_source_size"] == 1024
+    assert database["allowed_to_start_now"] is False
+    assert database["assessment_stale"] is True
+    assert database["assessment_in_progress"] is True
+    assert database["estimate_available"] is False
 
 
 @pytest.mark.parametrize(
@@ -365,6 +403,10 @@ def test_concurrent_same_plan_rejected(backup_harness: BackupHarness) -> None:
 
 
 def test_capacity_rejection_is_specific_and_durable(backup_harness: BackupHarness) -> None:
+    cached = backup_harness.client.get(
+        "/plans/database?fresh=true&wait_seconds=1", headers=backup_harness.headers
+    ).json()
+    assert cached["allowed_to_start_now"] is True
     backup_harness.helper.assessment = BackupAssessment(
         allowed=False,
         blocking_code="insufficient_capacity",
@@ -384,6 +426,7 @@ def test_capacity_rejection_is_specific_and_durable(backup_harness: BackupHarnes
 
     assert response.status_code == 507
     assert response.json()["error_code"] == "insufficient_capacity"
+    assert backup_harness.helper.assessment_operations[-1] == "preflight"
     record = backup_harness.client.get(
         f"/jobs/{response.json()['job_id']}", headers=backup_harness.headers
     ).json()
@@ -403,6 +446,10 @@ def test_mount_or_raid_rejection(
     mounted: bool,
     raid: bool,
 ) -> None:
+    cached = backup_harness.client.get(
+        "/plans/database?fresh=true&wait_seconds=1", headers=backup_harness.headers
+    ).json()
+    assert cached["allowed_to_start_now"] is True
     backup_harness.helper.assessment = BackupAssessment(
         allowed=False,
         blocking_code=code,
@@ -421,6 +468,64 @@ def test_mount_or_raid_rejection(
     )
     assert response.status_code == 409
     assert response.json()["error_code"] == code
+    assert backup_harness.helper.assessment_operations[-1] == "preflight"
+
+
+def test_stale_cached_authorization_is_ignored_by_start(
+    backup_harness: BackupHarness,
+) -> None:
+    service = backup_harness.app.state.dashboard_backup_service
+    service.assessments.record_success(
+        "database",
+        backup_harness.helper.assessment,
+        observed_at=datetime.now(timezone.utc) - timedelta(hours=2),
+    )
+    stale = backup_harness.client.get("/plans/database", headers=backup_harness.headers).json()
+    assert stale["allowed_to_start_now"] is False
+    assert stale["assessment_stale"] is True
+
+    backup_harness.helper.assessment = BackupAssessment(
+        allowed=False,
+        blocking_code="raid_unhealthy",
+        blocking_reason="Backup storage safety check failed.",
+        source_size_estimate=100,
+        destination_free_bytes=1000,
+        required_bytes=200,
+        cold_storage_mounted=True,
+        cold_storage_writable=True,
+        raid_healthy=False,
+    )
+    response = backup_harness.client.post(
+        "/plans/database/jobs",
+        headers=backup_harness.headers,
+        json=_body(),
+    )
+    assert response.status_code == 409
+    assert response.json()["error_code"] == "raid_unhealthy"
+    assert backup_harness.helper.assessment_operations[-1] == "preflight"
+
+
+def test_backup_start_has_priority_over_background_assessment(
+    backup_harness: BackupHarness,
+) -> None:
+    backup_harness.helper.background_assessment_delay_seconds = 60
+    refreshing = backup_harness.client.get(
+        "/plans/database?fresh=true",
+        headers=backup_harness.headers,
+    ).json()
+    assert refreshing["assessment_in_progress"] is True
+
+    started = time.monotonic()
+    response = backup_harness.client.post(
+        "/plans/database/jobs",
+        headers=backup_harness.headers,
+        json=_body(),
+    )
+    elapsed = time.monotonic() - started
+
+    assert response.status_code == 202
+    assert elapsed < 1
+    assert backup_harness.helper.assessment_operations[-1] == "preflight"
 
 
 def test_running_job_can_be_cancelled_safely(backup_harness: BackupHarness) -> None:

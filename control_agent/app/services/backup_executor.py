@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
+import signal
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -274,12 +276,11 @@ class SudoBackupHelper:
                 timeout=timeout_seconds,
             )
         except asyncio.TimeoutError as error:
-            try:
-                process.kill()
-            except (ProcessLookupError, PermissionError):
-                pass
-            await process.wait()
+            await _terminate_process_group(process)
             raise HelperUnavailableError("backup helper timed out") from error
+        except asyncio.CancelledError:
+            await _terminate_process_group(process)
+            raise
         if len(stdout) > 65_536:
             raise HelperProtocolError("backup helper response exceeded its limit")
         try:
@@ -470,14 +471,48 @@ async def _wait_after_cancel(process: asyncio.subprocess.Process) -> None:
     try:
         await asyncio.wait_for(process.wait(), timeout=10)
     except asyncio.TimeoutError:
+        await _terminate_process_group(process)
+
+
+async def _terminate_process_group(process: asyncio.subprocess.Process) -> None:
+    """Terminate the isolated sudo/helper group and always reap its leader."""
+    if process.returncode is not None:
+        await process.wait()
+        return
+    try:
+        process_group = os.getpgid(process.pid)
+    except ProcessLookupError:
+        await process.wait()
+        return
+    if process_group == os.getpgrp():
+        raise RuntimeError("refusing to terminate the service process group")
+
+    try:
+        os.killpg(process_group, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        try:
+            process.terminate()
+        except (ProcessLookupError, PermissionError):
+            pass
+    try:
+        await asyncio.wait_for(process.wait(), timeout=5)
+        return
+    except asyncio.TimeoutError:
+        pass
+
+    try:
+        os.killpg(process_group, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
         try:
             process.kill()
         except (ProcessLookupError, PermissionError):
             pass
-        try:
-            await asyncio.wait_for(process.wait(), timeout=2)
-        except asyncio.TimeoutError:
-            pass
+    try:
+        await asyncio.wait_for(process.wait(), timeout=2)
+    except asyncio.TimeoutError:
+        # The process has been signalled and will be reaped by the event-loop
+        # child watcher. Avoid making shutdown wait without a bound.
+        pass
 
 
 async def _discard_stream(stream: asyncio.StreamReader | None) -> None:

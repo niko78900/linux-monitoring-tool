@@ -98,6 +98,12 @@ class BackupPlanResponse(BaseModel):
     destination_free_bytes: int | None = None
     retention_policy: str
     confirmation_level: Literal["high"]
+    assessment_observed_at: datetime | None = None
+    assessment_age_seconds: float | None = Field(default=None, ge=0)
+    assessment_stale: bool
+    assessment_in_progress: bool
+    estimate_available: bool
+    estimate_error: str | None = None
 
 
 class BackupPlanListResponse(BaseModel):
@@ -120,6 +126,9 @@ class BackupHealthResponse(BaseModel):
     raid_healthy: bool
     free_bytes: int | None = None
     running_job_count: int
+    assessment_worker_healthy: bool
+    assessment_active_count: int = Field(ge=0)
+    assessment_stale: bool
     observation_timestamp: datetime
 
 

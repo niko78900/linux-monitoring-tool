@@ -16,6 +16,7 @@ from ..models.dashboard_backups import (
     BackupPlanResponse,
     BackupStartRequest,
 )
+from .backup_assessments import BackupAssessmentCache
 from .backup_executor import (
     BackupAssessment,
     BackupExecutionResult,
@@ -67,6 +68,15 @@ class DashboardBackupService:
         self.queue: asyncio.Queue[str] = asyncio.Queue(maxsize=settings.queue_size)
         self.workers: list[asyncio.Task[None]] = []
         self._accepted_assessments: dict[str, BackupAssessment] = {}
+        self.assessments = BackupAssessmentCache(
+            helper=self.helper,
+            registry_fingerprint=self.registry.fingerprint,
+            refresh_seconds=settings.assessment_refresh_seconds,
+            max_age_seconds=settings.assessment_max_age_seconds,
+            timeout_seconds=settings.assessment_timeout_seconds,
+            concurrency=settings.assessment_concurrency,
+            can_refresh=lambda: self.store.running_count() == 0,
+        )
 
     async def start(self) -> None:
         self.store.initialize()
@@ -83,8 +93,10 @@ class DashboardBackupService:
             asyncio.create_task(self._worker(index), name=f"dashboard-backup-{index}")
             for index in range(self.settings.worker_count)
         ]
+        self.assessments.request_refresh(first_plan)
 
     async def stop(self) -> None:
+        await self.assessments.stop()
         active = self.store.active_jobs()
         for record in active:
             if record.status in {"preparing", "running", "verifying", "cancel_requested"}:
@@ -156,6 +168,7 @@ class DashboardBackupService:
                 record=rejected,
             )
 
+        await self.assessments.pause_for_backup()
         try:
             assessment = await self.helper.assess(
                 plan=plan,
@@ -164,6 +177,7 @@ class DashboardBackupService:
                 operation="preflight",
             )
         except (HelperProtocolError, HelperUnavailableError):
+            self.assessments.record_failure(plan.id, "preflight_unavailable")
             rejected = self.store.reject_queued(
                 job_id,
                 finished_at=_utc_now(),
@@ -178,6 +192,7 @@ class DashboardBackupService:
                 record=rejected,
             )
 
+        self.assessments.record_success(plan.id, assessment)
         if not assessment.allowed:
             error_code = assessment.blocking_code or "unsafe_to_start"
             summary = assessment.blocking_reason or "Backup safety preflight rejected the job."
@@ -228,23 +243,40 @@ class DashboardBackupService:
                 logger.warning("Backup cancellation signal could not be confirmed")
         return self.store.get(job_id) or result.record
 
-    async def describe_plan(self, plan: BackupPlan) -> BackupPlanResponse:
-        assessment: BackupAssessment | None = None
-        try:
-            assessment = await self.helper.assess(
-                plan=plan,
-                job_id=str(uuid4()),
-                fingerprint=self.registry.fingerprint,
-                operation="assess",
-            )
-        except (HelperProtocolError, HelperUnavailableError):
-            pass
+    async def describe_plan(
+        self,
+        plan: BackupPlan,
+        *,
+        force_refresh: bool = False,
+        wait_seconds: int = 0,
+    ) -> BackupPlanResponse:
+        await self.assessments.wait_for_refresh(
+            plan,
+            force=force_refresh,
+            wait_seconds=min(wait_seconds, self.settings.assessment_timeout_seconds),
+        )
+        if not force_refresh and wait_seconds == 0:
+            self.assessments.request_refresh(plan)
+        view = self.assessments.view(plan.id)
+        assessment = view.assessment
         if not plan.enabled:
             allowed = False
             blocking_reason = plan.disabled_reason or "Disabled by the root-owned backup registry."
         elif assessment is None:
             allowed = False
-            blocking_reason = "Backup safety assessment is unavailable."
+            blocking_reason = (
+                "Backup safety assessment is refreshing."
+                if view.in_progress
+                else "Backup safety assessment is unavailable."
+            )
+        elif view.stale:
+            allowed = False
+            if not assessment.allowed and assessment.blocking_reason:
+                blocking_reason = assessment.blocking_reason
+            elif view.estimate_error is not None:
+                blocking_reason = "Backup safety assessment refresh failed."
+            else:
+                blocking_reason = "Backup safety assessment is stale."
         else:
             allowed = assessment.allowed
             blocking_reason = assessment.blocking_reason
@@ -267,25 +299,36 @@ class DashboardBackupService:
                 f"retain at least {plan.retention.retain_at_least}."
             ),
             confirmation_level=plan.confirmation_level,
+            assessment_observed_at=view.observed_at,
+            assessment_age_seconds=(
+                round(view.age_seconds, 3) if view.age_seconds is not None else None
+            ),
+            assessment_stale=view.stale,
+            assessment_in_progress=view.in_progress,
+            estimate_available=assessment is not None,
+            estimate_error=view.estimate_error,
         )
 
     async def health(self) -> BackupHealthResponse:
-        assessment: BackupAssessment | None = None
-        try:
-            assessment = await self.helper.assess(
-                plan=self.registry.plans[0],
-                job_id=str(uuid4()),
-                fingerprint=self.registry.fingerprint,
-                operation="assess",
-            )
-        except (HelperProtocolError, HelperUnavailableError):
-            pass
+        first_plan = self.registry.plans[0]
+        self.assessments.request_refresh(first_plan)
+        view = self.assessments.view(first_plan.id)
+        assessment = view.assessment
         database_healthy = self.store.quick_check()
         worker_healthy = self.workers_healthy
+        assessment_worker_healthy = self.assessments.healthy
         mounted = assessment.cold_storage_mounted if assessment else False
         writable = assessment.cold_storage_writable if assessment else False
         raid_healthy = assessment.raid_healthy if assessment else False
-        healthy = database_healthy and worker_healthy and mounted and writable and raid_healthy
+        healthy = (
+            database_healthy
+            and worker_healthy
+            and assessment_worker_healthy
+            and not view.stale
+            and mounted
+            and writable
+            and raid_healthy
+        )
         return BackupHealthResponse(
             status="ok" if healthy else "degraded",
             version=self.version,
@@ -298,6 +341,9 @@ class DashboardBackupService:
             raid_healthy=raid_healthy,
             free_bytes=assessment.destination_free_bytes if assessment else None,
             running_job_count=self.store.running_count(),
+            assessment_worker_healthy=assessment_worker_healthy,
+            assessment_active_count=self.assessments.active_count,
+            assessment_stale=view.stale,
             observation_timestamp=_utc_now(),
         )
 

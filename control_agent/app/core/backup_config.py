@@ -65,6 +65,10 @@ class BackupServiceSettings:
     queue_size: int
     retention_records: int
     retention_days: int
+    assessment_refresh_seconds: int = 900
+    assessment_max_age_seconds: int = 3600
+    assessment_timeout_seconds: int = 300
+    assessment_concurrency: int = 2
 
     def validate_for_startup(self, *, require_helper: bool = True) -> None:
         if self.token is None or len(self.token) < 32:
@@ -82,6 +86,11 @@ class BackupServiceSettings:
             not self.helper_path.is_file() or not os.access(self.helper_path, os.X_OK)
         ):
             raise RuntimeError("Dashboard backup helper is unavailable")
+        if self.assessment_max_age_seconds < self.assessment_refresh_seconds:
+            raise RuntimeError(
+                "DASHBOARD_BACKUP_ASSESSMENT_MAX_AGE_SECONDS must be greater than or "
+                "equal to DASHBOARD_BACKUP_ASSESSMENT_REFRESH_SECONDS"
+            )
 
 
 @lru_cache(maxsize=1)
@@ -133,5 +142,33 @@ def get_backup_service_settings() -> BackupServiceSettings:
             365,
             minimum=1,
             maximum=3650,
+        ),
+        assessment_refresh_seconds=_bounded_int(
+            "DASHBOARD_BACKUP_ASSESSMENT_REFRESH_SECONDS",
+            os.getenv("DASHBOARD_BACKUP_ASSESSMENT_REFRESH_SECONDS"),
+            900,
+            minimum=60,
+            maximum=86_400,
+        ),
+        assessment_max_age_seconds=_bounded_int(
+            "DASHBOARD_BACKUP_ASSESSMENT_MAX_AGE_SECONDS",
+            os.getenv("DASHBOARD_BACKUP_ASSESSMENT_MAX_AGE_SECONDS"),
+            3600,
+            minimum=60,
+            maximum=604_800,
+        ),
+        assessment_timeout_seconds=_bounded_int(
+            "DASHBOARD_BACKUP_ASSESSMENT_TIMEOUT_SECONDS",
+            os.getenv("DASHBOARD_BACKUP_ASSESSMENT_TIMEOUT_SECONDS"),
+            300,
+            minimum=10,
+            maximum=600,
+        ),
+        assessment_concurrency=_bounded_int(
+            "DASHBOARD_BACKUP_ASSESSMENT_CONCURRENCY",
+            os.getenv("DASHBOARD_BACKUP_ASSESSMENT_CONCURRENCY"),
+            2,
+            minimum=1,
+            maximum=4,
         ),
     )

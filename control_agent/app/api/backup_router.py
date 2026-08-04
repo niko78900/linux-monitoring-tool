@@ -57,12 +57,18 @@ async def get_plans(
 @router.get("/plans/{plan_id}", response_model=BackupPlanResponse, tags=["backups"])
 async def get_plan(
     plan_id: str,
+    fresh: bool = Query(default=False),
+    wait_seconds: int = Query(default=0, ge=0, le=300),
     service: DashboardBackupService = Depends(get_backup_service),
 ) -> BackupPlanResponse:
     plan = service.registry.get_plan(plan_id)
     if plan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backup plan not found")
-    return await service.describe_plan(plan)
+    return await service.describe_plan(
+        plan,
+        force_refresh=fresh or wait_seconds > 0,
+        wait_seconds=wait_seconds,
+    )
 
 
 @router.get("/jobs", response_model=BackupJobHistoryResponse, tags=["backups"])
