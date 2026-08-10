@@ -51,6 +51,7 @@ class Settings:
     host: str
     port: int
     control_api_token: str | None
+    wake_api_token: str | None
     known_devices_config_path: Path
     managed_hosts_config_path: Path
     services_config_path: Path
@@ -78,6 +79,7 @@ def get_settings() -> Settings:
         host=os.getenv("HOST", "127.0.0.1"),
         port=_parse_int(os.getenv("PORT"), 4042, minimum=1),
         control_api_token=_parse_optional_string(os.getenv("CONTROL_API_TOKEN")),
+        wake_api_token=_parse_optional_string(os.getenv("WAKE_API_TOKEN")),
         known_devices_config_path=Path(
             os.getenv(
                 "KNOWN_DEVICES_CONFIG_PATH",

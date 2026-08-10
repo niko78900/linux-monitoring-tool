@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
 import '../../../../core/config/app_settings.dart';
+import '../../../../core/config/app_variant.dart';
 import '../../../../core/networking/dio_factory.dart';
 import '../../dashboard/data/monitoring_api_client.dart';
 import '../../dashboard/domain/models/monitoring_models.dart';
@@ -59,21 +60,24 @@ class ServerWidgetService {
     _bootstrapped = true;
   }
 
-  Future<String?> readInitialLaunchRoute() async {
+  Future<String?> readInitialLaunchRoute({
+    AppVariant variant = AppVariant.tablet,
+  }) async {
     if (!Platform.isAndroid) {
       return null;
     }
     return routeForWidgetUri(
       await HomeWidget.initiallyLaunchedFromHomeWidget(),
+      variant: variant,
     );
   }
 
-  Stream<String> widgetLaunchRoutes() {
+  Stream<String> widgetLaunchRoutes({AppVariant variant = AppVariant.tablet}) {
     if (!Platform.isAndroid) {
       return const Stream<String>.empty();
     }
     return HomeWidget.widgetClicked.asyncExpand((uri) async* {
-      final route = routeForWidgetUri(uri);
+      final route = routeForWidgetUri(uri, variant: variant);
       if (route != null) {
         yield route;
       }

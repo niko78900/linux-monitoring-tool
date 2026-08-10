@@ -2,24 +2,30 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'core/config/app_settings.dart';
-import 'core/routing/app_router.dart';
+import 'core/config/app_variant.dart';
 import 'core/security/secure_storage_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/mobile_alerts/data/mobile_alert_service.dart';
 import 'features/server_widget/data/server_widget_service.dart';
 
-class HomelabTabletApp extends ConsumerStatefulWidget {
-  const HomelabTabletApp({super.key, this.initialWidgetRoute});
+class HomelabApp extends ConsumerStatefulWidget {
+  const HomelabApp({
+    super.key,
+    required this.routerProvider,
+    this.initialWidgetRoute,
+  });
 
+  final Provider<GoRouter> routerProvider;
   final String? initialWidgetRoute;
 
   @override
-  ConsumerState<HomelabTabletApp> createState() => _HomelabTabletAppState();
+  ConsumerState<HomelabApp> createState() => _HomelabAppState();
 }
 
-class _HomelabTabletAppState extends ConsumerState<HomelabTabletApp> {
+class _HomelabAppState extends ConsumerState<HomelabApp> {
   StreamSubscription<String>? _widgetLaunchSubscription;
   StreamSubscription<String>? _notificationLaunchSubscription;
   bool _handledInitialWidgetRoute = false;
@@ -33,8 +39,9 @@ class _HomelabTabletAppState extends ConsumerState<HomelabTabletApp> {
           ref.read(settingsControllerProvider),
         ),
       );
+      final variant = ref.read(appVariantProvider);
       _widgetLaunchSubscription = ServerWidgetService.instance
-          .widgetLaunchRoutes()
+          .widgetLaunchRoutes(variant: variant)
           .listen(_handleWidgetRoute);
       _notificationLaunchSubscription = MobileAlertService
           .instance
@@ -58,12 +65,13 @@ class _HomelabTabletAppState extends ConsumerState<HomelabTabletApp> {
       unawaited(ServerWidgetService.instance.syncSettings(next));
       unawaited(_configureMobileAlerts(next));
     });
-    final router = ref.watch(appRouterProvider);
+    final variant = ref.watch(appVariantProvider);
+    final router = ref.watch(widget.routerProvider);
 
     return MaterialApp.router(
-      title: 'Homelab Tablet',
+      title: variant.displayName,
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark(),
+      theme: AppTheme.dark(compact: variant.isPhone),
       routerConfig: router,
     );
   }
@@ -84,7 +92,10 @@ class _HomelabTabletAppState extends ConsumerState<HomelabTabletApp> {
     if (!settings.onboardingComplete) {
       return;
     }
-    ref.read(appRouterProvider).go(route);
+    final variant = ref.read(appVariantProvider);
+    ref
+        .read(widget.routerProvider)
+        .go(variant.allowsRoute(route) ? route : '/overview');
   }
 
   Future<void> _bootstrapMobileAlerts() async {
@@ -95,6 +106,7 @@ class _HomelabTabletAppState extends ConsumerState<HomelabTabletApp> {
       readMobileAlertToken: ref
           .read(secureStorageServiceProvider)
           .readMobileAlertToken,
+      deviceName: ref.read(appVariantProvider).deviceLabel,
     );
   }
 
@@ -105,6 +117,7 @@ class _HomelabTabletAppState extends ConsumerState<HomelabTabletApp> {
       readMobileAlertToken: ref
           .read(secureStorageServiceProvider)
           .readMobileAlertToken,
+      deviceName: ref.read(appVariantProvider).deviceLabel,
     );
   }
 }

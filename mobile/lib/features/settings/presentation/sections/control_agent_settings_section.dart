@@ -13,6 +13,7 @@ class ControlAgentSettingsSection extends StatelessWidget {
     required this.onSave,
     required this.onTest,
     required this.onClearToken,
+    this.wakeOnly = false,
   });
 
   final AppSettings settings;
@@ -21,40 +22,45 @@ class ControlAgentSettingsSection extends StatelessWidget {
   final Future<void> Function(AppSettings settings) onSave;
   final VoidCallback onTest;
   final VoidCallback onClearToken;
+  final bool wakeOnly;
 
   @override
   Widget build(BuildContext context) {
     return SectionCard(
-      title: 'Control Agent',
+      title: wakeOnly ? 'Wake-on-LAN' : 'Control Agent',
       child: Column(
         children: [
           TextField(
             controller: controlUrlController,
-            decoration: const InputDecoration(
-              labelText: 'Control API URL',
+            decoration: InputDecoration(
+              labelText: wakeOnly ? 'Wake API URL' : 'Control API URL',
               hintText: 'http://100.64.10.22:4042/api',
-              helperText:
-                  'Control agent endpoint for a real tablet over Tailscale. '
-                  'Use /api on port 4042.',
+              helperText: wakeOnly
+                  ? 'Control agent endpoint used only for health checks and '
+                        'waking the main PC.'
+                  : 'Control agent endpoint for a real tablet over Tailscale. '
+                        'Use /api on port 4042.',
             ),
           ),
           const SizedBox(height: AppSpacing.md),
           TextField(
             controller: controlTokenController,
             obscureText: true,
-            decoration: const InputDecoration(labelText: 'Control API token'),
+            decoration: InputDecoration(
+              labelText: wakeOnly ? 'Wake-only API token' : 'Control API token',
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
               FilledButton(
                 onPressed: () => onSave(settings),
-                child: const Text('Save control'),
+                child: Text(wakeOnly ? 'Save wake access' : 'Save control'),
               ),
               const SizedBox(width: AppSpacing.sm),
               OutlinedButton(
                 onPressed: onTest,
-                child: const Text('Test control API'),
+                child: Text(wakeOnly ? 'Test wake API' : 'Test control API'),
               ),
               const SizedBox(width: AppSpacing.sm),
               TextButton(

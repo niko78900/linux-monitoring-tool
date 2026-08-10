@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 
-from ...core.auth import require_bearer_token
+from ...core.auth import require_wake_bearer_token
 from ...core.config import Settings, get_settings
 from ...core.rate_limit import RateLimitError, rate_limiter
 from ...models.actions import WakeActionResponse
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/actions",
     tags=["actions"],
-    dependencies=[Depends(require_bearer_token)],
+    dependencies=[Depends(require_wake_bearer_token)],
 )
 
 

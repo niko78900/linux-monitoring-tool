@@ -1,4 +1,6 @@
-String? routeForWidgetUri(Uri? uri) {
+import '../../../../core/config/app_variant.dart';
+
+String? routeForWidgetUri(Uri? uri, {AppVariant variant = AppVariant.tablet}) {
   if (uri == null) {
     return null;
   }
@@ -7,7 +9,7 @@ String? routeForWidgetUri(Uri? uri) {
       ? uri.pathSegments.first
       : uri.host;
 
-  return switch (target.toLowerCase()) {
+  final route = switch (target.toLowerCase()) {
     'overview' => '/overview',
     'storage' => '/storage',
     'gpu' => '/gpu',
@@ -17,8 +19,10 @@ String? routeForWidgetUri(Uri? uri) {
     'terminal' => '/terminal',
     'files' => '/files',
     'actions' => '/actions',
+    'wake' => '/wake',
     _ => null,
   };
+  return route != null && variant.allowsRoute(route) ? route : null;
 }
 
 String? widgetActionFromUri(Uri? uri) {

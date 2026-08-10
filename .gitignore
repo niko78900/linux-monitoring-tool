@@ -6,6 +6,7 @@ control_agent/config/*.yaml
 !control_agent/config/*.example.yaml
 mobile/android/key.properties
 mobile/android/app/google-services.json
+mobile/android/app/src/*/google-services.json
 firebase-service-account.json
 **/firebase-service-account.json
 *.pem

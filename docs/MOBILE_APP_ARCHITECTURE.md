@@ -1,4 +1,4 @@
-# Homelab Tablet Mobile Architecture
+# Homelab Android Mobile Architecture
 
 Original Phase 0 audit and implementation plan for the Android-only Flutter
 tablet app and the then-future restricted control agent.
@@ -7,8 +7,9 @@ Current update: this file started as the Phase 0 architecture plan. The repo now
 contains the implemented Flutter tablet app, restricted control agent, history
 API, service dashboard, managed hosts, Tailscale-aware devices, Android widgets,
 backend-owned mobile alerts, SFTP background timeout, richer file previews, and
-storage mount filtering. Treat unchecked phase checklist items below as
-historical plan text unless a current operational doc says otherwise.
+storage mount filtering, and the separately installable Mobile Homelab phone
+flavor. Treat unchecked phase checklist items below as historical plan text
+unless a current operational doc says otherwise.
 
 Current tablet responsibilities:
 
@@ -28,6 +29,19 @@ Current tablet responsibilities:
 Working app name: `Homelab Tablet`
 
 Android application id: `com.niko.homelab_tablet`
+
+Current phone responsibilities:
+
+- compact Overview, Hardware, Storage, GPU, Network, and History metrics
+- Android monitoring widgets and backend-owned push alerts
+- fixed Wake-on-LAN with a WOL-only token, device authentication, confirmation,
+  and no caller-supplied MAC address
+- no SSH, SFTP/Files, Hosts, Devices, Services, benchmarks, RDP, or generic
+  Actions routes
+
+Phone app name: `Mobile Homelab`
+
+Phone Android application id: `com.niko.homelab_monitor`
 
 ## Scope
 

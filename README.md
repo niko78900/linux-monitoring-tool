@@ -2,20 +2,20 @@
 
 Linux homelab monitoring monorepo with a FastAPI monitoring backend, Angular
 dashboard, Discord bot, restricted control agent, and Flutter Android tablet
-cockpit.
+and smartphone clients.
 
 ## Current Stack
 
 - `backend/`: FastAPI telemetry API, historical metrics, backend-owned alert
-  evaluation, and Firebase Cloud Messaging delivery for the tablet.
+  evaluation, and Firebase Cloud Messaging delivery for mobile clients.
 - `frontend/`: read-only Angular dashboard for the monitoring backend.
 - `bot/`: Discord slash-command and alert-event presentation client.
 - `control_agent/`: restricted privileged API for Wake-on-LAN, managed hosts,
   Tailscale-aware device state, allowlisted service controls, and benchmark
   jobs.
-- `mobile/`: Android-only Flutter tablet app with monitoring pages, SSH
-  terminal, restricted SFTP file browser, service dashboard, widgets, and push
-  alert registration.
+- `mobile/`: Android-only Flutter package with a full tablet cockpit and a
+  separately installable compact phone monitor. The phone exposes read-only
+  metrics/history, widgets, push alerts, and scoped Wake-on-LAN only.
 
 Most telemetry endpoints are read-only. Mobile-alert registration and test
 routes are scoped to the monitoring backend with a dedicated mobile-alert
@@ -36,8 +36,8 @@ frontend/ :4041                  bot/
        ^
        | GET telemetry/history, POST mobile-alert registration
        |
-Flutter Android tablet
-mobile/
+Flutter Android tablet / phone
+mobile/ (`tablet` / `phone` flavors)
        |
        | privileged actions only
        v
@@ -48,7 +48,7 @@ mobile/
 +--------------------------------------------------+
 ```
 
-The production tablet deployment is expected to communicate over Tailscale or a
+Production mobile deployments are expected to communicate over Tailscale or a
 private reverse-proxy boundary. The live testing URLs are:
 
 ```text
@@ -98,7 +98,14 @@ and Tailscale peer state.
 
 ## Mobile App
 
-The Flutter app is tablet-first and Android-only. Current routes include:
+The Flutter package is Android-only and provides two flavors. The tablet keeps
+the complete cockpit. The `phone` flavor (`com.niko.homelab_monitor`, displayed
+as Mobile Homelab) is compact and has only Overview, Hardware, Storage,
+Network, GPU, History, Wake, Settings, and More routes. It intentionally has no
+SSH terminal, SFTP file explorer, Hosts, Devices, Services, benchmarks, RDP, or
+generic Actions UI.
+
+Tablet routes include:
 
 ```text
 /overview
@@ -175,6 +182,13 @@ flutter test
 flutter run
 ```
 
+Run/build the separately installable phone app with:
+
+```powershell
+flutter run --flavor phone --target lib/main_phone.dart
+flutter build apk --debug --flavor phone --target lib/main_phone.dart
+```
+
 `flutter test` runs the focused default mobile suite. Use
 `flutter test test test_extended` from `mobile/` when changing chart rendering,
 Android widgets, or mobile alert behavior.
@@ -212,6 +226,7 @@ Backend:
 Control agent:
 
 - `CONTROL_API_TOKEN`
+- `WAKE_API_TOKEN` (limited to control-agent health and the fixed WOL action)
 - `KNOWN_DEVICES_CONFIG_PATH`
 - `MANAGED_HOSTS_CONFIG_PATH`
 - `SERVICES_CONFIG_PATH`
@@ -230,6 +245,8 @@ Mobile:
   guidance instead of raw parser errors.
 - SFTP background timeout is configurable in Settings.
 - Widget refresh interval is limited to 15, 30, or 60 minutes.
+- The phone stores its scoped Wake token separately and requires device
+  authentication (when enabled) plus final confirmation before sending WOL.
 
 ## Verification
 

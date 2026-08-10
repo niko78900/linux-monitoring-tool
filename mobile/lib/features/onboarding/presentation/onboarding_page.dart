@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/config/app_settings.dart';
+import '../../../core/config/app_variant.dart';
 import '../../../core/errors/error_mapper.dart';
 import '../../../core/networking/dio_factory.dart';
 import '../../../core/security/secure_storage_service.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../features/dashboard/data/monitoring_api_client.dart';
+import '../../../features/actions/data/wake_api_client.dart';
 import '../../../features/network/data/control_api_client.dart';
 
 class OnboardingPage extends ConsumerStatefulWidget {
@@ -75,16 +77,20 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final variant = ref.watch(appVariantProvider);
+    final lastStep = variant.isPhone ? 2 : 4;
     return Scaffold(
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 920),
+            constraints: BoxConstraints(maxWidth: variant.isPhone ? 560 : 920),
             child: ListView(
-              padding: const EdgeInsets.all(AppSpacing.xl),
+              padding: EdgeInsets.all(
+                variant.isPhone ? AppSpacing.md : AppSpacing.xl,
+              ),
               children: [
                 Text(
-                  'Homelab Tablet',
+                  variant.displayName,
                   style: Theme.of(context).textTheme.headlineLarge,
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -101,7 +107,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                     child: Wrap(
                       spacing: AppSpacing.sm,
                       children: [
-                        if (_step < 4)
+                        if (_step < lastStep)
                           FilledButton(
                             onPressed: () => setState(() => _step += 1),
                             child: const Text('Continue'),
@@ -132,7 +138,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                       ),
                     ),
                     Step(
-                      title: const Text('Control API'),
+                      title: Text(
+                        variant.isPhone ? 'Wake-on-LAN API' : 'Control API',
+                      ),
                       isActive: _step == 1,
                       content: _ControlStep(
                         urlController: _controlUrl,
@@ -140,49 +148,61 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                         testing: _testingControl,
                         result: _controlResult,
                         onTest: _testControl,
+                        wakeOnly: variant.isPhone,
                       ),
                     ),
-                    Step(
-                      title: const Text('SSH Terminal Profile'),
-                      isActive: _step == 2,
-                      content: _ProfileStep(
-                        name: _sshName,
-                        host: _sshHost,
-                        user: _sshUser,
-                        port: _sshPort,
-                        note:
-                            'Private-key import, host-key trust, and SSH testing are available in Settings after onboarding.',
+                    if (!variant.isPhone) ...[
+                      Step(
+                        title: const Text('SSH Terminal Profile'),
+                        isActive: _step == 2,
+                        content: _ProfileStep(
+                          name: _sshName,
+                          host: _sshHost,
+                          user: _sshUser,
+                          port: _sshPort,
+                          note:
+                              'Private-key import, host-key trust, and SSH testing are available in Settings after onboarding.',
+                        ),
                       ),
-                    ),
-                    Step(
-                      title: const Text('SFTP File Profile'),
-                      isActive: _step == 3,
-                      content: _ProfileStep(
-                        name: _sftpName,
-                        host: _sftpHost,
-                        user: _sftpUser,
-                        port: _sftpPort,
-                        note:
-                            'Use a separate restricted SFTP account. Restricted key import and connection testing are available in Settings after onboarding.',
+                      Step(
+                        title: const Text('SFTP File Profile'),
+                        isActive: _step == 3,
+                        content: _ProfileStep(
+                          name: _sftpName,
+                          host: _sftpHost,
+                          user: _sftpUser,
+                          port: _sftpPort,
+                          note:
+                              'Use a separate restricted SFTP account. Restricted key import and connection testing are available in Settings after onboarding.',
+                        ),
                       ),
-                    ),
+                    ],
                     Step(
-                      title: const Text('Tablet Preferences'),
-                      isActive: _step == 4,
+                      title: Text(
+                        variant.isPhone
+                            ? 'Wake security'
+                            : 'Tablet Preferences',
+                      ),
+                      isActive: _step == lastStep,
                       content: Column(
                         children: [
-                          SwitchListTile(
-                            value: _keepAwake,
-                            onChanged: (value) =>
-                                setState(() => _keepAwake = value),
-                            title: const Text('Keep screen awake on Overview'),
-                          ),
+                          if (!variant.isPhone)
+                            SwitchListTile(
+                              value: _keepAwake,
+                              onChanged: (value) =>
+                                  setState(() => _keepAwake = value),
+                              title: const Text(
+                                'Keep screen awake on Overview',
+                              ),
+                            ),
                           SwitchListTile(
                             value: _requireUnlock,
                             onChanged: (value) =>
                                 setState(() => _requireUnlock = value),
-                            title: const Text(
-                              'Require unlock for privileged tabs',
+                            title: Text(
+                              variant.isPhone
+                                  ? 'Require device authentication for Wake'
+                                  : 'Require unlock for privileged tabs',
                             ),
                           ),
                           DropdownButtonFormField<PrivilegedUnlockTimeout>(
@@ -248,11 +268,18 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       _controlResult = null;
     });
     try {
-      final client = ControlApiClient(
-        baseUrl: _controlUrl.text,
-        token: _controlToken.text,
-      );
-      await client.getHealth();
+      final variant = ref.read(appVariantProvider);
+      if (variant.isPhone) {
+        await WakeApiClient(
+          baseUrl: _controlUrl.text,
+          token: _controlToken.text,
+        ).getHealth();
+      } else {
+        await ControlApiClient(
+          baseUrl: _controlUrl.text,
+          token: _controlToken.text,
+        ).getHealth();
+      }
       setState(() => _controlResult = 'Control agent reachable');
     } catch (error) {
       setState(() => _controlResult = mapError(error));
@@ -262,8 +289,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   }
 
   Future<void> _finish() async {
+    final variant = ref.read(appVariantProvider);
     final current = ref.read(settingsControllerProvider);
-    final next = current.copyWith(
+    var next = current.copyWith(
       monitoringApiUrl: _monitoringUrl.text.trim().isEmpty
           ? AppConfig.defaultMonitoringApiUrl
           : _monitoringUrl.text,
@@ -271,22 +299,29 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       keepScreenAwakeOnOverview: _keepAwake,
       requirePrivilegedUnlock: _requireUnlock,
       unlockTimeout: _unlockTimeout,
-      sshProfile: current.sshProfile.copyWith(
-        displayName: _sshName.text,
-        host: _sshHost.text,
-        username: _sshUser.text,
-        port: int.tryParse(_sshPort.text) ?? 22,
-      ),
-      sftpProfile: current.sftpProfile.copyWith(
-        displayName: _sftpName.text,
-        host: _sftpHost.text,
-        username: _sftpUser.text,
-        port: int.tryParse(_sftpPort.text) ?? 22,
-      ),
     );
-    await ref
-        .read(secureStorageServiceProvider)
-        .writeControlToken(_controlToken.text);
+    if (!variant.isPhone) {
+      next = next.copyWith(
+        sshProfile: current.sshProfile.copyWith(
+          displayName: _sshName.text,
+          host: _sshHost.text,
+          username: _sshUser.text,
+          port: int.tryParse(_sshPort.text) ?? 22,
+        ),
+        sftpProfile: current.sftpProfile.copyWith(
+          displayName: _sftpName.text,
+          host: _sftpHost.text,
+          username: _sftpUser.text,
+          port: int.tryParse(_sftpPort.text) ?? 22,
+        ),
+      );
+    }
+    final storage = ref.read(secureStorageServiceProvider);
+    if (variant.isPhone) {
+      await storage.writeWakeToken(_controlToken.text);
+    } else {
+      await storage.writeControlToken(_controlToken.text);
+    }
     ref.read(settingsControllerProvider.notifier).completeOnboarding(next);
   }
 }
@@ -314,20 +349,22 @@ class _MonitoringStep extends StatelessWidget {
             labelText: 'Monitoring API URL',
             hintText: 'http://100.64.10.22:4040/api',
             helperText:
-                'Real tablet over Tailscale: http://100.64.10.22:4040/api\n'
+                'Real device over Tailscale: http://100.64.10.22:4040/api\n'
                 'Android emulator only: http://10.0.2.2:4040/api',
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        Row(
+        Wrap(
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.sm,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             OutlinedButton.icon(
               onPressed: testing ? null : onTest,
               icon: const Icon(Icons.network_check),
               label: Text(testing ? 'Testing...' : 'Test connection'),
             ),
-            const SizedBox(width: AppSpacing.md),
-            if (result != null) Expanded(child: Text(result!)),
+            if (result != null) Text(result!),
           ],
         ),
       ],
@@ -342,6 +379,7 @@ class _ControlStep extends StatelessWidget {
     required this.testing,
     required this.result,
     required this.onTest,
+    required this.wakeOnly,
   });
 
   final TextEditingController urlController;
@@ -349,6 +387,7 @@ class _ControlStep extends StatelessWidget {
   final bool testing;
   final String? result;
   final VoidCallback onTest;
+  final bool wakeOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -356,29 +395,34 @@ class _ControlStep extends StatelessWidget {
       children: [
         TextField(
           controller: urlController,
-          decoration: const InputDecoration(
-            labelText: 'Control API URL',
+          decoration: InputDecoration(
+            labelText: wakeOnly ? 'Wake API URL' : 'Control API URL',
             hintText: 'http://100.64.10.22:4042/api',
-            helperText:
-                'Real tablet over Tailscale: http://100.64.10.22:4042/api',
+            helperText: wakeOnly
+                ? 'Control-agent URL; the scoped token can access only health and Wake.'
+                : 'Real tablet over Tailscale: http://100.64.10.22:4042/api',
           ),
         ),
         const SizedBox(height: AppSpacing.md),
         TextField(
           controller: tokenController,
           obscureText: true,
-          decoration: const InputDecoration(labelText: 'Control API token'),
+          decoration: InputDecoration(
+            labelText: wakeOnly ? 'WOL-only API token' : 'Control API token',
+          ),
         ),
         const SizedBox(height: AppSpacing.md),
-        Row(
+        Wrap(
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.sm,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             OutlinedButton.icon(
               onPressed: testing ? null : onTest,
               icon: const Icon(Icons.network_check),
               label: Text(testing ? 'Testing...' : 'Test connection'),
             ),
-            const SizedBox(width: AppSpacing.md),
-            if (result != null) Expanded(child: Text(result!)),
+            if (result != null) Text(result!),
           ],
         ),
       ],

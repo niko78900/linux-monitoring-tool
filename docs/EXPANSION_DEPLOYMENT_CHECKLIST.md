@@ -25,11 +25,25 @@ npm.cmd run build
 cd ..\mobile
 flutter analyze
 flutter test
-flutter build apk --debug
-flutter build apk --release
+flutter build apk --debug --flavor tablet --target lib/main.dart
+flutter build apk --release --flavor tablet --target lib/main.dart
+flutter build apk --debug --flavor phone --target lib/main_phone.dart
+flutter build apk --release --flavor phone --target lib/main_phone.dart
 
 cd ..
-python mobile\tool\release_audit.py mobile\build\app\outputs\flutter-apk\app-release.apk
+python mobile\tool\release_audit.py mobile\build\app\outputs\flutter-apk\app-tablet-release.apk
+python mobile\tool\release_audit.py mobile\build\app\outputs\flutter-apk\app-phone-release.apk
+```
+
+## Mobile Homelab phone
+
+```text
+[ ] Installed app label is Mobile Homelab and package ID is com.niko.homelab_monitor
+[ ] Bottom navigation is compact at a 390 x 844 viewport
+[ ] SSH, SFTP/Files, Hosts, Devices, Services, benchmarks, RDP, and generic Actions are absent
+[ ] Monitoring uses :4040/api and Wake uses :4042/api
+[ ] WAKE_API_TOKEN succeeds on health/Wake and receives 401 on broader control routes
+[ ] Wake requires device authentication when enabled and a final confirmation
 ```
 
 ## History

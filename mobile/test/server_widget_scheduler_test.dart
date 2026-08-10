@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:homelab_tablet/core/config/app_variant.dart';
 import 'package:homelab_tablet/features/server_widget/data/server_widget_routes.dart';
 import 'package:homelab_tablet/features/server_widget/data/server_widget_scheduler.dart';
 import 'package:workmanager/workmanager.dart';
@@ -14,6 +15,30 @@ void main() {
       '/storage',
     );
     expect(routeForWidgetUri(Uri.parse('homelabtablet://unknown')), isNull);
+  });
+
+  test('phone widget routes reject tablet controls and allow Wake', () {
+    expect(
+      routeForWidgetUri(
+        Uri.parse('homelabtablet://wake'),
+        variant: AppVariant.phone,
+      ),
+      '/wake',
+    );
+    expect(
+      routeForWidgetUri(
+        Uri.parse('homelabtablet://terminal'),
+        variant: AppVariant.phone,
+      ),
+      isNull,
+    );
+    expect(
+      routeForWidgetUri(
+        Uri.parse('homelabtablet://actions'),
+        variant: AppVariant.phone,
+      ),
+      isNull,
+    );
   });
 
   test('refresh interval normalization enforces allowed values', () {

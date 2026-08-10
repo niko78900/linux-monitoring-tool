@@ -4,14 +4,14 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 
-from ...core.auth import require_bearer_token
+from ...core.auth import require_wake_bearer_token
 from ...core.config import Settings, get_settings
 from ...models.health import HealthResponse
 
 router = APIRouter(
     prefix="/health",
     tags=["health"],
-    dependencies=[Depends(require_bearer_token)],
+    dependencies=[Depends(require_wake_bearer_token)],
 )
 
 

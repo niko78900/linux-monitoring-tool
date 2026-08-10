@@ -1,6 +1,7 @@
-# Homelab Tablet
+# Homelab Tablet and Mobile Homelab
 
-Android-only Flutter tablet cockpit for the private Linux monitoring stack.
+One Android-only Flutter package with separately installable tablet and phone
+flavors.
 
 The app consumes:
 
@@ -9,6 +10,17 @@ The app consumes:
 - Control API: Wake-on-LAN, managed hosts, known devices/Tailscale peers, and
   allowlisted service controls.
 - Direct SSH/SFTP over Tailscale for terminal and file browsing.
+
+## App flavors
+
+| Flavor | Android application ID | Scope |
+| --- | --- | --- |
+| `tablet` | `com.niko.homelab_tablet` | Complete tablet cockpit, including SSH, SFTP, hosts, devices, services, and actions |
+| `phone` | `com.niko.homelab_monitor` | Compact read-only metrics, history, widgets, push alerts, and authenticated Wake-on-LAN |
+
+The phone router has no SSH, SFTP/Files, Hosts, Devices, Services, benchmark,
+RDP, or generic Actions routes. Its only control-agent client calls health and
+the fixed `wake-main-pc` endpoint with a distinct WOL-only token.
 
 ## Current Features
 
@@ -58,6 +70,21 @@ The app consumes:
 /settings
 ```
 
+Phone routes:
+
+```text
+/onboarding
+/overview
+/hardware
+/storage
+/gpu
+/network
+/history
+/wake
+/settings
+/more
+```
+
 Actions, Terminal, Files, and Services are privileged routes when local unlock
 is enabled.
 
@@ -71,6 +98,12 @@ flutter test
 flutter run
 ```
 
+Run the phone app:
+
+```powershell
+flutter run --flavor phone --target lib/main_phone.dart
+```
+
 `flutter test` runs the focused default suite. Heavier chart/widget/mobile-alert
 regressions live in `test_extended/`; include them with:
 
@@ -80,11 +113,17 @@ flutter test test test_extended
 
 ## Build
 
-Debug APK:
+Tablet debug APK (the default flavor):
 
 ```powershell
 cd mobile
 flutter build apk --debug
+```
+
+Phone debug APK:
+
+```powershell
+flutter build apk --debug --flavor phone --target lib/main_phone.dart
 ```
 
 Gradle/Kotlin currently expects a supported Java runtime such as JDK 17 or JDK
@@ -97,6 +136,12 @@ Release APK:
 cd mobile
 flutter build apk --release
 ```
+
+For Firebase, place per-application configuration at
+`android/app/src/tablet/google-services.json` and
+`android/app/src/phone/google-services.json`. These credential files are
+ignored by Git. Without the matching file the app still builds, but push
+registration remains unavailable.
 
 See [`../docs/ANDROID_RELEASE_GUIDE.md`](../docs/ANDROID_RELEASE_GUIDE.md) for
 release signing and APK audit steps.
@@ -116,6 +161,10 @@ Polling intervals
 Widget storage labels and background refresh interval
 Tablet security and debug preferences
 ```
+
+Phone onboarding asks only for the Monitoring API, Control Agent URL plus the
+`WAKE_API_TOKEN`, and Wake authentication preferences. The token is stored
+separately from the tablet's full control token in Android secure storage.
 
 Current default development URLs are emulator-friendly. On the production
 tablet, configure the Tailscale URLs:

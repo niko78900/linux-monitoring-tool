@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../../../core/config/app_settings.dart';
+import '../../../../core/config/app_variant.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/byte_format.dart';
@@ -57,6 +58,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
     );
     final state = ref.watch(monitoringControllerProvider);
     final settings = ref.watch(settingsControllerProvider);
+    final variant = ref.watch(appVariantProvider);
     final summary = state.summary.data;
     final system = state.system.data;
     final gpu = state.gpu.data;
@@ -98,10 +100,22 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
           const SizedBox(height: AppSpacing.lg),
           Align(
             alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: () => context.go('/history'),
-              icon: const Icon(Icons.query_stats),
-              label: const Text('View history'),
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => context.go('/history'),
+                  icon: const Icon(Icons.query_stats),
+                  label: const Text('View history'),
+                ),
+                if (variant.isPhone)
+                  FilledButton.icon(
+                    onPressed: () => context.go('/wake'),
+                    icon: const Icon(Icons.power_settings_new),
+                    label: const Text('Wake Main PC'),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -116,6 +130,7 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
               ),
             ),
           _MetricGrid(
+            compactPhone: variant.isPhone,
             children: [
               MetricCard(
                 title: 'CPU Usage',
@@ -230,12 +245,13 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
                 tone: docker?.dockerAvailable == true
                     ? StatusTone.healthy
                     : StatusTone.unknown,
-                onTap: () => context.go('/services'),
+                onTap: variant.isPhone ? null : () => context.go('/services'),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
           _ChartGrid(
+            compactPhone: variant.isPhone,
             children: [
               MetricChart(
                 title: 'CPU Usage',
@@ -292,7 +308,8 @@ class _OverviewPageState extends ConsumerState<OverviewPage> {
       return;
     }
     final settings = ref.read(settingsControllerProvider);
-    if (settings.keepScreenAwakeOnOverview) {
+    final variant = ref.read(appVariantProvider);
+    if (!variant.isPhone && settings.keepScreenAwakeOnOverview) {
       WakelockPlus.enable();
     } else {
       WakelockPlus.disable();
@@ -466,15 +483,18 @@ class _LocalStatusCardState extends State<_LocalStatusCard> {
 }
 
 class _MetricGrid extends StatelessWidget {
-  const _MetricGrid({required this.children});
+  const _MetricGrid({required this.children, required this.compactPhone});
 
   final List<Widget> children;
+  final bool compactPhone;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 1100
+        final columns = compactPhone
+            ? (constraints.maxWidth >= 340 ? 2 : 1)
+            : constraints.maxWidth >= 1100
             ? 4
             : constraints.maxWidth >= 760
             ? 3
@@ -483,7 +503,9 @@ class _MetricGrid extends StatelessWidget {
           crossAxisCount: columns,
           crossAxisSpacing: AppSpacing.md,
           mainAxisSpacing: AppSpacing.md,
-          childAspectRatio: columns == 1 ? 2.8 : 1.55,
+          childAspectRatio: compactPhone
+              ? (columns == 1 ? 2.8 : 1.08)
+              : (columns == 1 ? 2.8 : 1.55),
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: children,
@@ -494,20 +516,21 @@ class _MetricGrid extends StatelessWidget {
 }
 
 class _ChartGrid extends StatelessWidget {
-  const _ChartGrid({required this.children});
+  const _ChartGrid({required this.children, required this.compactPhone});
 
   final List<Widget> children;
+  final bool compactPhone;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 1000 ? 2 : 1;
+        final columns = !compactPhone && constraints.maxWidth >= 1000 ? 2 : 1;
         return GridView.count(
           crossAxisCount: columns,
           crossAxisSpacing: AppSpacing.md,
           mainAxisSpacing: AppSpacing.md,
-          childAspectRatio: columns == 1 ? 2.4 : 2.2,
+          childAspectRatio: compactPhone ? 1.65 : (columns == 1 ? 2.4 : 2.2),
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: children,

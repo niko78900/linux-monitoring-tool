@@ -5,7 +5,7 @@ import 'app_colors.dart';
 class AppTheme {
   const AppTheme._();
 
-  static ThemeData dark() {
+  static ThemeData dark({bool compact = false}) {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: AppColors.accent,
       brightness: Brightness.dark,
@@ -16,6 +16,7 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: colorScheme,
+      visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
       scaffoldBackgroundColor: AppColors.background,
       cardTheme: CardThemeData(
         color: AppColors.surface,
@@ -34,7 +35,14 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
       ),
       inputDecorationTheme: InputDecorationTheme(
+        isDense: compact,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      listTileTheme: ListTileThemeData(
+        dense: compact,
+        contentPadding: compact
+            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 2)
+            : null,
       ),
     );
   }

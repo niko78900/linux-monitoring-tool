@@ -12,7 +12,7 @@ Current boundary:
 - Widgets are monitoring snapshots only and never invoke control-agent actions.
 - Push alerts are sent by the monitoring backend, not by the control agent or
   Discord bot.
-- Tablet Settings owns registration/test UX for mobile alerts.
+- Tablet and Mobile Homelab Settings own registration/test UX for mobile alerts.
 
 ## Widgets
 
@@ -21,18 +21,22 @@ Current boundary:
 - Performance, 4 x 2: CPU, CPU temperature, RAM, GPU, GPU temperature, status, refresh.
 - Storage Health, 4 x 2: primary storage, optional secondary storage, free space, RAID/disk health, status, refresh.
 - Network Activity, 4 x 2: RX/TX throughput, totals, top link speed, status, refresh.
-- Quick Access, 4 x 1: deep links to Overview, Storage, Terminal, Files, and Actions.
+- Quick Access, 4 x 1: tablet links to Overview, Storage, Terminal, Files, and
+  Actions; phone links to Overview, Storage, GPU, History, and Wake.
 
 Widget storage contains flattened non-sensitive telemetry only. It must not contain monitoring/control tokens, FCM tokens, SSH or SFTP private keys, passphrases, shell output, file contents, or arbitrary private paths.
 
 ## Firebase Console Setup
 
 1. Create or select a Firebase project.
-2. Register an Android app with application ID `com.niko.homelab_tablet`.
-3. Download `google-services.json`.
-4. Place it manually at `mobile/android/app/google-services.json`.
-5. Keep `google-services.json` out of source control. The repository ignores this file.
-6. Rebuild and install the APK after adding the file.
+2. Register the tablet Android app as `com.niko.homelab_tablet`.
+3. Register Mobile Homelab as `com.niko.homelab_monitor`.
+4. Download each app's `google-services.json`.
+5. Place the tablet file at
+   `mobile/android/app/src/tablet/google-services.json` and the phone file at
+   `mobile/android/app/src/phone/google-services.json`.
+6. Keep both files out of source control. The repository ignores them.
+7. Rebuild and install the matching flavor after adding the file.
 
 Do not fabricate `google-services.json`; it must come from Firebase.
 
@@ -62,7 +66,7 @@ MOBILE_ALERT_API_TOKEN=<long-random-token>
 ALERT_CONSUMER_API_TOKEN=<long-random-token>
 ```
 
-Set `MOBILE_PUSH_ENABLED=true` only after tablet registration and the round-trip test succeed.
+Set `MOBILE_PUSH_ENABLED=true` only after device registration and the round-trip test succeed.
 
 ## Android Setup
 
@@ -77,13 +81,17 @@ Set `MOBILE_PUSH_ENABLED=true` only after tablet registration and the round-trip
 9. Open Android notification settings and confirm the `Homelab urgent alerts` channel allows pop-up, sound, and vibration.
 10. Add each widget from Settings or the Android launcher.
 
-If the tablet is used over Tailscale, keep Monitoring and Control API URLs
+When a mobile client is used over Tailscale, keep Monitoring and Control API URLs
 separate in Settings:
 
 ```text
 Monitoring API: http://100.64.10.22:4040/api
 Control API:    http://100.64.10.22:4042/api
 ```
+
+Mobile Homelab stores a separate `WAKE_API_TOKEN`. That credential is valid
+only for control-agent health and the fixed Wake action; it must not be reused
+as the tablet's full control token.
 
 ## Alert Semantics
 

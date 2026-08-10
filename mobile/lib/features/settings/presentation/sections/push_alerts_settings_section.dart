@@ -26,6 +26,7 @@ class PushAlertsSettingsSection extends StatelessWidget {
     required this.onRegister,
     required this.onSendTest,
     required this.onOpenAndroidNotificationSettings,
+    this.phoneMode = false,
   });
 
   final AppSettings settings;
@@ -45,6 +46,7 @@ class PushAlertsSettingsSection extends StatelessWidget {
   final ValueChanged<AppSettings> onRegister;
   final ValueChanged<AppSettings> onSendTest;
   final VoidCallback onOpenAndroidNotificationSettings;
+  final bool phoneMode;
 
   @override
   Widget build(BuildContext context) {
@@ -121,7 +123,11 @@ class PushAlertsSettingsSection extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: busy ? null : () => onRegister(settings),
                 icon: const Icon(Icons.app_registration),
-                label: const Text('Re-register this tablet'),
+                label: Text(
+                  phoneMode
+                      ? 'Re-register this phone'
+                      : 'Re-register this tablet',
+                ),
               ),
               FilledButton.icon(
                 onPressed: busy ? null : () => onSendTest(settings),

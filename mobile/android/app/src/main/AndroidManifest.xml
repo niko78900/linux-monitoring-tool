@@ -5,7 +5,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
-        android:label="Homelab Tablet"
+        android:label="${appLabel}"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <meta-data
@@ -15,7 +15,7 @@
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_homelab_notification" />
         <activity
-            android:name=".MainActivity"
+            android:name="com.niko.homelab_tablet.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
@@ -40,7 +40,7 @@
             </intent-filter>
         </activity>
         <receiver
-            android:name=".ServerEssentialsWidgetProvider"
+            android:name="com.niko.homelab_tablet.ServerEssentialsWidgetProvider"
             android:exported="true"
             android:label="Server Essentials">
             <intent-filter>
@@ -51,7 +51,7 @@
                 android:resource="@xml/server_essentials_widget_info" />
         </receiver>
         <receiver
-            android:name=".CompactStatusWidgetProvider"
+            android:name="com.niko.homelab_tablet.CompactStatusWidgetProvider"
             android:exported="true"
             android:label="Compact Status">
             <intent-filter>
@@ -62,7 +62,7 @@
                 android:resource="@xml/compact_status_widget_info" />
         </receiver>
         <receiver
-            android:name=".PerformanceWidgetProvider"
+            android:name="com.niko.homelab_tablet.PerformanceWidgetProvider"
             android:exported="true"
             android:label="Performance">
             <intent-filter>
@@ -73,7 +73,7 @@
                 android:resource="@xml/performance_widget_info" />
         </receiver>
         <receiver
-            android:name=".StorageHealthWidgetProvider"
+            android:name="com.niko.homelab_tablet.StorageHealthWidgetProvider"
             android:exported="true"
             android:label="Storage Health">
             <intent-filter>
@@ -84,7 +84,7 @@
                 android:resource="@xml/storage_health_widget_info" />
         </receiver>
         <receiver
-            android:name=".NetworkActivityWidgetProvider"
+            android:name="com.niko.homelab_tablet.NetworkActivityWidgetProvider"
             android:exported="true"
             android:label="Network Activity">
             <intent-filter>
@@ -95,7 +95,7 @@
                 android:resource="@xml/network_activity_widget_info" />
         </receiver>
         <receiver
-            android:name=".QuickAccessWidgetProvider"
+            android:name="com.niko.homelab_tablet.QuickAccessWidgetProvider"
             android:exported="true"
             android:label="Quick Access">
             <intent-filter>

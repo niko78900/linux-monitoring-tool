@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:homelab_tablet/app.dart';
 import 'package:homelab_tablet/core/config/app_settings.dart';
+import 'package:homelab_tablet/core/routing/app_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,7 +14,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
-        child: const HomelabTabletApp(),
+        child: HomelabApp(routerProvider: appRouterProvider),
       ),
     );
 
@@ -30,7 +31,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
-        child: const HomelabTabletApp(),
+        child: HomelabApp(routerProvider: appRouterProvider),
       ),
     );
 
@@ -67,7 +68,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
-        child: const HomelabTabletApp(),
+        child: HomelabApp(routerProvider: appRouterProvider),
       ),
     );
 
@@ -93,7 +94,10 @@ void main() {
         child: Consumer(
           builder: (context, ref, _) {
             capturedRef = ref;
-            return const HomelabTabletApp(initialWidgetRoute: '/settings');
+            return HomelabApp(
+              routerProvider: appRouterProvider,
+              initialWidgetRoute: '/settings',
+            );
           },
         ),
       ),
