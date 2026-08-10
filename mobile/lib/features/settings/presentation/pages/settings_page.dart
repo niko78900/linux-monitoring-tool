@@ -8,12 +8,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:home_widget/home_widget.dart';
 
 import '../../../../core/config/app_settings.dart';
+import '../../../../core/config/app_variant.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/networking/dio_factory.dart';
 import '../../../../core/security/app_lock_service.dart';
 import '../../../../core/security/secure_storage_service.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../dashboard/data/monitoring_api_client.dart';
+import '../../../actions/data/wake_api_client.dart';
 import '../../../files/data/sftp_connection_service.dart';
 import '../../../mobile_alerts/data/mobile_alert_service.dart';
 import '../../../mobile_alerts/domain/models/mobile_alert_models.dart';
@@ -103,20 +105,64 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsControllerProvider);
+    final variant = ref.watch(appVariantProvider);
     if (!_loaded) {
       _load(settings);
     }
 
     return ListView.builder(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      itemCount: _settingsSectionCount,
-      itemBuilder: (context, index) => _buildSection(settings, index),
+      itemCount: variant.isPhone ? 6 : 8,
+      itemBuilder: (context, index) => _buildSection(settings, index, variant),
     );
   }
 
-  static const _settingsSectionCount = 8;
+  Widget _buildSection(AppSettings settings, int index, AppVariant variant) {
+    if (variant.isPhone) {
+      return switch (index) {
+        0 => MonitoringSettingsSection(
+          settings: settings,
+          monitoringUrlController: _monitoringUrl,
+          onSave: _save,
+          onTest: _testMonitoring,
+        ),
+        1 => ControlAgentSettingsSection(
+          settings: settings,
+          controlUrlController: _controlUrl,
+          controlTokenController: _controlToken,
+          onSave: _saveControl,
+          onTest: _testControl,
+          onClearToken: _clearToken,
+          wakeOnly: true,
+        ),
+        2 => WidgetSettingsSection(
+          settings: settings,
+          mountpointController: _widgetMountpoint,
+          labelController: _widgetLabel,
+          secondaryMountpointController: _widgetSecondaryMountpoint,
+          secondaryLabelController: _widgetSecondaryLabel,
+          requestingWidgetPinProvider: _requestingWidgetPinProvider,
+          onSave: _save,
+          onRefreshSnapshots: _refreshWidgetSnapshots,
+          onRequestPinWidget: _requestPinWidget,
+        ),
+        3 => _buildPushAlerts(settings, phoneMode: true),
+        4 => TabletSettingsSection(
+          settings: settings,
+          onSave: _save,
+          onManualLock: () =>
+              ref.read(appLockControllerProvider.notifier).lock(),
+          phoneMode: true,
+        ),
+        _ => DebugSettingsSection(
+          settings: settings,
+          onSave: _save,
+          onResetOnboarding: () =>
+              ref.read(settingsControllerProvider.notifier).resetOnboarding(),
+        ),
+      };
+    }
 
-  Widget _buildSection(AppSettings settings, int index) {
     return switch (index) {
       0 => MonitoringSettingsSection(
         settings: settings,
@@ -183,27 +229,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         onRefreshSnapshots: _refreshWidgetSnapshots,
         onRequestPinWidget: _requestPinWidget,
       ),
-      5 => PushAlertsSettingsSection(
-        settings: settings,
-        tokenController: _mobileAlertToken,
-        busy: _mobileAlertBusy,
-        notificationPermission: _notificationPermission,
-        readiness: _mobileAlertReadiness,
-        registrationLabel: _registrationLabel(),
-        channelReadinessLabel: _channelReadinessLabel(),
-        statusText: _mobileAlertStatusText,
-        onSaveToken: _saveMobileAlertToken,
-        onClearToken: _clearMobileAlertToken,
-        onEnable: _enablePushAlerts,
-        onDisable: _disablePushAlerts,
-        onSave: _save,
-        onRefreshStatus: _refreshMobileAlertStatus,
-        onRegister: _enablePushAlerts,
-        onSendTest: _sendTestPush,
-        onOpenAndroidNotificationSettings: () => unawaited(
-          MobileAlertService.instance.openAndroidNotificationSettings(),
-        ),
-      ),
+      5 => _buildPushAlerts(settings),
       6 => TabletSettingsSection(
         settings: settings,
         onSave: _save,
@@ -216,6 +242,31 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ref.read(settingsControllerProvider.notifier).resetOnboarding(),
       ),
     };
+  }
+
+  Widget _buildPushAlerts(AppSettings settings, {bool phoneMode = false}) {
+    return PushAlertsSettingsSection(
+      settings: settings,
+      tokenController: _mobileAlertToken,
+      busy: _mobileAlertBusy,
+      notificationPermission: _notificationPermission,
+      readiness: _mobileAlertReadiness,
+      registrationLabel: _registrationLabel(),
+      channelReadinessLabel: _channelReadinessLabel(),
+      statusText: _mobileAlertStatusText,
+      onSaveToken: _saveMobileAlertToken,
+      onClearToken: _clearMobileAlertToken,
+      onEnable: _enablePushAlerts,
+      onDisable: _disablePushAlerts,
+      onSave: _save,
+      onRefreshStatus: _refreshMobileAlertStatus,
+      onRegister: _enablePushAlerts,
+      onSendTest: _sendTestPush,
+      onOpenAndroidNotificationSettings: () => unawaited(
+        MobileAlertService.instance.openAndroidNotificationSettings(),
+      ),
+      phoneMode: phoneMode,
+    );
   }
 
   void _load(AppSettings settings) {
@@ -236,7 +287,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _widgetSecondaryMountpoint.text = settings.widgetSecondaryStorageMountpoint;
     _widgetSecondaryLabel.text = settings.widgetSecondaryStorageLabel;
     final storage = ref.read(secureStorageServiceProvider);
-    storage.readControlToken().then((value) {
+    final tokenFuture = ref.read(appVariantProvider).isPhone
+        ? storage.readWakeToken()
+        : storage.readControlToken();
+    tokenFuture.then((value) {
       if (mounted && value != null && _controlToken.text.isEmpty) {
         _controlToken.text = value;
       }
@@ -271,9 +325,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _saveControl(AppSettings settings) async {
-    await ref
-        .read(secureStorageServiceProvider)
-        .writeControlToken(_controlToken.text);
+    final storage = ref.read(secureStorageServiceProvider);
+    if (ref.read(appVariantProvider).isPhone) {
+      await storage.writeWakeToken(_controlToken.text);
+    } else {
+      await storage.writeControlToken(_controlToken.text);
+    }
     _save(settings.copyWith(controlApiUrl: _controlUrl.text));
   }
 
@@ -390,9 +447,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _clearToken() async {
-    await ref.read(secureStorageServiceProvider).clearControlToken();
+    final storage = ref.read(secureStorageServiceProvider);
+    if (ref.read(appVariantProvider).isPhone) {
+      await storage.clearWakeToken();
+    } else {
+      await storage.clearControlToken();
+    }
     _controlToken.clear();
-    _showSnackBar('Control token cleared');
+    _showSnackBar(
+      ref.read(appVariantProvider).isPhone
+          ? 'Wake token cleared'
+          : 'Control token cleared',
+    );
   }
 
   Future<void> _saveMobileAlertToken() async {
@@ -422,14 +488,27 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _testControl() async {
     try {
-      final client = ControlApiClient(
-        baseUrl: _controlUrl.text,
-        token: _controlToken.text,
-      );
-      await client.getHealth();
-      _showSnackBar('Control agent reachable');
+      if (ref.read(appVariantProvider).isPhone) {
+        final client = WakeApiClient(
+          baseUrl: _controlUrl.text,
+          token: _controlToken.text,
+        );
+        await client.getHealth();
+        _showSnackBar('Wake service reachable');
+      } else {
+        final client = ControlApiClient(
+          baseUrl: _controlUrl.text,
+          token: _controlToken.text,
+        );
+        await client.getHealth();
+        _showSnackBar('Control agent reachable');
+      }
     } catch (_) {
-      _showSnackBar('Control agent unreachable');
+      _showSnackBar(
+        ref.read(appVariantProvider).isPhone
+            ? 'Wake service unreachable'
+            : 'Control agent unreachable',
+      );
     }
   }
 

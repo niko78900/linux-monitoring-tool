@@ -33,6 +33,20 @@ def test_wake_endpoint_uses_configured_mac_not_request_body(
     assert payload["target"] == "main_pc"
 
 
+def test_wake_endpoint_accepts_scoped_wake_token(
+    client, wake_auth_headers, monkeypatch
+) -> None:
+    monkeypatch.setattr("app.api.routes.actions.send_magic_packet", lambda *_: None)
+
+    response = client.post(
+        "/api/actions/wake-main-pc",
+        headers=wake_auth_headers,
+    )
+
+    assert response.status_code == 202
+    assert response.json()["action"] == "wake-main-pc"
+
+
 def test_wake_endpoint_rate_limits_requests(client, auth_headers, monkeypatch) -> None:
     monkeypatch.setattr("app.api.routes.actions.send_magic_packet", lambda *_: None)
 

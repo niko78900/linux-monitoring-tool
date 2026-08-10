@@ -7,7 +7,11 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-if (file("google-services.json").exists()) {
+if (
+    file("google-services.json").exists() ||
+        file("src/tablet/google-services.json").exists() ||
+        file("src/phone/google-services.json").exists()
+) {
     apply(plugin = "com.google.gms.google-services")
 }
 
@@ -42,6 +46,20 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    flavorDimensions += "formFactor"
+    productFlavors {
+        create("tablet") {
+            dimension = "formFactor"
+            applicationId = "com.niko.homelab_tablet"
+            manifestPlaceholders["appLabel"] = "Homelab Tablet"
+        }
+        create("phone") {
+            dimension = "formFactor"
+            applicationId = "com.niko.homelab_monitor"
+            manifestPlaceholders["appLabel"] = "Mobile Homelab"
+        }
     }
 
     signingConfigs {

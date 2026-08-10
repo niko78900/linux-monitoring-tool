@@ -1,6 +1,7 @@
 # Android Release Guide
 
-Use this guide for Android tablet release validation and APK generation.
+Use this guide for Android tablet and Mobile Homelab phone release validation
+and APK generation.
 
 ## 1. Validate the repo state
 
@@ -10,6 +11,7 @@ Run:
 cd mobile
 flutter analyze
 flutter test
+flutter test test/phone_app_test.dart
 
 cd ..\backend
 python -m pytest
@@ -58,6 +60,9 @@ Verify these items before distribution:
 [ ] Devices page shows Tailscale peers without a LAN-neighbor section
 [ ] Storage page hides restricted SFTP bind mounts such as /srv/sftp/...
 [ ] GPU numeric values stay neutral while utilization/VRAM bars use thresholds
+[ ] Phone routes contain metrics/history, Settings, More, and Wake only
+[ ] Phone has no SSH, SFTP/Files, Hosts, Devices, Services, benchmarks, RDP, or generic Actions routes
+[ ] Phone Wake requires the scoped token, optional device authentication, and final confirmation
 ```
 
 Notes:
@@ -68,11 +73,12 @@ Notes:
 
 ## 4. Build the APK
 
-Run:
+Build both separately installable flavors:
 
 ```powershell
 cd mobile
-flutter build apk --release
+flutter build apk --release --flavor tablet --target lib/main.dart
+flutter build apk --release --flavor phone --target lib/main_phone.dart
 ```
 
 Use a supported JDK for Gradle, such as JDK 17 or JDK 21. Java 25 can fail
@@ -81,7 +87,8 @@ during Gradle Kotlin DSL evaluation before Android compilation starts.
 Expected output:
 
 ```text
-mobile/build/app/outputs/flutter-apk/app-release.apk
+mobile/build/app/outputs/flutter-apk/app-tablet-release.apk
+mobile/build/app/outputs/flutter-apk/app-phone-release.apk
 ```
 
 ## 5. Audit the APK
@@ -89,21 +96,25 @@ mobile/build/app/outputs/flutter-apk/app-release.apk
 Run:
 
 ```powershell
-python mobile/tool/release_audit.py mobile/build/app/outputs/flutter-apk/app-release.apk
+python mobile/tool/release_audit.py mobile/build/app/outputs/flutter-apk/app-tablet-release.apk
+python mobile/tool/release_audit.py mobile/build/app/outputs/flutter-apk/app-phone-release.apk
 ```
 
 The audit checks for obvious private-key markers and suspicious embedded keystore or environment files.
 
-Debug APKs for tablet testing are produced at:
+Debug APKs are produced at:
 
 ```text
-mobile/build/app/outputs/flutter-apk/app-debug.apk
+mobile/build/app/outputs/flutter-apk/app-tablet-debug.apk
+mobile/build/app/outputs/flutter-apk/app-phone-debug.apk
 ```
 
 ## 6. Final operator checklist
 
 ```text
 [ ] The control API token is entered on-device, not baked into the app
+[ ] The phone uses a distinct `WAKE_API_TOKEN`, not the full control token
+[ ] The phone APK identifies as `Mobile Homelab` / `com.niko.homelab_monitor`
 [ ] SSH private key is imported on-device, not baked into the app
 [ ] Restricted SFTP key is imported on-device, not baked into the app
 [ ] Release APK is signed with the real release keystore

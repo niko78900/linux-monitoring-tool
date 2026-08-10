@@ -10,9 +10,10 @@ Current scope:
 - allowlisted service status and start/stop/restart actions
 - allowlisted CPU/GPU benchmark jobs with status, output tail, and stop control
 
-The tablet uses the control agent for privileged/control data only. Monitoring
-telemetry, history, widgets, mobile-alert registration, and FCM delivery stay
-with the monitoring backend on `:4040/api`.
+The tablet uses the full control credential. The smartphone app uses a separate
+WOL-only credential that is accepted only by health and the fixed Wake action.
+Monitoring telemetry, history, widgets, mobile-alert registration, and FCM
+delivery stay with the monitoring backend on `:4040/api`.
 
 ## Scope
 
@@ -70,6 +71,7 @@ Copy `.env.example` to `.env` and review:
 
 ```text
 CONTROL_API_TOKEN
+WAKE_API_TOKEN
 MAIN_PC_MAC
 WAKE_BROADCAST_HOST
 WAKE_PORT
@@ -83,6 +85,11 @@ BENCHMARK_GPU_HELPER_PATH=/usr/local/sbin/homelab-vkmark-benchmark
 BENCHMARK_MAX_DURATION_SECONDS=300
 BENCHMARK_STDOUT_TAIL_LINES=80
 ```
+
+`CONTROL_API_TOKEN` retains access to the complete API. `WAKE_API_TOKEN` is
+intended for Mobile Homelab on a phone and can access only `GET /api/health`
+and `POST /api/actions/wake-main-pc`; it is rejected by device, host, service,
+and benchmark routes. Use distinct random values for the two tokens.
 
 Prefer binding the service to `127.0.0.1` and exposing it only through a private reverse proxy or Tailscale Serve inside the tailnet.
 

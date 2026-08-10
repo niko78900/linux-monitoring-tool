@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def app(monkeypatch, tmp_path):
     monkeypatch.setenv("CONTROL_API_TOKEN", "test-token")
+    monkeypatch.setenv("WAKE_API_TOKEN", "test-wake-token")
     monkeypatch.setenv("MAIN_PC_MAC", "AA:BB:CC:DD:EE:FF")
     monkeypatch.setenv("WAKE_RATE_LIMIT_SECONDS", "30")
     known_devices_path = tmp_path / "known_devices.yaml"
@@ -138,3 +139,8 @@ def client(app):
 @pytest.fixture
 def auth_headers() -> dict[str, str]:
     return {"Authorization": "Bearer test-token"}
+
+
+@pytest.fixture
+def wake_auth_headers() -> dict[str, str]:
+    return {"Authorization": "Bearer test-wake-token"}

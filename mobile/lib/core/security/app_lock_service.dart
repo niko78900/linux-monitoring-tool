@@ -49,7 +49,10 @@ class AppLockController extends Notifier<AppLockState> {
   @override
   AppLockState build() => AppLockState.locked();
 
-  Future<bool> ensureUnlocked(AppSettings settings) async {
+  Future<bool> ensureUnlocked(
+    AppSettings settings, {
+    String localizedReason = 'Unlock privileged Homelab Tablet features',
+  }) async {
     if (!settings.requirePrivilegedUnlock) {
       _markUnlocked(settings);
       return true;
@@ -60,7 +63,7 @@ class AppLockController extends Notifier<AppLockState> {
     state = state.copyWith(authenticating: true, clearError: true);
     try {
       final authenticated = await _auth.authenticate(
-        localizedReason: 'Unlock privileged Homelab Tablet features',
+        localizedReason: localizedReason,
         biometricOnly: false,
         persistAcrossBackgrounding: true,
       );

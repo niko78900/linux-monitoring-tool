@@ -49,3 +49,4 @@ app.*.map.json
 
 # Firebase Android config is downloaded manually from Firebase Console.
 /android/app/google-services.json
+/android/app/src/*/google-services.json

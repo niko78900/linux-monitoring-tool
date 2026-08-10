@@ -157,6 +157,7 @@ class MobileAlertService {
   AppSettings? _settings;
   SharedPreferences? _preferences;
   Future<String?> Function()? _readMobileAlertToken;
+  String _deviceName = 'Homelab Tablet';
 
   Stream<String> get notificationRoutes => _routes.stream;
 
@@ -182,6 +183,7 @@ class MobileAlertService {
     required AppSettings settings,
     required SharedPreferences preferences,
     required Future<String?> Function() readMobileAlertToken,
+    required String deviceName,
   }) async {
     if (!Platform.isAndroid) {
       return;
@@ -189,6 +191,7 @@ class MobileAlertService {
     _settings = settings;
     _preferences = preferences;
     _readMobileAlertToken = readMobileAlertToken;
+    _deviceName = deviceName;
     try {
       await initializeFirebaseAndRegisterBackgroundHandler();
     } catch (_) {
@@ -215,11 +218,13 @@ class MobileAlertService {
     required AppSettings settings,
     required SharedPreferences preferences,
     required Future<String?> Function() readMobileAlertToken,
+    required String deviceName,
   }) async {
     final previous = _settings;
     _settings = settings;
     _preferences = preferences;
     _readMobileAlertToken = readMobileAlertToken;
+    _deviceName = deviceName;
     if (previous != null &&
         previous.mobilePushIncludeRecovery !=
             settings.mobilePushIncludeRecovery &&
@@ -430,7 +435,7 @@ class MobileAlertService {
     return client.registerDevice(
       MobileAlertRegistrationRequest(
         installationId: installationId,
-        deviceName: 'Homelab Tablet',
+        deviceName: _deviceName,
         fcmToken: token,
         enabled: true,
         includeRecovery: settings.mobilePushIncludeRecovery,
@@ -516,7 +521,7 @@ class MobileAlertService {
       await client.registerDevice(
         MobileAlertRegistrationRequest(
           installationId: installationId,
-          deviceName: 'Homelab Tablet',
+          deviceName: _deviceName,
           fcmToken: token,
           enabled: true,
           includeRecovery: settings.mobilePushIncludeRecovery,

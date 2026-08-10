@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'core/config/app_settings.dart';
 import 'core/config/app_variant.dart';
-import 'core/routing/app_router.dart';
+import 'core/routing/phone_router.dart';
 import 'features/mobile_alerts/data/mobile_alert_service.dart';
 import 'features/server_widget/data/server_widget_service.dart';
 
@@ -21,17 +20,17 @@ Future<void> main() async {
     await MobileAlertService.initializeFirebaseAndRegisterBackgroundHandler();
     await ServerWidgetService.instance.bootstrap();
     initialWidgetRoute = await ServerWidgetService.instance
-        .readInitialLaunchRoute(variant: AppVariant.tablet);
+        .readInitialLaunchRoute(variant: AppVariant.phone);
   }
 
   runApp(
     ProviderScope(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(preferences),
-        appVariantProvider.overrideWithValue(AppVariant.tablet),
+        appVariantProvider.overrideWithValue(AppVariant.phone),
       ],
       child: HomelabApp(
-        routerProvider: appRouterProvider,
+        routerProvider: phoneRouterProvider,
         initialWidgetRoute: initialWidgetRoute,
       ),
     ),
